@@ -25,6 +25,7 @@
   boot.extraModulePackages = [ ];
   boot.supportedFilesystems = [ "zfs" ];
   boot.zfs.extraPools = [ "hdd" ];
+  boot.zfs.forceImportRoot = false;
 
   services.smartd = {
     enable = true;

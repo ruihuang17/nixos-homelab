@@ -1,6 +1,6 @@
 { config, pkgs, ... }:
 {
-  age.secrets.paperless_admin_pass.file = /etc/nixos/secrets/paperless_admin_pass.age;
+  age.secrets.paperless_admin_pass.file = "/etc/nixos/secrets/paperless_admin_pass.age";
 
   services.paperless = {
     enable = true;

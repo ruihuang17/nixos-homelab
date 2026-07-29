@@ -5,9 +5,9 @@
   services.tailscale = {
     enable = true;
     useRoutingFeatures = "server";
-    package = pkgs.tailscale.overrideAttrs (oldAttrs: {
-      vendorHash = "sha256-Sd2iLJ7eDfDYdIRuW4xuiKgzhQWJWGAnz97FJWrVRlE=";
-    });
+    #package = pkgs.tailscale.overrideAttrs (oldAttrs: {
+    #  vendorHash = "sha256-Sd2iLJ7eDfDYdIRuW4xuiKgzhQWJWGAnz97FJWrVRlE=";
+    #});
   };
   # Firewall config in networking.nix
 

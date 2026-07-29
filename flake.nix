@@ -1,22 +1,30 @@
 {
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
-  };
-
-  outputs = inputs@{ self, nixpkgs, ... }: {
-    nixosConfigurations.satsuma = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [
-        ./configuration.nix
-        {
-          nixpkgs.config.allowUnfree = true;
-
-          nix.settings.experimental-features = [
-            "nix-command"
-            "flakes"
-          ];
-        }
-      ];
+    agenix = {
+      url = "github:ryantm/agenix";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
+
+  outputs =
+    inputs@{ self, nixpkgs, agenix, ... }:
+    {
+      nixosConfigurations.satsuma = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = { inherit inputs; };
+        modules = [
+          ./configuration.nix
+          agenix.nixosModules.default
+          {
+            nixpkgs.config.allowUnfree = true;
+
+            nix.settings.experimental-features = [
+              "nix-command"
+              "flakes"
+            ];
+          }
+        ];
+      };
+    };
 }

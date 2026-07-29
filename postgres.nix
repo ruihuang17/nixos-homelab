@@ -14,6 +14,7 @@
       "radarr-log"
       "prowlarr-main"
       "prowlarr-log"
+      "vaultwarden"
     ];
     ensureUsers = [
       {
@@ -31,6 +32,10 @@
       { name = "sonarr"; }
       { name = "radarr"; }
       { name = "prowlarr"; }
+      {
+        name = "vaultwarden";
+        ensureDBOwnership = true;
+      }
     ];
 
     identMap = ''

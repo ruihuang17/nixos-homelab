@@ -1,6 +1,6 @@
 { pkgs, config, ... }:
 {
-  age.secrets.cloudflare_api.file = /etc/nixos/secrets/cloudflare_api.age;
+  age.secrets.cloudflare_api.file = "/etc/nixos/secrets/cloudflare_api.age";
 
   security.acme = {
     acceptTerms = true;
@@ -127,6 +127,11 @@
         locations."/" = {  
           proxyPass = "http://127.0.0.1:9696";  
         };  
+      };
+
+      "vaultwarden.ruihuang.io" = {
+        useACMEHost = "ruihuang.io";  
+        forceSSL = true;  
       };
 
     };

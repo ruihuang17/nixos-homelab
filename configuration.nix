@@ -3,6 +3,7 @@
 # https://search.nixos.org/options and in the NixOS manual (`nixos-help`).
 
 {
+  inputs,
   config,
   lib,
   pkgs,
@@ -33,7 +34,8 @@ in
     ./mail.nix
     ./postgres.nix
     ./immich.nix
-    <agenix/modules/age.nix>
+    ./vaultwarden.nix
+
     ./nextcloud
     ./arr-stack
   ];
@@ -53,20 +55,12 @@ in
 
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.rhuang = {
+    uid = 1000;
     isNormalUser = true;
-    extraGroups = [ "wheel" ]; # Enable ‘sudo’ for the user.
-    packages = with pkgs; [
-      tree
-    ];
-    openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq4XsRorOLo7URBB1krIzhJi/ODqjUtD345D/DUrEkH"
-    ];
-
+    shell = pkgs.fish;
+    extraGroups = [ "wheel" "media" ];
+    openssh.authorizedKeys.keys = [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq4XsRorOLo7URBB1krIzhJi/ODqjUtD345D/DUrEkH" ];
   };
-
-  users.users.root.openssh.authorizedKeys.keys = [
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq4XsRorOLo7URBB1krIzhJi/ODqjUtD345D/DUrEkH"
-  ];
 
   users.users.lena = {
     uid = 1001;
@@ -76,6 +70,11 @@ in
     openssh.authorizedKeys.keys = [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICw7CHZkiNoG7StuF3NBnCHRWvsujJdX4ZTDIhz6YonH" ];
   };
 
+  users.users.root = {
+    openssh.authorizedKeys.keys = [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq4XsRorOLo7URBB1krIzhJi/ODqjUtD345D/DUrEkH" ];
+    shell = pkgs.fish;
+  };
+
   security.sudo.wheelNeedsPassword = false;
 
   # List packages installed in system profile.
@@ -83,7 +82,6 @@ in
   environment.systemPackages = with pkgs; [
     vim
     git
-    (callPackage <agenix/pkgs/agenix.nix> { })
     nixfmt
     ethtool
     kitty
@@ -92,6 +90,8 @@ in
     smartmontools
     go
     hugo
+    tree
+    inputs.agenix.packages.${stdenv.hostPlatform.system}.default
   ];
 
   # List services that you want to enable:
@@ -143,8 +143,10 @@ in
 
   system.autoUpgrade = {
     enable = true;
+    flake = "/etc/nixos/flake.nix";
     flags = [
       "--print-build-logs"
+      "--commit-lock-file"
     ];
     dates = "04:00";
     randomizedDelaySec = "45min";

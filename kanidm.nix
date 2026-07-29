@@ -7,8 +7,8 @@
       enable = true;
       settings = {
 	      log_level = "debug";
-	      tls_chain = /var/lib/acme/ruihuang.io/fullchain.pem;
-        tls_key = /var/lib/acme/ruihuang.io/key.pem;
+	      tls_chain = "/var/lib/acme/ruihuang.io/fullchain.pem";
+        tls_key = "/var/lib/acme/ruihuang.io/key.pem";
         origin = "https://idm.ruihuang.io";
         domain = "idm.ruihuang.io";    
         bindaddress = "127.0.0.1:8443";
@@ -24,5 +24,7 @@
       };
     };
   };
+
+  users.users.kanidm.extraGroups = [ "nginx" ];
 }
 

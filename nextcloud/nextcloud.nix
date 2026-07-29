@@ -1,12 +1,12 @@
 { pkgs, config, ... }:
 
 {
-  age.secrets.mail_pass.file = /etc/nixos/secrets/mail_pass.age;
-  age.secrets.nextcloud_admin_pass.file = /etc/nixos/secrets/nextcloud_admin_pass.age;
+  age.secrets.mail_pass.file = "/etc/nixos/secrets/mail_pass.age";
+  age.secrets.nextcloud_admin_pass.file = "/etc/nixos/secrets/nextcloud_admin_pass.age";
 
   services.nextcloud = {
     enable = true;
-    package = pkgs.nextcloud33;
+    package = pkgs.nextcloud34;
     https = true;
     hostName = "nextcloud.ruihuang.io";
     home = "/var/lib/nextcloud";
