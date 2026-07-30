@@ -1,8 +1,8 @@
 # Refer to https://github.com/dani-garcia/vaultwarden/blob/main/.env.template
 { config, pkgs, ... }:
 {
-  age.secrets.vaultwarden_openid.file = ./secrets/vaultwarden_openid.age;
-
+  age.secrets.vaultwarden_token.file = "/etc/nixos/secrets/vaultwarden_token.age";
+  
   services.vaultwarden = {
     enable = true;
     # in order to avoid having  ADMIN_TOKEN in the nix store it can be also set with the help of an environment file
@@ -10,9 +10,10 @@
     dbBackend = "postgresql";
     configureNginx = true;
     domain = "vaultwarden.ruihuang.io";
-    environmentFile = config.age.secrets.vaultwarden_openid.path; 
 
-    config = {
+    environmentFile = config.age.secrets.vaultwarden_token.path;
+
+    config = rec {
       SIGNUPS_ALLOWED = false;
       DATABASE_URL = "postgresql://vaultwarden@%2Fvar%2Frun%2Fpostgresql/vaultwarden";
 
@@ -22,24 +23,12 @@
       ROCKET_LOG = "critical";
 
       # Email
-      SMTP_HOST = "127.0.0.1";
-      SMTP_PORT = 25;
-      SMTP_SECURITY = "off";
-      SMTP_FROM = "alerts@ruihuang.io";
-      SMTP_FROM_NAME = "Vaultwarden server";
-
-      # --- SSO / OIDC (Kanidm) ---
-      SSO_ENABLED = true;
-      SSO_ONLY = false;
-      SSO_AUTHORITY = "https://idm.ruihuang.io/oauth2/openid/vaultwarden";
-      SSO_CLIENT_ID = "vaultwarden";
-      SSO_PKCE = true;
-      SSO_SCOPES = "profile email";
-      SSO_CLIENT_CACHE_EXPIRATION = 600;
-
-      # Only needed while first linking existing local accounts to SSO
-      SSO_SIGNUPS_MATCH_EMAIL = true;
-      SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION = false;
+      SMTP_HOST = "smtp.protonmail.ch";
+      SMTP_PORT = 587;
+      SMTP_SECURITY = "starttls";
+      SMTP_USERNAME = "vaultwarden@ruihuang.io";
+      SMTP_AUTH_MECHANISM = "Login";
+      SMTP_FROM = SMTP_USERNAME;
     };
   };
 }
