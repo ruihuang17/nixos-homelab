@@ -27,6 +27,10 @@
         useACMEHost = "ruihuang.io";
         forceSSL = true;
         root = "/srv/www/main/public";
+        locations."/countdown/" = {
+          alias = "/srv/www/countdown/";
+          index = "index.html";
+        };
       };
 
       "www.ruihuang.io" = {
@@ -133,6 +137,20 @@
         useACMEHost = "ruihuang.io";  
         forceSSL = true;  
       };
+
+      "dns.local.ruihuang.io" = {  
+        useACMEHost = "ruihuang.io";  
+        forceSSL = true;  
+        locations."/" = {  
+          proxyPass = "http://10.0.10.23:5380";  
+        };  
+      };
+
+
+
+
+
+
 
     };
   };
