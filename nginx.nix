@@ -133,6 +133,14 @@
         };  
       };
 
+      "bazarr.local.ruihuang.io" = {  
+        useACMEHost = "ruihuang.io";  
+        forceSSL = true;  
+        locations."/" = {  
+          proxyPass = "http://127.0.0.1:6767";  
+        };  
+      };
+
       "vaultwarden.ruihuang.io" = {
         useACMEHost = "ruihuang.io";  
         forceSSL = true;  

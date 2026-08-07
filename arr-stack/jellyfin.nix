@@ -24,7 +24,22 @@
       maxConcurrentStreams = 1;
     };
   };
-   environment.systemPackages = with pkgs; [ jellyfin-ffmpeg ]; 
-  users.users.jellyfin.extraGroups = [ "render" "video" ];
+  environment.systemPackages = with pkgs; [ jellyfin-ffmpeg ];
+  users.users.jellyfin.extraGroups = [
+    "render"
+    "video"
+  ];
   hardware.graphics.enable = true;
+  
+  systemd.services.jellyfin.serviceConfig.Environment = [
+    "XDG_CACHE_HOME=/var/lib/jellyfin/.cache"
+  ];
+  fonts.fontconfig.localConf = ''
+    <?xml version="1.0"?>
+    <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+    <fontconfig>
+      <!-- Tell Fontconfig to scan your 28G font directory in place -->
+      <dir>/var/lib/jellyfin/fonts</dir>
+    </fontconfig>
+  '';
 }

@@ -43,5 +43,10 @@
   };
 
   services.flaresolverr.enable = true;
-  
+
+  services.bazarr = {
+    enable = true;
+    group = "media";
+  };
+
 }
