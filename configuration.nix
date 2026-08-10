@@ -58,20 +58,32 @@ in
     uid = 1000;
     isNormalUser = true;
     shell = pkgs.fish;
-    extraGroups = [ "wheel" "media" ];
-    openssh.authorizedKeys.keys = [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq4XsRorOLo7URBB1krIzhJi/ODqjUtD345D/DUrEkH" ];
+    extraGroups = [
+      "wheel"
+      "media"
+    ];
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq4XsRorOLo7URBB1krIzhJi/ODqjUtD345D/DUrEkH"
+    ];
   };
 
   users.users.lena = {
     uid = 1001;
     isNormalUser = true;
     shell = pkgs.fish;
-    extraGroups = [ "wheel" "media" ];
-    openssh.authorizedKeys.keys = [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICw7CHZkiNoG7StuF3NBnCHRWvsujJdX4ZTDIhz6YonH" ];
+    extraGroups = [
+      "wheel"
+      "media"
+    ];
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICw7CHZkiNoG7StuF3NBnCHRWvsujJdX4ZTDIhz6YonH"
+    ];
   };
 
   users.users.root = {
-    openssh.authorizedKeys.keys = [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq4XsRorOLo7URBB1krIzhJi/ODqjUtD345D/DUrEkH" ];
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq4XsRorOLo7URBB1krIzhJi/ODqjUtD345D/DUrEkH"
+    ];
     shell = pkgs.fish;
   };
 
@@ -91,6 +103,7 @@ in
     go
     hugo
     tree
+    ffsubsync
     inputs.agenix.packages.${stdenv.hostPlatform.system}.default
   ];
 
@@ -130,12 +143,11 @@ in
   # Spin down HDDs only — target explicitly by wwn, skip NVMe entirely.
   # Longer idle timeout (30 min) reduces spin-up/down cycling.
   services.udev.extraRules = ''
-    KERNEL=="sda", RUN+="${pkgs.hdparm}/bin/hdparm -S 240 /dev/sda"
-    KERNEL=="sdb", RUN+="${pkgs.hdparm}/bin/hdparm -S 240 /dev/sdb"
-    KERNEL=="sdc", RUN+="${pkgs.hdparm}/bin/hdparm -S 240 /dev/sdc"
-    KERNEL=="sdd", RUN+="${pkgs.hdparm}/bin/hdparm -S 240 /dev/sdd"
+    ACTION=="add", KERNEL=="sda", SUBSYSTEM=="block", RUN+="${pkgs.hdparm}/bin/hdparm -S 240 /dev/sda"
+    ACTION=="add", KERNEL=="sdb", SUBSYSTEM=="block", RUN+="${pkgs.hdparm}/bin/hdparm -S 240 /dev/sdb"
+    ACTION=="add", KERNEL=="sdc", SUBSYSTEM=="block", RUN+="${pkgs.hdparm}/bin/hdparm -S 240 /dev/sdc"
+    ACTION=="add", KERNEL=="sdd", SUBSYSTEM=="block", RUN+="${pkgs.hdparm}/bin/hdparm -S 240 /dev/sdd"
   '';
-
   # Reduce ZFS write frequency to disk (fewer wake-ups)
   boot.extraModprobeConfig = ''
     options zfs zfs_txg_timeout=30
@@ -143,14 +155,14 @@ in
 
   system.autoUpgrade = {
     enable = true;
-    flake = "/etc/nixos/flake.nix";
+    flake = "/etc/nixos/";
     flags = [
       "--print-build-logs"
       "--commit-lock-file"
     ];
     dates = "04:00";
     randomizedDelaySec = "45min";
-    allowReboot = true; # Set to true if you want automatic reboots
+    allowReboot = false; # Set to true if you want automatic reboots
   };
 
   nix.optimise.automatic = true;

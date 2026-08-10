@@ -36,21 +36,9 @@ in
   # agenix secrets
   # -----------------------------------------------------------------------
   age.secrets = {
-    pia-username = {
-      file = ../secrets/pia-username.age; # adjust relative path as needed
-      owner = "root";
-      mode = "0400";
-    };
-    pia-password = {
-      file = ../secrets/pia-password.age;
-      owner = "root";
-      mode = "0400";
-    };
-    qbittorrent-password = {
-      file = ../secrets/qbittorrent-password.age;
-      owner = "root";
-      mode = "0400";
-    };
+    pia-username.file = ../secrets/pia-username.age; 
+    pia-password.file = ../secrets/pia-password.age;
+    qbittorrent-password.file = ../secrets/qbittorrent-password.age;
   };
 
   environment.systemPackages = with pkgs; [
@@ -146,8 +134,8 @@ in
   };
 
   # -----------------------------------------------------------------------
-  # 2. VPN namespace + veth bridge (unchanged from before)
-  # -----------------------------------------------------------------------
+  # 2. VPN namespace + veth bridge
+    # -----------------------------------------------------------------------
   systemd.services.pia-vpn = {
     description = "PIA WireGuard VPN Network Namespace";
     after = [
@@ -203,7 +191,7 @@ in
   };
 
   # -----------------------------------------------------------------------
-  # 3. qBittorrent - password hashed from agenix secret before start
+  # 3. qBittorrent
   # -----------------------------------------------------------------------
   systemd.tmpfiles.rules = [
     "d ${downloadDir} 0770 qbittorrent qbittorrent -"
@@ -286,7 +274,7 @@ in
   users.groups.qbittorrent = { };
 
   # -----------------------------------------------------------------------
-  # 4. Sync PIA's forwarded port (unchanged)
+  # 4. Sync PIA's forwarded port
   # -----------------------------------------------------------------------
   systemd.services.pia-port-forwarder = {
     description = "Sync PIA dynamic port forwarding with qBittorrent Web API";
@@ -330,7 +318,7 @@ in
   };
 
   # -----------------------------------------------------------------------
-  # 5. nginx reverse proxy (unchanged)
+  # 5. nginx reverse proxy
   # -----------------------------------------------------------------------
   services.nginx = {
     enable = true;
