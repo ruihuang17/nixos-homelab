@@ -11,4 +11,5 @@ in
   "pia-password.age".publicKeys = [ satsuma ];
   "qbittorrent-password.age".publicKeys = [ satsuma ];
   "vaultwarden_token.age".publicKeys = [ satsuma ];
+  "matrix_oidc.age".publicKeys = [ satsuma ];
 }

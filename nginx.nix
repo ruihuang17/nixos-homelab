@@ -7,7 +7,10 @@
     defaults.email = "rui@ruihuang.io";
     certs."ruihuang.io" = {
       domain = "ruihuang.io";
-      extraDomainNames = [ "*.ruihuang.io" "*.local.ruihuang.io" ];
+      extraDomainNames = [
+        "*.ruihuang.io"
+        "*.local.ruihuang.io"
+      ];
       group = config.services.nginx.group;
       dnsProvider = "cloudflare";
       environmentFile = config.age.secrets.cloudflare_api.path;
@@ -109,51 +112,64 @@
         };
       };
 
-      "sonarr.local.ruihuang.io" = {  
-        useACMEHost = "ruihuang.io";  
-        forceSSL = true;  
-        locations."/" = {  
-          proxyPass = "http://127.0.0.1:8989";  
-        };  
+      "sonarr.local.ruihuang.io" = {
+        useACMEHost = "ruihuang.io";
+        forceSSL = true;
+        locations."/" = {
+          proxyPass = "http://127.0.0.1:8989";
+        };
       };
 
-      "radarr.local.ruihuang.io" = {  
-        useACMEHost = "ruihuang.io";  
-        forceSSL = true;  
-        locations."/" = {  
-          proxyPass = "http://127.0.0.1:7878";  
-        };  
+      "radarr.local.ruihuang.io" = {
+        useACMEHost = "ruihuang.io";
+        forceSSL = true;
+        locations."/" = {
+          proxyPass = "http://127.0.0.1:7878";
+        };
       };
 
-      "prowlarr.local.ruihuang.io" = {  
-        useACMEHost = "ruihuang.io";  
-        forceSSL = true;  
-        locations."/" = {  
-          proxyPass = "http://127.0.0.1:9696";  
-        };  
+      "prowlarr.local.ruihuang.io" = {
+        useACMEHost = "ruihuang.io";
+        forceSSL = true;
+        locations."/" = {
+          proxyPass = "http://127.0.0.1:9696";
+        };
       };
-
 
       "vaultwarden.ruihuang.io" = {
-        useACMEHost = "ruihuang.io";  
-        forceSSL = true;  
+        useACMEHost = "ruihuang.io";
+        forceSSL = true;
       };
 
-      "dns.local.ruihuang.io" = {  
-        useACMEHost = "ruihuang.io";  
-        forceSSL = true;  
-        locations."/" = {  
-          proxyPass = "http://10.0.10.23:5380";  
-        };  
+      "dns.local.ruihuang.io" = {
+        useACMEHost = "ruihuang.io";
+        forceSSL = true;
+        locations."/" = {
+          proxyPass = "http://10.0.10.23:5380";
+        };
       };
 
+      "matrix.ruihuang.io" = {
+        useACMEHost = "ruihuang.io";
+        forceSSL = true;
+        locations."/" = {
+          proxyPass = "http://127.0.0.1:8008";
+        };
+      };
 
-
-
-
-
+      "mautrix-wsproxy.local.ruihuang.io" = {
+        useACMEHost = "ruihuang.io";
+        forceSSL = true;
+        locations."/" = {
+          proxyPass = "http://127.0.0.1:29331";
+          proxyWebsockets = true;
+          extraConfig = ''
+            proxy_read_timeout 3600s;
+            proxy_send_timeout 3600s;
+          '';
+        };
+      };
 
     };
   };
 }
-

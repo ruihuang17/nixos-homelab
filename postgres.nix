@@ -1,5 +1,13 @@
 { config, pkgs, ... }:
 {
+
+  # CREATE DATABASE "matrix-synapse"
+  #   WITH ENCODING = 'UTF8'
+  #   LC_COLLATE = 'C'
+  #   LC_CTYPE = 'C'
+  #   TEMPLATE = template0;
+  #   OWNER = "matrix-synapse"
+
   services.postgresql = {
     enable = true;
     dataDir = "/var/lib/psql";

@@ -35,6 +35,7 @@ in
     ./postgres.nix
     ./immich.nix
     ./vaultwarden.nix
+    ./matrix.nix
 
     ./nextcloud
     ./arr-stack
