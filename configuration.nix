@@ -39,6 +39,7 @@ in
     ./vaultwarden.nix
     ./matrix.nix
     ./zfs-backup.nix
+    ./boot-replication.nix
 
     ./nextcloud
     ./arr-stack
