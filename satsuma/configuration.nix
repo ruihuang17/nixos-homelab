@@ -1,7 +1,3 @@
-# Edit this configuration file to define what should be installed on
-# your system. Help is available in the configuration.nix(5) man page, on
-# https://search.nixos.org/options and in the NixOS manual (`nixos-help`).
-
 {
   inputs,
   config,
@@ -58,86 +54,13 @@ in
   # Set your time zone.
   time.timeZone = "America/Toronto";
 
-  # Define a user account. Don't forget to set a password with ‘passwd’.
-  users.users.rhuang = {
-    uid = 1000;
-    isNormalUser = true;
-    shell = pkgs.fish;
-    extraGroups = [
-      "wheel"
-      "media"
-    ];
-    openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq4XsRorOLo7URBB1krIzhJi/ODqjUtD345D/DUrEkH"
-    ];
-  };
-
-  users.users.lena = {
-    uid = 1001;
-    isNormalUser = true;
-    shell = pkgs.fish;
-    extraGroups = [
-      "wheel"
-      "media"
-    ];
-    openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICw7CHZkiNoG7StuF3NBnCHRWvsujJdX4ZTDIhz6YonH"
-    ];
-  };
-
-  users.users.root = {
-    openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq4XsRorOLo7URBB1krIzhJi/ODqjUtD345D/DUrEkH"
-    ];
-    shell = pkgs.fish;
-  };
-
-  security.sudo.wheelNeedsPassword = false;
-
   # List packages installed in system profile.
   # You can use https://search.nixos.org/ to find more packages (and options).
   environment.systemPackages = with pkgs; [
-    helix
-    ripgrep
-    kiro-cli
-    vim
-    git
-    nixfmt
-    ethtool
-    kitty
-    sourceHighlight
-    btop
-    smartmontools
     go
     hugo
-    tree
     ffsubsync
-    inputs.agenix.packages.${stdenv.hostPlatform.system}.default
   ];
-
-  # List services that you want to enable:
-
-  # Enable the OpenSSH daemon.
-  services.openssh = {
-    enable = true;
-    settings.PermitRootLogin = "prohibit-password";
-  };
-
-  programs.fish.enable = true;
-  programs.nix-ld.enable = true;
-
-  programs.ssh.extraConfig = ''
-    Host github.com
-        HostName github.com
-        User git
-        IdentityFile ~/.ssh/general
-  '';
-  programs.bash = {
-    interactiveShellInit = ''
-      export LESSOPEN="| /run/current-system/sw/bin/src-hilite-lesspipe.sh %s"
-      export LESS="-R"
-    '';
-  };
 
   # Power Optimization
   powerManagement.cpuFreqGovernor = "powersave";
@@ -196,31 +119,6 @@ in
       fi
     ''}";
 
-  nix.optimise.automatic = true;
-  nix.optimise.dates = [ "05:00" ]; # Optional; allows customizing optimisation schedule
-
-  # Copy the NixOS configuration file and link it from the resulting system
-  # (/run/current-system/configuration.nix). This is useful in case you
-  # accidentally delete configuration.nix.
-  # system.copySystemConfiguration = true;
-
-  # This option defines the first version of NixOS you have installed on this particular machine,
-  # and is used to maintain compatibility with application data (e.g. databases) created on older NixOS versions.
-  #
-  # Most users should NEVER change this value after the initial install, for any reason,
-  # even if you've upgraded your system to a new NixOS release.
-  #
-  # This value does NOT affect the Nixpkgs version your packages and OS are pulled from,
-  # so changing it will NOT upgrade your system - see https://nixos.org/manual/nixos/stable/#sec-upgrading for how
-  # to actually do that.
-  #
-  # This value being lower than the current NixOS release does NOT mean your system is
-  # out of date, out of support, or vulnerable.
-  #
-  # Do NOT change this value unless you have manually inspected all the changes it would make to your configuration,
-  # and migrated your data accordingly.
-  #
-  # For more information, see `man configuration.nix` or https://nixos.org/manual/nixos/stable/options#opt-system.stateVersion .
   system.stateVersion = "26.05"; # Did you read the comment?
-
 }
+
