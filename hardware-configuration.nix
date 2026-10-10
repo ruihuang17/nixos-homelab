@@ -98,18 +98,11 @@
     options = [ "zfsutil" "nofail" ];
   };
 
-  fileSystems."/hdd/photo" = {
-    device = "hdd/photo";
-    fsType = "zfs";
-    options = [ "zfsutil" "nofail" ];
-  };
-
   systemd.tmpfiles.rules = [
     "z /hdd           0775 root media - -"
     "z /hdd/backup    0770 root media - -"
     "z /hdd/data      0770 root media - -"
     "z /hdd/mediaSrv  0770 root media - -"
-    "z /hdd/photo     0770 immich immich - -"
   ];
 
   services.nfs.server.enable = true;
