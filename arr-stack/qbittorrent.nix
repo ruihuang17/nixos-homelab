@@ -66,7 +66,10 @@ in
         PIA_USER=$(cat ${config.age.secrets.pia-username.path})
         PIA_PASS=$(cat ${config.age.secrets.pia-password.path})
 
-        SERVERLIST=$(${pkgs.curl}/bin/curl -s "https://serverlist.piaservers.net/vpninfo/servers/v6" | head -1)
+        SERVERLIST=$(${pkgs.curl}/bin/curl -s \
+          --connect-timeout 10 --max-time 30 \
+          --retry 5 --retry-delay 3 --retry-all-errors \
+          "https://serverlist.piaservers.net/vpninfo/servers/v6" | head -1)
         WG_SERVER_IP=$(echo "$SERVERLIST" | ${pkgs.jq}/bin/jq -r --arg region "${piaRegion}" \
           '.regions[] | select(.id == $region) | .servers.wg[0].ip')
         WG_SERVER_CN=$(echo "$SERVERLIST" | ${pkgs.jq}/bin/jq -r --arg region "${piaRegion}" \
@@ -82,11 +85,19 @@ in
           echo "WARNING: region ${piaRegion} does not support port forwarding" >&2
         fi
 
-        PIA_TOKEN=$(${pkgs.curl}/bin/curl -s -u "$PIA_USER:$PIA_PASS" \
-          "https://privateinternetaccess.com/gtoken/generateToken" | ${pkgs.jq}/bin/jq -r '.token')
+        TOKEN_JSON=$(${pkgs.curl}/bin/curl -s \
+          --connect-timeout 10 --max-time 30 \
+          --retry 5 --retry-delay 3 --retry-all-errors \
+          --location --request POST \
+          "https://www.privateinternetaccess.com/api/client/v2/token" \
+          --form "username=$PIA_USER" \
+          --form "password=$PIA_PASS")
+
+        PIA_TOKEN=$(echo "$TOKEN_JSON" | ${pkgs.jq}/bin/jq -r '.token // empty' 2>/dev/null)
 
         if [ -z "$PIA_TOKEN" ] || [ "$PIA_TOKEN" == "null" ]; then
-          echo "PIA authentication failed - check username/password" >&2
+          echo "PIA token request failed. Raw response was:" >&2
+          echo "$TOKEN_JSON" >&2
           exit 1
         fi
 
@@ -94,6 +105,8 @@ in
         PUBLIC_KEY=$(echo "$PRIVATE_KEY" | ${pkgs.wireguard-tools}/bin/wg pubkey)
 
         WG_JSON=$(${pkgs.curl}/bin/curl -s -G \
+          --connect-timeout 10 --max-time 30 \
+          --retry 5 --retry-delay 3 --retry-all-errors \
           --connect-to "$WG_SERVER_CN::$WG_SERVER_IP:" \
           --cacert "${piaCaCert}" \
           --data-urlencode "pt=$PIA_TOKEN" \

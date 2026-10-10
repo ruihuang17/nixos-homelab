@@ -124,6 +124,13 @@ in
 
   programs.fish.enable = true;
   programs.nix-ld.enable = true;
+
+  programs.ssh.extraConfig = ''
+    Host github.com
+        HostName github.com
+        User git
+        IdentityFile ~/.ssh/general
+  '';
   programs.bash = {
     interactiveShellInit = ''
       export LESSOPEN="| /run/current-system/sw/bin/src-hilite-lesspipe.sh %s"
