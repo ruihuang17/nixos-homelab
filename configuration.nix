@@ -23,6 +23,8 @@ let
   );
 in
 {
+  nixpkgs.config.allowUnfree = true;
+
   imports = [
     # Include the results of the hardware scan.
     ./hardware-configuration.nix
@@ -93,6 +95,9 @@ in
   # List packages installed in system profile.
   # You can use https://search.nixos.org/ to find more packages (and options).
   environment.systemPackages = with pkgs; [
+    helix
+    ripgrep
+    kiro-cli
     vim
     git
     nixfmt

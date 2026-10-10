@@ -4,7 +4,7 @@
 
   security.acme = {
     acceptTerms = true;
-    defaults.email = "rui@ruihuang.io";
+    defaults.email = "rui.huang17@protonmail.com";
     certs."ruihuang.io" = {
       domain = "ruihuang.io";
       extraDomainNames = [
@@ -14,6 +14,8 @@
       group = config.services.nginx.group;
       dnsProvider = "cloudflare";
       environmentFile = config.age.secrets.cloudflare_api.path;
+      dnsResolver = "1.1.1.1:53";
+      extraLegoRunFlags = [ "--ari-disable" ];
     };
   };
 
