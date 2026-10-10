@@ -38,6 +38,7 @@ in
     ./immich.nix
     ./vaultwarden.nix
     ./matrix.nix
+    ./zfs-backup.nix
 
     ./nextcloud
     ./arr-stack
