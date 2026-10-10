@@ -7,7 +7,7 @@
 {
 
   age.secrets.matrix_oidc = {
-    file = "/etc/nixos/secrets/matrix_oidc.age";
+    file = "/etc/nixos/satsuma/secrets/matrix_oidc.age";
     mode = "770";
     owner = "matrix-synapse";
     group = "matrix-synapse";

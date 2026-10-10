@@ -1,8 +1,8 @@
 { pkgs, config, ... }:
 
 {
-  age.secrets.mail_pass.file = "/etc/nixos/secrets/mail_pass.age";
-  age.secrets.nextcloud_admin_pass.file = "/etc/nixos/secrets/nextcloud_admin_pass.age";
+  age.secrets.mail_pass.file = "/etc/nixos/satsuma/secrets/mail_pass.age";
+  age.secrets.nextcloud_admin_pass.file = "/etc/nixos/satsuma/secrets/nextcloud_admin_pass.age";
 
   services.nextcloud = {
     enable = true;

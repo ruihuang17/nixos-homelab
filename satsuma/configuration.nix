@@ -93,7 +93,7 @@ in
 
   system.autoUpgrade = {
     enable = true;
-    flake = "/etc/nixos/";
+    flake = "/etc/nixos/#satsuma";
     flags = [
       "--print-build-logs"
       "--commit-lock-file"

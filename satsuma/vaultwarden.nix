@@ -1,7 +1,7 @@
 # Refer to https://github.com/dani-garcia/vaultwarden/blob/main/.env.template
 { config, pkgs, ... }:
 {
-  age.secrets.vaultwarden_token.file = "/etc/nixos/secrets/vaultwarden_token.age";
+  age.secrets.vaultwarden_token.file = "/etc/nixos/satsuma/secrets/vaultwarden_token.age";
   
   services.vaultwarden = {
     enable = true;
