@@ -35,6 +35,17 @@ in
     mode = "0400";
   };
 
+  # Random fallback-admin password for the Stalwart web admin. Because
+  # authentication is delegated to the kanidm directory, this built-in admin
+  # is the reliable way to reach the web UI (e.g. to register domains, read
+  # DNS records, rotate DKIM) even if the directory is unavailable.
+  age.secrets.stalwart_admin = {
+    file = ./secrets/stalwart_admin.age;
+    owner = "stalwart";
+    group = "stalwart";
+    mode = "0400";
+  };
+
   # ---------------------------------------------------------------------------
   # TLS certificates via ACME (Cloudflare DNS-01)
   # ---------------------------------------------------------------------------
@@ -72,9 +83,21 @@ in
     # systemd LoadCredential at /run/credentials/stalwart.service/ldap_token
     credentials.ldap_token = config.age.secrets.kanidm_ldap_token.path;
 
+    # Fallback admin password, loaded as a credential and referenced below.
+    credentials.fallback_admin = config.age.secrets.stalwart_admin.path;
+
     settings = {
       # -- Server identity ---------------------------------------------------
       server.hostname = mailHost;
+
+      # -- Fallback admin ----------------------------------------------------
+      # Built-in administrator for the web UI / management API. Username is
+      # "admin"; the password comes from the loaded credential. Needed because
+      # normal authentication is delegated to the kanidm directory.
+      authentication.fallback-admin = {
+        user = "admin";
+        secret = "%{file:/run/credentials/stalwart.service/fallback_admin}%";
+      };
 
       # -- Web admin: use the upstream prebuilt zip (see webadminZip note) ----
       webadmin.resource = "file://${webadminZip}";
