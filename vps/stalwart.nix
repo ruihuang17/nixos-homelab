@@ -114,7 +114,7 @@ in
       # the tailnet. The expression returns an HTTP status: 200 allow / 403 deny.
       # (Admin/API also still require authentication; this is defense in depth.)
       server.http.allowed-endpoint =
-        "[{\"if\": \"listener == 'https-admin' || !contains(['admin', 'api'], split(url_path, '/')[1])\", \"then\": 200}, {\"else\": 403}]";
+        "[{\"if\": \"listener == 'https-admin' || !contains(['admin', 'api'], split(path, '/')[1])\", \"then\": 200}, {\"else\": 403}]";
 
       # -- TLS: use the ACME certificate issued above ------------------------
       certificate.default = {
