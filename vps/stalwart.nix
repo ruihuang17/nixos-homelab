@@ -209,9 +209,14 @@ in
         auth.username = "%{file:/run/credentials/stalwart.service/ses_user}%";
         auth.secret = "%{file:/run/credentials/stalwart.service/ses_pass}%";
       };
-      # Route all outbound mail through the SES relay. This is an expression,
-      # so the route name must be a quoted string literal ('ses').
-      queue.strategy.route = "'ses'";
+      # Route remote recipients through the SES relay, but keep local
+      # delivery for our own domains. (A bare 'ses' here replaced Stalwart's
+      # default and sent mail for local mailboxes out to SES, which rejected
+      # it: inbound mail was lost.) Expressions need quoted string literals.
+      queue.strategy.route = [
+        { "if" = "is_local_domain('*', rcpt_domain)"; "then" = "'local'"; }
+        { "else" = "'ses'"; }
+      ];
 
       # -- kanidm LDAP directory --------------------------------------------
       directory.kanidm = {
