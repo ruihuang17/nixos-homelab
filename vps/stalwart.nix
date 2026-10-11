@@ -46,6 +46,22 @@ in
     mode = "0400";
   };
 
+  # AWS SES SMTP relay credentials (outbound). The username is an SES SMTP
+  # user (AKIA...), the secret its SMTP password. Kept out of the world-
+  # readable nix store via agenix + systemd LoadCredential.
+  age.secrets.ses_smtp_user = {
+    file = ./secrets/ses_smtp_user.age;
+    owner = "stalwart";
+    group = "stalwart";
+    mode = "0400";
+  };
+  age.secrets.ses_smtp_pass = {
+    file = ./secrets/ses_smtp_pass.age;
+    owner = "stalwart";
+    group = "stalwart";
+    mode = "0400";
+  };
+
   # ---------------------------------------------------------------------------
   # TLS certificates via ACME (Cloudflare DNS-01)
   # ---------------------------------------------------------------------------
@@ -88,6 +104,10 @@ in
 
     # Fallback admin password, loaded as a credential and referenced below.
     credentials.fallback_admin = config.age.secrets.stalwart_admin.path;
+
+    # AWS SES SMTP relay credentials, exposed to the service via LoadCredential.
+    credentials.ses_user = config.age.secrets.ses_smtp_user.path;
+    credentials.ses_pass = config.age.secrets.ses_smtp_pass.path;
 
     settings = {
       # -- Server identity ---------------------------------------------------
@@ -172,6 +192,25 @@ in
       # -- Storage (defaults from the module provide RocksDB) ----------------
       # Authenticate/look up principals against the kanidm LDAP directory.
       storage.directory = "kanidm";
+
+      # -- Outbound relay via AWS SES (smarthost) ----------------------------
+      # OVH blocks outbound port 25, and sending directly from a VPS IP has
+      # poor deliverability, so all outbound mail is relayed through Amazon
+      # SES (region us-east-2) over submission/STARTTLS with SASL auth. SES
+      # signs with the DKIM identity we verified, and the custom MAIL FROM
+      # (bounce.estrogenuinely.ca) gives SPF alignment too.
+      queue.route.ses = {
+        type = "relay";
+        address = "email-smtp.us-east-2.amazonses.com";
+        port = 587;
+        protocol = "smtp";
+        tls.implicit = false; # STARTTLS on 587
+        tls.allow-invalid-certs = false;
+        auth.username = "%{file:/run/credentials/stalwart.service/ses_user}%";
+        auth.secret = "%{file:/run/credentials/stalwart.service/ses_pass}%";
+      };
+      # Route all outbound mail through the SES relay.
+      queue.strategy.route = "ses";
 
       # -- kanidm LDAP directory --------------------------------------------
       directory.kanidm = {

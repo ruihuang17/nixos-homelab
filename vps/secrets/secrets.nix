@@ -7,4 +7,6 @@ in
   "cloudflare_api.age".publicKeys = common;
   "kanidm_ldap_token.age".publicKeys = common;
   "stalwart_admin.age".publicKeys = common;
+  "ses_smtp_user.age".publicKeys = common;
+  "ses_smtp_pass.age".publicKeys = common;
 }
