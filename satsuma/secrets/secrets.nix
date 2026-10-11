@@ -1,7 +1,10 @@
 let
   satsuma = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMp74d/OCwnetejX24slNj+6kIiEmarYX8j8+Zuku8IF";
   rhuang = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq4XsRorOLo7URBB1krIzhJi/ODqjUtD345D/DUrEkH";
-  common = [ satsuma rhuang ];
+  common = [
+    satsuma
+    rhuang
+  ];
 in
 {
   "cloudflare_api.age".publicKeys = common;

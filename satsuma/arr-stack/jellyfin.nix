@@ -30,7 +30,7 @@
     "video"
   ];
   hardware.graphics.enable = true;
-  
+
   systemd.services.jellyfin.serviceConfig.Environment = [
     "XDG_CACHE_HOME=/var/lib/jellyfin/.cache"
   ];

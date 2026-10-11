@@ -18,7 +18,11 @@
     "sd_mod"
   ];
   boot.initrd.kernelModules = [ ];
-  boot.kernelModules = [ "kvm-amd" "amd_pstate=active" "amdgpu" ];
+  boot.kernelModules = [
+    "kvm-amd"
+    "amd_pstate=active"
+    "amdgpu"
+  ];
   boot.extraModulePackages = [ ];
   boot.supportedFilesystems = [ "zfs" ];
   boot.zfs.extraPools = [ "hdd" ];
@@ -34,7 +38,6 @@
       sender = "alerts@ruihuang.io";
     };
   };
-
 
   fileSystems."/" = {
     device = "zpool/root";
@@ -74,25 +77,37 @@
   fileSystems."/hdd" = {
     device = "hdd";
     fsType = "zfs";
-    options = [ "zfsutil" "nofail" ];
+    options = [
+      "zfsutil"
+      "nofail"
+    ];
   };
 
   fileSystems."/hdd/backup" = {
     device = "hdd/backup";
     fsType = "zfs";
-    options = [ "zfsutil" "nofail" ];
+    options = [
+      "zfsutil"
+      "nofail"
+    ];
   };
 
   fileSystems."/hdd/data" = {
     device = "hdd/data";
     fsType = "zfs";
-    options = [ "zfsutil" "nofail" ];
+    options = [
+      "zfsutil"
+      "nofail"
+    ];
   };
 
   fileSystems."/hdd/mediaSrv" = {
     device = "hdd/mediaSrv";
     fsType = "zfs";
-    options = [ "zfsutil" "nofail" ];
+    options = [
+      "zfsutil"
+      "nofail"
+    ];
   };
 
   systemd.tmpfiles.rules = [

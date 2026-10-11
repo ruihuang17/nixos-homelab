@@ -2,7 +2,7 @@
 { config, pkgs, ... }:
 {
   age.secrets.vaultwarden_token.file = "/etc/nixos/satsuma/secrets/vaultwarden_token.age";
-  
+
   services.vaultwarden = {
     enable = true;
     # in order to avoid having  ADMIN_TOKEN in the nix store it can be also set with the help of an environment file

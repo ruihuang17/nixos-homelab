@@ -8,7 +8,12 @@
   };
 
   outputs =
-    inputs@{ self, nixpkgs, agenix, ... }:
+    inputs@{
+      self,
+      nixpkgs,
+      agenix,
+      ...
+    }:
     {
       nixosConfigurations.satsuma = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
@@ -19,7 +24,10 @@
           agenix.nixosModules.default
           {
             nixpkgs.config.allowUnfree = true;
-            nix.settings.experimental-features = [ "nix-command" "flakes" ];
+            nix.settings.experimental-features = [
+              "nix-command"
+              "flakes"
+            ];
           }
         ];
       };
@@ -33,10 +41,12 @@
           agenix.nixosModules.default
           {
             nixpkgs.config.allowUnfree = true;
-            nix.settings.experimental-features = [ "nix-command" "flakes" ];
+            nix.settings.experimental-features = [
+              "nix-command"
+              "flakes"
+            ];
           }
         ];
       };
     };
 }
-

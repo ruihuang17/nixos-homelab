@@ -48,9 +48,6 @@ in
   # Use latest kernel.
   boot.kernelPackages = latestKernelPackage;
 
-  networking.hostName = "satsuma"; # Define your hostname.
-  networking.hostId = "af300f15";
-
   # Set your time zone.
   time.timeZone = "America/Toronto";
 
@@ -121,4 +118,3 @@ in
 
   system.stateVersion = "26.05"; # Did you read the comment?
 }
-

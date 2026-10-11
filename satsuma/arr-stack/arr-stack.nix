@@ -1,4 +1,4 @@
-{ config, pkgs, ...}:
+{ config, pkgs, ... }:
 {
   users.groups.media = {
     gid = 3000;

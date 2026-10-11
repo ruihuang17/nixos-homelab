@@ -5,7 +5,12 @@
 #
 # Destination dataset hdd/backup/var is created out-of-band (not mounted:
 # canmount=off, mountpoint=none) so the received copy never shadows live /var.
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 {
   # --- Periodic snapshots (source side) -------------------------------------
@@ -37,8 +42,8 @@
       };
 
       backup = {
-        autosnap = false;   # snapshots arrive via syncoid, don't create here
-        autoprune = true;   # but do prune old ones on the backup pool
+        autosnap = false; # snapshots arrive via syncoid, don't create here
+        autoprune = true; # but do prune old ones on the backup pool
         hourly = 36;
         daily = 14;
         weekly = 4;

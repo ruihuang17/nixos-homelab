@@ -36,7 +36,7 @@ in
   # agenix secrets
   # -----------------------------------------------------------------------
   age.secrets = {
-    pia-username.file = ../secrets/pia-username.age; 
+    pia-username.file = ../secrets/pia-username.age;
     pia-password.file = ../secrets/pia-password.age;
     qbittorrent-password.file = ../secrets/qbittorrent-password.age;
   };
@@ -148,7 +148,7 @@ in
 
   # -----------------------------------------------------------------------
   # 2. VPN namespace + veth bridge
-    # -----------------------------------------------------------------------
+  # -----------------------------------------------------------------------
   systemd.services.pia-vpn = {
     description = "PIA WireGuard VPN Network Namespace";
     after = [

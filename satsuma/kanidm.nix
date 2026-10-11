@@ -6,8 +6,8 @@
     server = {
       enable = true;
       settings = {
-	      log_level = "debug";
-	      tls_chain = "/var/lib/acme/estrogenuinely.ca/fullchain.pem";
+        log_level = "debug";
+        tls_chain = "/var/lib/acme/estrogenuinely.ca/fullchain.pem";
         tls_key = "/var/lib/acme/estrogenuinely.ca/key.pem";
         origin = "https://idm.estrogenuinely.ca";
         domain = "idm.estrogenuinely.ca";
@@ -17,7 +17,7 @@
         # VPS perform LDAP lookups/binds against kanidm over Tailscale.
         # Kanidm only ever speaks LDAPS here (StartTLS is unsupported) and
         # reuses the web TLS material configured above.
-	      ldapbindaddress = "0.0.0.0:3636";
+        ldapbindaddress = "0.0.0.0:3636";
       };
     };
     client = {

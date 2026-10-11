@@ -15,22 +15,32 @@
 #     1. a path unit watching /boot (fires right after `nixos-rebuild switch`)
 #     2. a daily timer (safety net / random-seed drift)
 #     3. manually via `systemctl start sync-backup-esp`
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
   # Stable filesystem UUID of the backup EFI System Partition.
-  backupEspUuid  = "1BEB-C3B7"; # nvme0n1p1, the redundant copy
+  backupEspUuid = "1BEB-C3B7"; # nvme0n1p1, the redundant copy
 
   # Backup disk + partition number, needed by efibootmgr to create a boot entry.
-  backupDisk     = "/dev/nvme0n1";
-  backupPartNum  = "1";
+  backupDisk = "/dev/nvme0n1";
+  backupPartNum = "1";
 
-  espMountPoint  = config.boot.loader.efi.efiSysMountPoint; # "/boot"
+  espMountPoint = config.boot.loader.efi.efiSysMountPoint; # "/boot"
 
   syncScript = pkgs.writeShellApplication {
     name = "sync-backup-esp";
     runtimeInputs = with pkgs; [
-      coreutils util-linux rsync dosfstools efibootmgr gawk
+      coreutils
+      util-linux
+      rsync
+      dosfstools
+      efibootmgr
+      gawk
     ];
     text = ''
       set -euo pipefail
@@ -106,7 +116,10 @@ let
   };
 in
 {
-  environment.systemPackages = [ pkgs.efibootmgr syncScript ];
+  environment.systemPackages = [
+    pkgs.efibootmgr
+    syncScript
+  ];
 
   systemd.services.sync-backup-esp = {
     description = "Replicate primary EFI System Partition to the backup ESP";

@@ -1,4 +1,10 @@
-{ inputs, config, lib, pkgs, ... }:
+{
+  inputs,
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 {
   nixpkgs.config.allowUnfree = true;
@@ -32,10 +38,10 @@
   users.users.root = {
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq4XsRorOLo7URBB1krIzhJi/ODqjUtD345D/DUrEkH"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICw7CHZkiNoG7StuF3NBnCHRWvsujJdX4ZTDIhz6YonH"
     ];
     shell = pkgs.fish;
   };
-
   security.sudo.wheelNeedsPassword = false;
 
   environment.systemPackages = with pkgs; [
@@ -98,5 +104,5 @@
   '';
 
   nix.optimise.automatic = true;
-  nix.optimise.dates = [ "05:00" ]; # Optional; allows customizing optimisation schedule
+  nix.optimise.dates = [ "05:00" ];
 }
