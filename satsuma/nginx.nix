@@ -92,7 +92,7 @@
         };
       };
 
-      "homeassistant.estrogenuinely.ca" = {
+      "home.estrogenuinely.ca" = {
         useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
         locations."/" = {
