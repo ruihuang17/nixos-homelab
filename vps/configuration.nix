@@ -1,6 +1,7 @@
 { ... }: {
   imports = [
     ./hardware-configuration.nix
+    ./stalwart.nix
   ];
 
   # Workaround for https://github.com/NixOS/nix/issues/8502
@@ -14,5 +15,5 @@
     domain = "estrogenuinely.ca";
   };
   system.stateVersion = "23.11";
-  
+
 }
