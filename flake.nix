@@ -24,7 +24,7 @@
         ];
       };
 
-      nixosConfigurations."mail.estrogenuinely.ca" = nixpkgs.lib.nixosSystem {
+      nixosConfigurations.mail = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = { inherit inputs; };
         modules = [

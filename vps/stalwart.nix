@@ -113,8 +113,13 @@ in
       # JMAP and OAuth reachable publicly while the admin surface stays on
       # the tailnet. The expression returns an HTTP status: 200 allow / 403 deny.
       # (Admin/API also still require authentication; this is defense in depth.)
-      http.allowed-endpoint =
-        "[{\"if\": \"listener == 'https-admin' || !contains(['admin', 'api'], split(url_path, '/')[1])\", \"then\": 200}, {\"else\": 403}]";
+      http.allowed-endpoint = [
+        {
+          "if" = "listener == 'https-admin' || !contains(['admin', 'api'], split(url_path, '/')[1])";
+          "then" = 200;
+        }
+        { "else" = 403; }
+      ];
 
       # -- TLS: use the ACME certificate issued above ------------------------
       certificate.default = {
