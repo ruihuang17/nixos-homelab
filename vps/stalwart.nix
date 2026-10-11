@@ -223,6 +223,7 @@ in
       # twice (RSA + Ed25519) and SES rejects the message with
       # "Duplicate header 'DKIM-Signature'".
       auth.dkim.sign = [
+        { "if" = "false"; "then" = "['rsa-' + sender_domain]"; }
         { "else" = false; }
       ];
 
