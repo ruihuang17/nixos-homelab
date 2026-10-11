@@ -218,6 +218,14 @@ in
         { "else" = "'ses'"; }
       ];
 
+      # Do not DKIM-sign in Stalwart. Outbound mail is signed by SES (Easy
+      # DKIM, the three *.dkim.amazonses.com CNAMEs). Stalwart's default signs
+      # twice (RSA + Ed25519) and SES rejects the message with
+      # "Duplicate header 'DKIM-Signature'".
+      auth.dkim.sign = [
+        { "else" = false; }
+      ];
+
       # -- kanidm LDAP directory --------------------------------------------
       directory.kanidm = {
         type = "ldap";
