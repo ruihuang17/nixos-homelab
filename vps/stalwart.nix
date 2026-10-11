@@ -232,9 +232,14 @@ in
           # password. This is what lets traditional clients such as
           # Thunderbird authenticate with their kanidm credentials.
           auth = {
-            enable = true;
+            # 0.15.x keys: method "template" = bind as the user using a DN
+            # built from the template, "?" being the login name. (Older docs
+            # use auth.enable / auth.dn; those are ignored by 0.15.5, which
+            # then falls back to comparing a password hash that kanidm never
+            # exposes, so every login failed without ever binding.)
+            method = "template";
             # kanidm generates DNs from the spn/name/uuid attributes.
-            dn = "name=?,${kanidmBaseDn}";
+            template = "name=?,${kanidmBaseDn}";
           };
         };
 
