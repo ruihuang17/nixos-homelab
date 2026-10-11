@@ -77,7 +77,10 @@ in
     enable = true;
     # Fresh install on current NixOS: use the modern RocksDB storage layout.
     stateVersion = "26.05";
-    openFirewall = true;
+    # Firewall ports are opened explicitly below (per interface), so the
+    # module's blanket openFirewall is disabled. This lets us keep the HTTP
+    # listener (web admin / management API / JMAP) off the public internet.
+    openFirewall = false;
 
     # The kanidm LDAP service-bind token is exposed to the process via
     # systemd LoadCredential at /run/credentials/stalwart.service/ldap_token
@@ -201,9 +204,23 @@ in
   };
 
   # ---------------------------------------------------------------------------
-  # Firewall: mail + submission + imap + https.
-  # (services.stalwart.openFirewall opens the listener ports above, but we
-  #  also need the ACME/HTTP(S) flows to work; 25/465/587/143/993/443.)
+  # Firewall (Option B: admin surface is tailnet-only)
   # ---------------------------------------------------------------------------
-  networking.firewall.allowedTCPPorts = [ 25 465 587 143 993 443 ];
+  # Public (all interfaces): the mail protocols that remote servers and
+  # traditional clients (Thunderbird etc.) need.
+  #   25  SMTP (inbound MX)      465 submissions (implicit TLS)
+  #   587 submission (STARTTLS)  143 IMAP        993 IMAPS
+  networking.firewall.allowedTCPPorts = [ 25 465 587 143 993 ];
+
+  # Tailnet-only: the HTTP listener on 443 serves the web admin UI, the
+  # management API, JMAP and autoconfig. Keeping it on tailscale0 only means
+  # the administrative surface is never exposed to the public internet.
+  # ACME uses DNS-01 (Cloudflare), so 443 does NOT need to be public for
+  # certificate issuance.
+  #
+  # NOTE: this also makes JMAP + client autoconfig tailnet-only. That is fine
+  # while mail clients use IMAP/SMTP (ports above). See Stalwart.md "Option A"
+  # for a future split (separate public JMAP listener) if off-tailnet JMAP /
+  # webmail is ever needed.
+  networking.firewall.interfaces."tailscale0".allowedTCPPorts = [ 443 ];
 }
