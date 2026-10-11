@@ -58,6 +58,26 @@
         globalRedirect = "ruihuang.io";
       };
 
+      # Apex vhost: only serves Matrix delegation, since server_name is
+      # estrogenuinely.ca but Synapse lives at matrix.estrogenuinely.ca.
+      "estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
+        forceSSL = true;
+        locations."= /.well-known/matrix/server" = {
+          extraConfig = ''
+            default_type application/json;
+            return 200 '{"m.server": "matrix.estrogenuinely.ca:443"}';
+          '';
+        };
+        locations."= /.well-known/matrix/client" = {
+          extraConfig = ''
+            default_type application/json;
+            add_header Access-Control-Allow-Origin "*";
+            return 200 '{"m.homeserver": {"base_url": "https://matrix.estrogenuinely.ca"}}';
+          '';
+        };
+      };
+
       "nextcloud.estrogenuinely.ca" = {
         useACMEHost = "estrogenuinely.ca";
         forceSSL = true;

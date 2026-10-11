@@ -26,7 +26,7 @@
       SMTP_HOST = "smtp.protonmail.ch";
       SMTP_PORT = 587;
       SMTP_SECURITY = "starttls";
-      SMTP_USERNAME = "vaultwarden@estrogenuinely.ca";
+      SMTP_USERNAME = "vaultwarden@ruihuang.io";
       SMTP_AUTH_MECHANISM = "Login";
       SMTP_FROM = SMTP_USERNAME;
     };

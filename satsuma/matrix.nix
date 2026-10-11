@@ -16,13 +16,10 @@
   services.matrix-synapse = {
     enable = true;
     settings = {
-      # NOTE: server_name is the permanent Matrix identity. It is baked into
-      # every user ID (@user:ruihuang.io), room ID, and federation signature
-      # and CANNOT be changed without creating a brand-new, empty homeserver
-      # (see matrix-org/synapse#3031). It is intentionally kept as ruihuang.io
-      # to preserve existing accounts/rooms. Only the externally-facing URLs
-      # below are migrated to estrogenuinely.ca.
-      server_name = "ruihuang.io";
+      # server_name is the permanent Matrix identity (user IDs, room IDs,
+      # federation signatures). The homeserver was wiped and rebuilt when
+      # moving from ruihuang.io to estrogenuinely.ca (synapse#3031).
+      server_name = "estrogenuinely.ca";
       public_baseurl = "https://matrix.estrogenuinely.ca/";
       serve_server_wellknown = true;
       listeners = [

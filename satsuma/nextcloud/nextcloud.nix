@@ -31,9 +31,9 @@
       mail_smtpport = 587;
       mail_smtpsecure = "";
       mail_smtpauth = true;
-      mail_smtpname = "nextcloud@estrogenuinely.ca";
+      mail_smtpname = "nextcloud@ruihuang.io";
       mail_from_address = "nextcloud";
-      mail_domain = "estrogenuinely.ca";
+      mail_domain = "ruihuang.io";
       allow_local_remote_servers = true;
       lost_password_link = "disabled";
     };

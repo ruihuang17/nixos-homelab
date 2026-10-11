@@ -16,7 +16,7 @@
     # This block literally writes the file to /etc/postfix/outbound_map
     mapFiles = {
       outbound_map = pkgs.writeText "postfix-outbound-map" ''
-        /^(.*)@.*$/    alerts@estrogenuinely.ca
+        /^(.*)@.*$/    alerts@ruihuang.io
       '';
     };
 

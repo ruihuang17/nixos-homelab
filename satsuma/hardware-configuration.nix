@@ -30,8 +30,8 @@
     defaults.monitored = "-a -c interval=10800 -o on -s (S/../.././02|L/../../7/04) ";
     notifications.mail = {
       enable = true;
-      recipient = "alerts@estrogenuinely.ca";
-      sender = "alerts@estrogenuinely.ca";
+      recipient = "alerts@ruihuang.io";
+      sender = "alerts@ruihuang.io";
     };
   };
 
