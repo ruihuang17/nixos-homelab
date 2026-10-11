@@ -1,4 +1,4 @@
-{ ... }: {
+{ lib, ... }: {
   imports = [
     ./hardware-configuration.nix
     ./stalwart.nix
@@ -7,12 +7,20 @@
   # Workaround for https://github.com/NixOS/nix/issues/8502
   services.logrotate.checkConfig = false;
 
+  # SSH is reachable only over Tailscale on this public-facing VPS.
+  # common.nix sets openFirewall = true, so override it here to stop
+  # opening port 22 on the public interface, and allow it on tailscale0.
+  services.openssh.openFirewall = lib.mkForce false;
+
   boot.tmp.cleanOnBoot = true;
   zramSwap.enable = true;
   networking = {
     useDHCP = true;
     hostName = "mail";
     domain = "estrogenuinely.ca";
+
+    # Allow SSH only on the Tailscale interface.
+    firewall.interfaces."tailscale0".allowedTCPPorts = [ 22 ];
 
     # Static IPv6 (OVH). The gateway sits outside the advertised prefix, so
     # we add an explicit on-link /128 route to it before using it as the
