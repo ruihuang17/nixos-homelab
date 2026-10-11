@@ -209,8 +209,9 @@ in
         auth.username = "%{file:/run/credentials/stalwart.service/ses_user}%";
         auth.secret = "%{file:/run/credentials/stalwart.service/ses_pass}%";
       };
-      # Route all outbound mail through the SES relay.
-      queue.strategy.route = "ses";
+      # Route all outbound mail through the SES relay. This is an expression,
+      # so the route name must be a quoted string literal ('ses').
+      queue.strategy.route = "'ses'";
 
       # -- kanidm LDAP directory --------------------------------------------
       directory.kanidm = {
