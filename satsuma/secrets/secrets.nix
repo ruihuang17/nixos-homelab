@@ -14,4 +14,5 @@ in
   "qbittorrent-password.age".publicKeys = common;
   "vaultwarden_token.age".publicKeys = common;
   "matrix_oidc.age".publicKeys = common;
+  "nextcloud_oidc_secret.age".publicKeys = common;
 }

@@ -1,6 +1,10 @@
 { config, lib, ... }:
 
 {
+  # Kanidm OAuth2 client secret for the "nextcloud" client (decrypted at runtime,
+  # never placed in the world-readable nix store).
+  age.secrets.nextcloud_oidc_secret.file = "/etc/nixos/satsuma/secrets/nextcloud_oidc_secret.age";
+
   systemd.services.nextcloud-config-collabora =
     let
       inherit (config.services.nextcloud) occ;
@@ -24,7 +28,7 @@
         ${occ}/bin/nextcloud-occ config:app:set richdocuments public_wopi_url --value ${lib.escapeShellArg public_wopi_url}
         ${occ}/bin/nextcloud-occ config:app:set richdocuments wopi_allowlist --value ${lib.escapeShellArg wopi_allowlist}
         ${occ}/bin/nextcloud-occ richdocuments:setup
-        ${occ}/bin/nextcloud-occ user_oidc:provider Kanidm --clientid="nextcloud" --clientsecret="vvw5SgtNBSjbft27jKAVz6rCjYMDUNFR2kcPQ0Y51Cz1LtQx" --discoveryuri="https://idm.estrogenuinely.ca/oauth2/openid/nextcloud/.well-known/openid-configuration" --mapping-email=email --mapping-uid=preferred_username --mapping-display-name=name 
+        ${occ}/bin/nextcloud-occ user_oidc:provider Kanidm --clientid="nextcloud" --clientsecret="$(cat ${config.age.secrets.nextcloud_oidc_secret.path})" --discoveryuri="https://idm.estrogenuinely.ca/oauth2/openid/nextcloud/.well-known/openid-configuration" --mapping-email=email --mapping-uid=preferred_username --mapping-display-name=name 
       '';
       serviceConfig = {
         Type = "oneshot";
