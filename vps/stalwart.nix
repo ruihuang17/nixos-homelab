@@ -166,7 +166,12 @@ in
 
         tls = {
           enable = false; # url already specifies ldaps:// (implicit TLS)
-          allow-invalid-certs = false;
+          # kanidm's LDAPS cert is for idm.estrogenuinely.ca, but we connect
+          # over the tailnet hostname satsuma.tailf59fe4.ts.net, so the cert
+          # name will not match. The connection is already encrypted and
+          # authenticated end-to-end by Tailscale (WireGuard), so we accept
+          # the kanidm certificate without hostname verification.
+          allow-invalid-certs = true;
         };
       };
     };
