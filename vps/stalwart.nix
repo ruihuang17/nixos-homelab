@@ -257,7 +257,11 @@ in
         attributes = {
           class = "class";
           name = "name";
-          email = "mail";
+          # kanidm's `mail` also holds external addresses (Proton, Gmail).
+          # Stalwart registers every address it sees as local, which turned
+          # protonmail.com into a "local domain" and broke mail to Proton
+          # users. `emailprimary` is the single @estrogenuinely.ca address.
+          email = "emailprimary";
           groups = "memberof";
           description = "displayname";
         };
@@ -265,7 +269,7 @@ in
         # Lookup filters. Restrict to authenticatable accounts (class=account).
         filter = {
           name = "(&(class=account)(name=?))";
-          email = "(&(class=account)(mail=?))";
+          email = "(&(class=account)(emailprimary=?))";
         };
 
         cache.entries = 500;
