@@ -8,7 +8,7 @@
     port = 28981;
     passwordFile = config.age.secrets.paperless_admin_pass.path;
     dataDir = "/var/lib/paperless";
-    domain = "paperless.local.ruihuang.io";
+    domain = "paperless.local.estrogenuinely.ca";
     settings = {
       PAPERLESS_DBENGINE = "postgresql";
       PAPERLESS_DBHOST = "/run/postgresql";

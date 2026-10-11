@@ -17,6 +17,20 @@
       dnsResolver = "1.1.1.1:53";
       extraLegoRunFlags = [ "--ari-disable" ];
     };
+    certs."estrogenuinely.ca" = {
+      domain = "estrogenuinely.ca";
+      extraDomainNames = [
+        "*.estrogenuinely.ca"
+        "*.local.estrogenuinely.ca"
+      ];
+      group = config.services.nginx.group;
+      dnsProvider = "cloudflare";
+      # Same Cloudflare API token manages both the ruihuang.io and
+      # estrogenuinely.ca zones, so the existing credentials file is reused.
+      environmentFile = config.age.secrets.cloudflare_api.path;
+      dnsResolver = "1.1.1.1:53";
+      extraLegoRunFlags = [ "--ari-disable" ];
+    };
   };
 
   services.nginx = {
@@ -44,13 +58,13 @@
         globalRedirect = "ruihuang.io";
       };
 
-      "nextcloud.ruihuang.io" = {
-        useACMEHost = "ruihuang.io";
+      "nextcloud.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
       };
 
-      "collabora.ruihuang.io" = {
-        useACMEHost = "ruihuang.io";
+      "collabora.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
         locations."/" = {
           proxyPass = "http://[::1]:${toString config.services.collabora-online.port}";
@@ -58,8 +72,8 @@
         };
       };
 
-      "homeassistant.ruihuang.io" = {
-        useACMEHost = "ruihuang.io";
+      "homeassistant.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
         locations."/" = {
           proxyPass = "http://10.0.10.74:8123";
@@ -67,8 +81,8 @@
         };
       };
 
-      "idm.ruihuang.io" = {
-        useACMEHost = "ruihuang.io";
+      "idm.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
         locations."/" = {
           proxyPass = "https://127.0.0.1:8443";
@@ -78,16 +92,16 @@
         };
       };
 
-      "paperless.local.ruihuang.io" = {
-        useACMEHost = "ruihuang.io";
+      "paperless.local.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
         locations."/" = {
           proxyPass = "http://127.0.0.1:28981";
         };
       };
 
-      "immich.local.ruihuang.io" = {
-        useACMEHost = "ruihuang.io";
+      "immich.local.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
         extraConfig = ''
           client_max_body_size 50000M;
@@ -106,61 +120,61 @@
         };
       };
 
-      "jellyfin.local.ruihuang.io" = {
-        useACMEHost = "ruihuang.io";
+      "jellyfin.local.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
         locations."/" = {
           proxyPass = "http://127.0.0.1:8096";
         };
       };
 
-      "sonarr.local.ruihuang.io" = {
-        useACMEHost = "ruihuang.io";
+      "sonarr.local.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
         locations."/" = {
           proxyPass = "http://127.0.0.1:8989";
         };
       };
 
-      "radarr.local.ruihuang.io" = {
-        useACMEHost = "ruihuang.io";
+      "radarr.local.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
         locations."/" = {
           proxyPass = "http://127.0.0.1:7878";
         };
       };
 
-      "prowlarr.local.ruihuang.io" = {
-        useACMEHost = "ruihuang.io";
+      "prowlarr.local.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
         locations."/" = {
           proxyPass = "http://127.0.0.1:9696";
         };
       };
 
-      "vaultwarden.ruihuang.io" = {
-        useACMEHost = "ruihuang.io";
+      "vaultwarden.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
       };
 
-      "dns.local.ruihuang.io" = {
-        useACMEHost = "ruihuang.io";
+      "dns.local.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
         locations."/" = {
           proxyPass = "http://10.0.10.23:5380";
         };
       };
 
-      "matrix.ruihuang.io" = {
-        useACMEHost = "ruihuang.io";
+      "matrix.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
         locations."/" = {
           proxyPass = "http://127.0.0.1:8008";
         };
       };
 
-      "mautrix-wsproxy.local.ruihuang.io" = {
-        useACMEHost = "ruihuang.io";
+      "mautrix-wsproxy.local.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
         locations."/" = {
           proxyPass = "http://127.0.0.1:29331";

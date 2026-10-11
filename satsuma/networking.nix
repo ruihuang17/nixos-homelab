@@ -13,14 +13,14 @@
 
     hosts = {
       "127.0.0.1" = [
-        "nextcloud.ruihuang.io"
-        "collabora.ruihuang.io"
-        "idm.ruihuang.io"
+        "nextcloud.estrogenuinely.ca"
+        "collabora.estrogenuinely.ca"
+        "idm.estrogenuinely.ca"
       ];
       "::1" = [
-        "nextcloud.ruihuang.io"
-        "collabora.ruihuang.io"
-        "idm.ruihuang.io"
+        "nextcloud.estrogenuinely.ca"
+        "collabora.estrogenuinely.ca"
+        "idm.estrogenuinely.ca"
       ];
     };
 

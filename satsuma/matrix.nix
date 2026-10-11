@@ -16,8 +16,14 @@
   services.matrix-synapse = {
     enable = true;
     settings = {
+      # NOTE: server_name is the permanent Matrix identity. It is baked into
+      # every user ID (@user:ruihuang.io), room ID, and federation signature
+      # and CANNOT be changed without creating a brand-new, empty homeserver
+      # (see matrix-org/synapse#3031). It is intentionally kept as ruihuang.io
+      # to preserve existing accounts/rooms. Only the externally-facing URLs
+      # below are migrated to estrogenuinely.ca.
       server_name = "ruihuang.io";
-      public_baseurl = "https://matrix.ruihuang.io/";
+      public_baseurl = "https://matrix.estrogenuinely.ca/";
       serve_server_wellknown = true;
       listeners = [
         {
@@ -48,7 +54,7 @@
         {
           idp_id = "kanidm";
           idp_name = "Kanidm";
-          issuer = "https://idm.ruihuang.io/oauth2/openid/synapse/";
+          issuer = "https://idm.estrogenuinely.ca/oauth2/openid/synapse/";
           client_id = "synapse";
           client_secret_path = config.age.secrets.matrix_oidc.path;
           scopes = [

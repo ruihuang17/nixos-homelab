@@ -6,7 +6,7 @@
       inherit (config.services.nextcloud) occ;
 
       wopi_url = "http://[::1]:${toString config.services.collabora-online.port}";
-      public_wopi_url = "https://collabora.ruihuang.io";
+      public_wopi_url = "https://collabora.estrogenuinely.ca";
       wopi_allowlist = lib.concatStringsSep "," [
         "127.0.0.1"
         "::1"
@@ -24,7 +24,7 @@
         ${occ}/bin/nextcloud-occ config:app:set richdocuments public_wopi_url --value ${lib.escapeShellArg public_wopi_url}
         ${occ}/bin/nextcloud-occ config:app:set richdocuments wopi_allowlist --value ${lib.escapeShellArg wopi_allowlist}
         ${occ}/bin/nextcloud-occ richdocuments:setup
-        ${occ}/bin/nextcloud-occ user_oidc:provider Kanidm --clientid="nextcloud" --clientsecret="vvw5SgtNBSjbft27jKAVz6rCjYMDUNFR2kcPQ0Y51Cz1LtQx" --discoveryuri="https://idm.ruihuang.io/oauth2/openid/nextcloud/.well-known/openid-configuration" --mapping-email=email --mapping-uid=preferred_username --mapping-display-name=name 
+        ${occ}/bin/nextcloud-occ user_oidc:provider Kanidm --clientid="nextcloud" --clientsecret="vvw5SgtNBSjbft27jKAVz6rCjYMDUNFR2kcPQ0Y51Cz1LtQx" --discoveryuri="https://idm.estrogenuinely.ca/oauth2/openid/nextcloud/.well-known/openid-configuration" --mapping-email=email --mapping-uid=preferred_username --mapping-display-name=name 
       '';
       serviceConfig = {
         Type = "oneshot";

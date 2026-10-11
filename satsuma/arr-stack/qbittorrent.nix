@@ -335,8 +335,8 @@ in
   # -----------------------------------------------------------------------
   services.nginx = {
     enable = true;
-    virtualHosts."qbittorrent.local.ruihuang.io" = {
-      useACMEHost = "ruihuang.io";
+    virtualHosts."qbittorrent.local.estrogenuinely.ca" = {
+      useACMEHost = "estrogenuinely.ca";
       forceSSL = true;
       locations."/" = {
         proxyPass = "http://${vpnVethIP}:${toString qbtWebUIPort}";

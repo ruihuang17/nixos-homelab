@@ -9,7 +9,7 @@
     # be aware that this file must be created by hand (or via secrets management like sops)
     dbBackend = "postgresql";
     configureNginx = true;
-    domain = "vaultwarden.ruihuang.io";
+    domain = "vaultwarden.estrogenuinely.ca";
 
     environmentFile = config.age.secrets.vaultwarden_token.path;
 
@@ -26,7 +26,7 @@
       SMTP_HOST = "smtp.protonmail.ch";
       SMTP_PORT = 587;
       SMTP_SECURITY = "starttls";
-      SMTP_USERNAME = "vaultwarden@ruihuang.io";
+      SMTP_USERNAME = "vaultwarden@estrogenuinely.ca";
       SMTP_AUTH_MECHANISM = "Login";
       SMTP_FROM = SMTP_USERNAME;
     };

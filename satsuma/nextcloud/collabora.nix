@@ -25,11 +25,11 @@
       # Restrict loading documents from WOPI Host nextcloud.example.com
       storage.wopi = {
         "@allow" = true;
-        host = [ "nextcloud.ruihuang.io" ];
+        host = [ "nextcloud.estrogenuinely.ca" ];
       };
 
       # Set FQDN of server
-      server_name = "collabora.ruihuang.io";
+      server_name = "collabora.estrogenuinely.ca";
 
     };
   };

@@ -8,7 +8,7 @@
     enable = true;
     package = pkgs.nextcloud35;
     https = true;
-    hostName = "nextcloud.ruihuang.io";
+    hostName = "nextcloud.estrogenuinely.ca";
     home = "/var/lib/nextcloud";
     config = {
       dbtype = "pgsql";
@@ -31,9 +31,9 @@
       mail_smtpport = 587;
       mail_smtpsecure = "";
       mail_smtpauth = true;
-      mail_smtpname = "nextcloud@ruihuang.io";
+      mail_smtpname = "nextcloud@estrogenuinely.ca";
       mail_from_address = "nextcloud";
-      mail_domain = "ruihuang.io";
+      mail_domain = "estrogenuinely.ca";
       allow_local_remote_servers = true;
       lost_password_link = "disabled";
     };
