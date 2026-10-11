@@ -66,6 +66,7 @@
       ];
       app_service_config_files = [
         "/var/lib/matrix-synapse/imessage-registraction.yaml"
+        "/var/lib/matrix-synapse/sms-registration.yaml"
       ];
     };
   };

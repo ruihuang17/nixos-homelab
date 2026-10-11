@@ -185,6 +185,18 @@
         };
       };
 
+      # LAN-only Synapse endpoint for the air-gapped SMS bridge phone.
+      # Resolves to 10.0.10.72 via internal DNS (*.local.* wildcard cert),
+      # so the phone never hairpins out to the public WAN IP.
+      "matrix.local.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
+        forceSSL = true;
+        locations."/" = {
+          proxyPass = "http://127.0.0.1:8008";
+          proxyWebsockets = true;
+        };
+      };
+
       "matrix.estrogenuinely.ca" = {
         useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
