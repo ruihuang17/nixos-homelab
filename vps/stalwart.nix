@@ -8,6 +8,16 @@ let
   # satsuma is the kanidm host; MagicDNS resolves this name on the tailnet.
   kanidmLdapUrl = "ldaps://satsuma.tailf59fe4.ts.net:3636";
   kanidmBaseDn = "dc=idm,dc=estrogenuinely,dc=ca";
+
+  # The nixpkgs `stalwart.webadmin` derivation (v0.1.37) fails to build from
+  # source on this toolchain: libdeflate-sys 1.23.1 emits GCC target()
+  # attributes ("evex512"/"no-evex512") that GCC 16 rejects. Upstream ships a
+  # prebuilt artifact for the exact same tag, so we fetch that release zip and
+  # point Stalwart's webadmin resource at it instead of building from source.
+  webadminZip = pkgs.fetchurl {
+    url = "https://github.com/stalwartlabs/webadmin/releases/download/v0.1.37/webadmin.zip";
+    hash = "sha256-nIJFxOFHoIBt1/lH97tfOHYay6o3Gwtb3Ap5A2s7WQk=";
+  };
 in
 {
   # ---------------------------------------------------------------------------
@@ -65,6 +75,9 @@ in
     settings = {
       # -- Server identity ---------------------------------------------------
       server.hostname = mailHost;
+
+      # -- Web admin: use the upstream prebuilt zip (see webadminZip note) ----
+      webadmin.resource = "file://${webadminZip}";
 
       # -- TLS: use the ACME certificate issued above ------------------------
       certificate.default = {
