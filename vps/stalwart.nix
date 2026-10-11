@@ -249,6 +249,11 @@ in
         };
 
         # Attribute mapping: kanidm -> Stalwart.
+        # Local domains served by this directory. is_local_domain() (used by
+        # the queue route strategy and recipient checks) matches against this
+        # list; an LDAP directory has no domain list of its own.
+        lookup.domains = [ domain ];
+
         attributes = {
           class = "class";
           name = "name";
