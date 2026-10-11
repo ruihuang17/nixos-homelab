@@ -245,6 +245,11 @@ in
             method = "template";
             # kanidm generates DNs from the spn/name/uuid attributes.
             template = "name=?,${kanidmBaseDn}";
+            # Read the user's entry with the service account, not the user's
+            # own bound session: kanidm hides attributes such as emailprimary
+            # from a user-bound LDAP session, so the principal ended up with
+            # no email addresses ("not allowed to send from this address").
+            search = false;
           };
         };
 
