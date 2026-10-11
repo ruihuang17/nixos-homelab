@@ -18,9 +18,9 @@
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICw7CHZkiNoG7StuF3NBnCHRWvsujJdX4ZTDIhz6YonH"
     ];
-    home.packages = with pkgs; [
+    packages = with pkgs; [
       helix
       ripgrep
+    ];
   };
-
 }
