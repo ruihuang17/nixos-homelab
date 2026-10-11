@@ -105,6 +105,17 @@ in
       # -- Web admin: use the upstream prebuilt zip (see webadminZip note) ----
       webadmin.resource = "file://${webadminZip}";
 
+      # -- HTTP endpoint access control (Option A) ---------------------------
+      # The public `https` listener (443) serves everything EXCEPT the admin
+      # UI (/admin) and management API (/api). Those are served only on the
+      # `https-admin` listener (8443), which is firewalled to tailscale0.
+      # This keeps autodiscovery (.well-known, autoconfig, autodiscover),
+      # JMAP and OAuth reachable publicly while the admin surface stays on
+      # the tailnet. The expression returns an HTTP status: 200 allow / 403 deny.
+      # (Admin/API also still require authentication; this is defense in depth.)
+      server.http.allowed-endpoint =
+        "[{\"if\": \"listener == 'https-admin' || !contains(['admin', 'api'], split(url_path, '/')[1])\", \"then\": 200}, {\"else\": 403}]";
+
       # -- TLS: use the ACME certificate issued above ------------------------
       certificate.default = {
         cert = "%{file:/var/lib/acme/${mailHost}/fullchain.pem}%";
@@ -136,10 +147,19 @@ in
           bind = "[::]:993";
           tls.implicit = true;
         };
-        # JMAP / web admin / autoconfig over HTTPS.
+        # Public HTTPS: JMAP, autoconfig/autodiscover, .well-known, OAuth.
+        # (Admin UI / management API are blocked here by allowed-endpoint.)
         https = {
           protocol = "http";
           bind = "[::]:443";
+          tls.implicit = true;
+        };
+        # Tailnet-only HTTPS for the admin UI + management API (8443,
+        # firewalled to tailscale0). allowed-endpoint lets /admin and /api
+        # through only on this listener.
+        https-admin = {
+          protocol = "http";
+          bind = "[::]:8443";
           tls.implicit = true;
         };
       };
@@ -204,23 +224,18 @@ in
   };
 
   # ---------------------------------------------------------------------------
-  # Firewall (Option B: admin surface is tailnet-only)
+  # Firewall (Option A: public mail + public autodiscovery; admin tailnet-only)
   # ---------------------------------------------------------------------------
-  # Public (all interfaces): the mail protocols that remote servers and
-  # traditional clients (Thunderbird etc.) need.
+  # Public (all interfaces):
   #   25  SMTP (inbound MX)      465 submissions (implicit TLS)
   #   587 submission (STARTTLS)  143 IMAP        993 IMAPS
-  networking.firewall.allowedTCPPorts = [ 25 465 587 143 993 ];
+  #   443 HTTPS (JMAP, autoconfig/autodiscover, .well-known, OAuth)
+  # The admin UI / management API are blocked on 443 by `allowed-endpoint`;
+  # they are only served on the `https-admin` listener (8443) below.
+  networking.firewall.allowedTCPPorts = [ 25 465 587 143 993 443 ];
 
-  # Tailnet-only: the HTTP listener on 443 serves the web admin UI, the
-  # management API, JMAP and autoconfig. Keeping it on tailscale0 only means
-  # the administrative surface is never exposed to the public internet.
-  # ACME uses DNS-01 (Cloudflare), so 443 does NOT need to be public for
-  # certificate issuance.
-  #
-  # NOTE: this also makes JMAP + client autoconfig tailnet-only. That is fine
-  # while mail clients use IMAP/SMTP (ports above). See Stalwart.md "Option A"
-  # for a future split (separate public JMAP listener) if off-tailnet JMAP /
-  # webmail is ever needed.
-  networking.firewall.interfaces."tailscale0".allowedTCPPorts = [ 443 ];
+  # Tailnet-only: the admin HTTP listener (8443) carrying the web admin UI
+  # and management API. Reach it at https://<tailnet-name>:8443. ACME uses
+  # DNS-01 (Cloudflare), so none of this is needed for cert issuance.
+  networking.firewall.interfaces."tailscale0".allowedTCPPorts = [ 8443 ];
 }
