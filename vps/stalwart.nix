@@ -201,7 +201,7 @@ in
       # (bounce.estrogenuinely.ca) gives SPF alignment too.
       queue.route.ses = {
         type = "relay";
-        address = "email-smtp.us-east-2.amazonses.com";
+        address = "email-smtp.us-east-2.amazonaws.com";
         port = 587;
         protocol = "smtp";
         tls.implicit = false; # STARTTLS on 587
