@@ -48,5 +48,22 @@
           }
         ];
       };
+
+      nixosConfigurations.tangerine = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = { inherit inputs; };
+        modules = [
+          ./tangerine/configuration.nix
+          ./common.nix
+          agenix.nixosModules.default
+          {
+            nixpkgs.config.allowUnfree = true;
+            nix.settings.experimental-features = [
+              "nix-command"
+              "flakes"
+            ];
+          }
+        ];
+      };
     };
 }
