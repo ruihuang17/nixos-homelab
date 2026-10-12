@@ -1,0 +1,229 @@
+# Monitoring (Prometheus + Grafana)
+
+`kiro-cli --resume-id 3810a146-7c1d-4671-863b-30f1854a2bc2`
+
+Set up 2026-10-11. Metrics for every server/host are collected by **Prometheus**
+on satsuma and visualised in **Grafana**. Each host runs a **node_exporter** that
+Prometheus scrapes on port **9100**. See [[Setup Overview]] for the host table and
+[[IP Address]] for addresses.
+
+## At a glance
+
+| Component     | Where         | Address               | Exposed as                                   |
+| ------------- | ------------- | --------------------- | -------------------------------------------- |
+| Prometheus    | satsuma       | `127.0.0.1:9090`      | `prometheus.local.estrogenuinely.ca` (nginx) |
+| Grafana       | satsuma       | `127.0.0.1:3000`      | `grafana.local.estrogenuinely.ca` (nginx)    |
+| node_exporter | satsuma       | `127.0.0.1:9100`      | local only                                   |
+| node_exporter | orange        | `10.0.10.23:9100`     | LAN                                          |
+| node_exporter | mac-mini      | `10.0.10.73:9100`     | LAN                                          |
+| node_exporter | homeassistant | `10.0.10.74:9100`     | LAN                                          |
+| node_exporter | mail (VPS)    | `100.91.236.114:9100` | **tailnet only**                             |
+
+Prometheus scrapes every 30 s and keeps 90 days of history. All six targets
+(the five hosts plus Prometheus scraping itself) report `up`.
+
+## Access
+
+- Grafana: <https://grafana.local.estrogenuinely.ca> — these `*.local.*` names
+  resolve to satsuma via orange's DNS, and use the `estrogenuinely.ca` wildcard
+  ACME cert. Internal only (not reachable from the public internet).
+- Prometheus UI: <https://prometheus.local.estrogenuinely.ca> 
+- Grafana login: click **Sign in with Kanidm** (OIDC, see below). The local
+  `admin` user remains as a break-glass login; its password is stored encrypted
+  with agenix at `satsuma/secrets/grafana_admin_pass.age` 
+- The pre-provisioned dashboard is **Node Exporter Full** (Grafana dashboard
+  1860). Pick a host from the `instance` dropdown (satsuma / orange / mac-mini /
+  homeassistant / mail).
+
+## How it's configured
+
+Everything on satsuma is declared in the NixOS flake at `/etc/nixos` (see
+[[Setup Overview]] → satsuma).
+
+### satsuma — `satsuma/monitoring.nix`
+
+- `services.prometheus` on `127.0.0.1:9090`, 90 day retention, 30 s scrape
+  interval. One `node` job with a static target per host (each tagged with an
+  `instance` label), plus a `prometheus` self-scrape job.
+- `services.grafana` on `127.0.0.1:3000`:
+  - `admin_password` and `secret_key` are both read at runtime from agenix
+    secrets via Grafana's `$__file{...}` provider, so neither lands in the Nix
+    store. (`secret_key` is mandatory on current nixpkgs — Grafana no longer
+    ships a default.)
+  - The Prometheus datasource is provisioned with a fixed `uid = "prometheus"`.
+  - The dashboard is provisioned from `satsuma/grafana-dashboards/`. The JSON was
+    downloaded from grafana.com (1860), its `${DS_PROMETHEUS}` placeholders were
+    rewritten to the `prometheus` datasource uid, and the `__inputs`/`__requires`
+    blocks were stripped so it imports without prompting.
+- node_exporter for satsuma itself comes from the shared module below.
+
+### Single sign-on (Kanidm OIDC)
+
+Same pattern as Nextcloud and Matrix (see [[Setup Overview]] → Identity).
+
+- Kanidm OAuth2 client `grafana` (landing page and redirect URL
+  `https://grafana.local.estrogenuinely.ca/login/generic_oauth`, strict redirect
+  matching). Scope map: `homelab_user` → `openid profile email groups`. Created
+  with `kanidm system oauth2 create grafana ...`; the Kanidm side is not in the
+  flake, only in Kanidm's database.
+- Grafana side is `auth.generic_oauth` in `satsuma/monitoring.nix`. PKCE is on
+  (Kanidm requires it). The client secret is the agenix file
+  `satsuma/secrets/grafana_oidc_secret.age`, read through `$__file{}`.
+- Roles come from the `groups` claim: members of `homelab_admin` get Grafana
+  **Admin**, any other `homelab_user` gets **Viewer**
+  (`role_attribute_strict = true`, so a login with no matching role is refused).
+  New Grafana users are created on first login.
+- To rotate the secret: `kanidm system oauth2 reset-secrets grafana`, re-encrypt
+  `grafana_oidc_secret.age`, rebuild.
+- Verified: Grafana redirects to Kanidm with the right client, redirect URI,
+  scopes and PKCE; Kanidm accepts the request; the stored secret authenticates at
+  the token endpoint (a wrong secret gets 401). A full browser login has **not**
+  been tested yet, so check that `rhuang` lands as Admin and a non-admin
+  `homelab_user` as Viewer.
+
+### Homelab Overview dashboard — `satsuma/monitoring-overview.nix`
+
+One page with the status of every machine and service
+(`https://grafana.local.estrogenuinely.ca/d/homelab-overview`). It is
+**generated from a service catalog** at the top of `monitoring-overview.nix`, and
+that same catalog also produces the probes and recording rules, so adding a
+service means adding one line to `services` and rebuilding.
+
+How a service is checked (`type` in the catalog):
+
+| type | Check | Used for |
+| ---- | ----- | -------- |
+| `http` | blackbox GET, any 2xx after redirects | web apps, via their health endpoints |
+| `tcp` | blackbox TCP connect | nginx, PostgreSQL, NFS, Postfix, Stalwart SMTP/IMAP |
+| `dns` | blackbox asks orange for `jellyfin.local.estrogenuinely.ca` and requires `10.0.10.72` | Technitium (a real answer, not just an open port) |
+| `systemd` | node_exporter says the unit is `active` | things with no reachable port: qBittorrent (inside the VPN netns), PIA VPN, Tailscale, Immich ML, wsproxy (mautrix-wsproxy) |
+
+Every check ends up as one series, `homelab:service_up{service,host,group,check}`
+(1 = up, 0 = down), recorded every 30 s. A missing probe, unit or host counts as
+**down**, not as "no data". The blackbox exporter runs on satsuma at
+`127.0.0.1:9115`.
+
+Panels: machines/services/failed-units/ZFS/cert summary tiles, a machines table
+(status, uptime, CPU, memory, disk; click a name for Node Exporter Full), one tile
+group per service category, a 24 h status history, slowest checks, TLS
+certificate lifetime left (`*.estrogenuinely.ca`, `*.ruihuang.io`, mail), and a
+failed-units list.
+
+Things to know:
+- Service names are kept short so each tile's name fits on one line (Grafana
+  left-aligns wrapped text). The tile text sizes are in `groupPanel`; the name is
+  deliberately larger than the UP/DOWN text.
+- **Temporary shim:** on 2026-10-11 "Matrix Synapse", "mautrix-wsproxy" and "PIA
+  port forward" were renamed to "Synapse", "wsproxy" and "PIA forward". The history
+  query (`renamed` / `historyExpr` in `monitoring-overview.nix`) folds the old names
+  into the new ones so each keeps one row. Delete that shim after 2026-10-13, once
+  the old names have aged out of the 24 h view.
+- **29 services** are covered. **mac-mini only appears as a machine**: nothing
+  on it listens except node_exporter, so there is nothing to probe for the iMessage
+  bridge or Sunshine.
+- The Kanidm, Nextcloud and Collabora checks go through nginx (they resolve to
+  localhost via `/etc/hosts`), so they also catch certificate and proxy problems.
+  The rest check the backend directly, so an orange DNS outage doesn't turn
+  everything red.
+- The service history starts when the rules were created (2026-10-11 ~22:45), so
+  the 24 h view fills in gradually.
+- **orange's node_exporter now runs with `--collector.systemd`** (edited in its unit
+  file) so failed units on orange are counted too.
+- `prometheus.local.estrogenuinely.ca` has **no DNS record on orange** (unlike
+  `grafana.local`), so that URL doesn't resolve from the LAN yet; add the record in
+  Technitium if you want it.
+
+### nginx — `satsuma/nginx.nix`
+
+Two internal vhosts were added, both using the `estrogenuinely.ca` wildcard
+cert:
+
+- `grafana.local.estrogenuinely.ca` → `http://127.0.0.1:3000` (websockets on,
+  Grafana Live needs them).
+- `prometheus.local.estrogenuinely.ca` → `http://127.0.0.1:9090`.
+
+### Shared server module — `server-common.nix` (flake root)
+
+A new module, imported by **satsuma** and **mail** (not the tangerine laptop),
+that provisions node_exporter consistently. It defines the option group
+`homelab.nodeExporter`:
+
+| Option | Default | Purpose |
+| ------ | ------- | ------- |
+| `enable` | `true` | Turn the exporter on. |
+| `listenAddress` | `127.0.0.1` | Bind address. |
+| `port` | `9100` | Listen port. |
+| `openFirewallTailscale` | `false` | If true, open the port **only** on `tailscale0`. |
+
+The exporter runs the `systemd` and `processes` collectors in addition to the
+defaults. satsuma uses the loopback default (Prometheus scrapes it locally).
+
+### mail / VPS — `vps/configuration.nix`
+
+mail is public-facing, so its exporter is tailnet-only:
+
+```nix
+homelab.nodeExporter = {
+  listenAddress = "0.0.0.0";
+  openFirewallTailscale = true;
+};
+```
+
+Binding `0.0.0.0` is safe because the NixOS firewall default-denies and only
+accepts `9100` on `tailscale0`. Prometheus on satsuma reaches it at the
+tailnet address `100.91.236.114:9100`. Verified with
+`nft`/`iptables`: the only rule is `-i tailscale0 ... --dport 9100 accept`.
+
+## node_exporter per host
+
+The three non-NixOS hosts don't use the flake, so they were set up by hand.
+
+### orange (Debian / aarch64) — systemd
+
+- Binary `node_exporter` v1.12.1 at `/usr/local/bin/node_exporter`
+  (official linux-arm64 release, not an apt package — consistent with how
+  Technitium is handled there, see [[Setup Overview]] → orange).
+- Runs as a dedicated `node_exporter` system user via
+  `/etc/systemd/system/node_exporter.service` (hardened: `NoNewPrivileges`,
+  `ProtectSystem=strict`, `ProtectHome`, etc.), enabled and listening on `:9100`.
+- Update later by replacing the binary and `systemctl restart node_exporter`.
+
+### mac-mini (macOS / arm64) — Homebrew
+
+- Installed with `brew install node_exporter` and started with
+  `brew services start node_exporter` (LaunchAgent
+  `~/Library/LaunchAgents/sh.brew.node_exporter.plist`, restarts at login).
+- Listens on `*:9100`. Homebrew lives at `/opt/homebrew/bin/brew`.
+
+### homeassistant (HAOS / x86-64) — Docker
+
+- HAOS's host OS is immutable, so the exporter runs as a Docker container on the
+  host:
+  ```
+  docker run -d --name node_exporter --restart unless-stopped \
+    --net host --pid host -v /:/host:ro,rslave \
+    quay.io/prometheus/node-exporter:v1.12.1 \
+    --path.rootfs=/host --web.listen-address=:9100
+  ```
+- `--net host --pid host` plus the read-only root mount make it report the real
+  host's metrics. `--restart unless-stopped` survives reboots.
+- Note: the Supervisor may list this unmanaged container as "unsupported"; it
+  won't remove it. If HAOS ever does, re-run the command above (host SSH is on
+  port 22222).
+
+## Common operations
+
+- Check scrape health:
+  `curl -s http://127.0.0.1:9090/api/v1/query?query=up` on satsuma, or the
+  Prometheus UI → *Status → Targets*.
+- Add a new host: install node_exporter on it (systemd/brew/docker as above, or
+  for a NixOS server just import `server-common.nix`), then add a target entry to
+  the `node` job in `satsuma/monitoring.nix` and `nixos-rebuild switch`.
+- Rotate the Grafana admin password: re-encrypt
+  `satsuma/secrets/grafana_admin_pass.age` with agenix and rebuild.
+
+## Not done yet / ideas
+
+- No alerting (Alertmanager) — Prometheus only collects and graphs for now.
+- Only host-level metrics (node_exporter). Service-level exporters
+  (PostgreSQL, nginx, ZFS, smartctl, etc.) could be added later.
