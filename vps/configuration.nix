@@ -13,6 +13,15 @@
   # opening port 22 on the public interface, and allow it on tailscale0.
   services.openssh.openFirewall = lib.mkForce false;
 
+  # Expose node_exporter only across the tailnet (Prometheus on satsuma
+  # scrapes it over Tailscale). The port is never opened on the public
+  # interface; binding 0.0.0.0 is safe because the firewall only permits
+  # 9100 on tailscale0.
+  homelab.nodeExporter = {
+    listenAddress = "0.0.0.0";
+    openFirewallTailscale = true;
+  };
+
   boot.tmp.cleanOnBoot = true;
   zramSwap.enable = true;
   networking = {

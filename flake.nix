@@ -20,6 +20,7 @@
         specialArgs = { inherit inputs; };
         modules = [
           ./satsuma/configuration.nix
+          ./server-common.nix
           ./lena.nix
           ./common.nix
           agenix.nixosModules.default
@@ -38,6 +39,7 @@
         specialArgs = { inherit inputs; };
         modules = [
           ./vps/configuration.nix
+          ./server-common.nix
           ./lena.nix
           ./common.nix
           agenix.nixosModules.default

@@ -37,6 +37,8 @@ in
     ./zfs-backup.nix
     ./boot-replication.nix
     ./postgres-backup.nix
+    ./monitoring.nix
+    ./monitoring-overview.nix
 
     ./nextcloud
     ./arr-stack

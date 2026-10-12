@@ -19,4 +19,7 @@ in
   "matrix_oidc.age".publicKeys = common;
   "nextcloud_oidc_secret.age".publicKeys = common;
   "restic_postgres_password.age".publicKeys = common;
+  "grafana_admin_pass.age".publicKeys = common;
+  "grafana_secret_key.age".publicKeys = common;
+  "grafana_oidc_secret.age".publicKeys = common;
 }

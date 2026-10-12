@@ -218,6 +218,23 @@
         };
       };
 
+      "grafana.local.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
+        forceSSL = true;
+        locations."/" = {
+          proxyPass = "http://127.0.0.1:3000";
+          proxyWebsockets = true; # Grafana live uses websockets
+        };
+      };
+
+      "prometheus.local.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
+        forceSSL = true;
+        locations."/" = {
+          proxyPass = "http://127.0.0.1:9090";
+        };
+      };
+
     };
   };
 }
