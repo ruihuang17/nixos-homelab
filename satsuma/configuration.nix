@@ -36,6 +36,7 @@ in
     ./matrix.nix
     ./zfs-backup.nix
     ./boot-replication.nix
+    ./postgres-backup.nix
 
     ./nextcloud
     ./arr-stack

@@ -2,6 +2,7 @@
   imports = [
     ./hardware-configuration.nix
     ./stalwart.nix
+    ./backup-target.nix
   ];
 
   # Workaround for https://github.com/NixOS/nix/issues/8502
