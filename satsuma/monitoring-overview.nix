@@ -154,7 +154,7 @@ let
     }
     {
       group = "Media";
-      name = "PIA port forward";
+      name = "PIA forward";
       type = "systemd";
       unit = "pia-port-forwarder.service";
     }
@@ -162,13 +162,13 @@ let
     # Messaging & mail
     {
       group = "Messaging & Mail";
-      name = "Matrix Synapse";
+      name = "Synapse";
       type = "http";
       target = "http://127.0.0.1:8008/health";
     }
     {
       group = "Messaging & Mail";
-      name = "mautrix-wsproxy";
+      name = "wsproxy";
       type = "systemd";
       unit = "mautrix-wsproxy.service";
     }
@@ -767,8 +767,15 @@ let
   # One tile per service, one panel per group.
   tileCount = g: lib.length (lib.filter (s: s.group == g) services);
   perRow = 3;
-  groupRowHeight = 6;
+  groupRows = (lib.length groupNames + perRow - 1) / perRow;
   groupsY = 14;
+  tilesPerRow = 4; # tiles per row inside a group panel (see minVizWidth below)
+  panelHeight = g: if tileCount g > tilesPerRow then 7 else 5;
+  # Height of each row of group panels = tallest panel in that row.
+  groupRowHeights = lib.genList (
+    r: lib.foldl' lib.max 0 (map panelHeight (lib.sublist (r * perRow) perRow groupNames))
+  ) groupRows;
+  groupRowY = r: groupsY + lib.foldl' (a: b: a + b) 0 (lib.take r groupRowHeights);
 
   groupPanel = i: g: {
     type = "stat";
@@ -776,9 +783,9 @@ let
     datasource = ds;
     gridPos = {
       x = 8 * (lib.mod i perRow);
-      y = groupsY + groupRowHeight * (i / perRow);
+      y = groupRowY (i / perRow);
       w = 8;
-      h = groupRowHeight;
+      h = lib.elemAt groupRowHeights (i / perRow);
     };
     targets = [
       (target "A" "homelab:service_up{group=${q g}}" {
@@ -808,6 +815,13 @@ let
       textMode = "value_and_name";
       justifyMode = "center";
       orientation = "auto";
+      # The service name is the headline; UP/DOWN is secondary.
+      text = {
+        titleSize = 15;
+        valueSize = 12;
+      };
+      minVizWidth = 180;
+      minVizHeight = 50;
       reduceOptions = {
         calcs = [ "lastNotNull" ];
         fields = "";
@@ -816,8 +830,20 @@ let
     };
   };
 
-  groupRows = (lib.length groupNames + perRow - 1) / perRow;
-  historyY = groupsY + groupRowHeight * groupRows;
+  historyY = groupRowY groupRows;
+
+  # TEMPORARY (remove after 2026-10-13): three services were renamed on
+  # 2026-10-11 to shorten their tiles. This folds the old names' history into
+  # the new names so each service keeps a single history row. It writes the
+  # display name to a separate `svc` label so no label sets collide.
+  renamed = {
+    "Matrix Synapse" = "Synapse";
+    "mautrix-wsproxy" = "wsproxy";
+    "PIA port forward" = "PIA forward";
+  };
+  renameStep = e: old: ''label_replace(${e}, "svc", ${q renamed.${old}}, "service", ${q old})'';
+  historyBase = ''label_replace(min_over_time(homelab:service_up[$__interval]), "svc", "$1", "service", "(.*)")'';
+  historyExpr = "max by (svc) (${lib.foldl' renameStep historyBase (lib.attrNames renamed)})";
 
   historyPanel = {
     type = "status-history";
@@ -832,9 +858,20 @@ let
     # Bound the number of points; min_over_time keeps short outages visible
     # even when each bucket spans many minutes.
     maxDataPoints = 150;
+    # Outer-join all series on time so services that start recording later
+    # (newly added or renamed) are shown instead of being dropped.
+    transformations = [
+      {
+        id = "joinByField";
+        options = {
+          byField = "Time";
+          mode = "outer";
+        };
+      }
+    ];
     targets = [
-      (target "A" "min_over_time(homelab:service_up[$__interval])" {
-        legendFormat = "{{group}} · {{service}}";
+      (target "A" historyExpr {
+        legendFormat = "{{svc}}";
       })
     ];
     fieldConfig = {
