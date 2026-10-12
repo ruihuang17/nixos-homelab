@@ -207,7 +207,7 @@ in
   # 3. qBittorrent
   # -----------------------------------------------------------------------
   systemd.tmpfiles.rules = [
-    "d ${downloadDir} 0770 qbittorrent qbittorrent -"
+    "d ${downloadDir} 2770 qbittorrent media -"
   ];
 
   systemd.services.qbittorrent = {
