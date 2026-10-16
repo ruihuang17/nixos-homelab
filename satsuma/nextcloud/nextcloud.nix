@@ -29,7 +29,9 @@
       mail_smtpmode = "smtp";
       mail_smtphost = "mail.estrogenuinely.ca";
       mail_smtpport = 587;
-      mail_smtpsecure = "tls";
+      # Nextcloud only accepts "" (STARTTLS/none) or "ssl" (implicit TLS).
+      # Stalwart's 587 is STARTTLS, which Nextcloud negotiates with "".
+      mail_smtpsecure = "";
       mail_smtpauth = true;
       # Authenticate as the shared homelab-svc kanidm account (login is the
       # kanidm name, not an email); send as nextcloud@estrogenuinely.ca, one
