@@ -273,8 +273,6 @@ in
       # Unified alerting: contact points (email + Matrix via webhook receiver),
       # notification policy, and alert rules — all provisioned from the flake.
       alerting = {
-        enable = true;
-
         contactPoints.settings = {
           apiVersion = 1;
           contactPoints = [
