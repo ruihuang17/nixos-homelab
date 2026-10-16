@@ -1,7 +1,5 @@
 # Stalwart Mail Server (estrogenuinely.ca)
 
-`kiro-cli --resume-id fdd23ec0-f520-42c7-bf89-dcdedab24e39`
-
 Full mail server (SMTP/IMAP/JMAP) on the **vps** host (`mail.estrogenuinely.ca`, hostname
 `mail`, OVH, Canada). Users authenticate against **kanidm** on `satsuma` over **LDAP**,
 reached privately via **Tailscale**. TLS via ACME (Cloudflare DNS-01). Inbound mail arrives
@@ -10,8 +8,7 @@ directly on port 25; **outbound is relayed through AWS SES** (OVH blocks outboun
 > Not the same as `Mail.md` — that is the separate Postfix→Proton relay for system alerts.
 
 Branch: **`main`** (merged from `stalwart-mail` by fast-forward, pushed). Head when written: `533afab`.
-Both hosts' `/etc/nixos` checkouts now track `main`. The old `stalwart-mail` branch still exists
-on origin and can be deleted.
+Both hosts' `/etc/nixos` checkouts now track `main`. The old `stalwart-mail` branch still exists on origin and can be deleted.
 
 ## Status (2026-10-11)
 
@@ -32,8 +29,7 @@ on origin and can be deleted.
 
 Thunderbird/Apple Mail/Outlook must work. Stalwart's OIDC backend only validates
 `OAUTHBEARER` tokens, which those clients don't support with a third-party IdP, and it has
-no offline directory lookup (inbound mail to a user who never logged in is rejected). LDAP
-gives normal password login and real directory lookups.
+no offline directory lookup (inbound mail to a user who never logged in is rejected). LDAP gives normal password login and real directory lookups.
 
 ## Architecture
 
@@ -235,10 +231,11 @@ auth.secret   = "%{file:/run/credentials/stalwart.service/ses_pass}%"
 route = "'ses'"        # expression: quoted literal = send everything via SES
 ```
 
-- **Sandbox**: SES only delivers to *verified* recipients (and caps volume) until production
-  access is granted. Nothing in the config changes afterwards. To test now: verify a
-  recipient identity in SES, send from a mail client logged in as `rhuang`, then check the
-  received headers for `spf=pass dkim=pass dmarc=pass` and no "via amazonses.com".
+- **Production access** (granted 2026-10-15): SES now delivers to **any** recipient, not just
+  verified identities, with the normal production sending quota. No config change was needed
+  going from sandbox to production. Verified by sending from a mail client logged in as
+  `rhuang` and checking the received headers for `spf=pass dkim=pass dmarc=pass` and no
+  "via amazonses.com".
 - Custom MAIL FROM `bounce.estrogenuinely.ca` gives SPF alignment as well as DKIM alignment.
 
 ## DNS (Cloudflare, all DNS-only / grey cloud) — verified with dig
@@ -359,8 +356,8 @@ Proton), Cloudflare token rotation (both hosts), merge to main.
 - [ ] **Backups.** Nothing backs up `/var/lib/stalwart` (RocksDB: all mail) or the vps secrets.
       Decide on restic/borg to satsuma or object storage, and test a restore.
 - [x] **Log in once as `lena`** and check her account gets only `lena@estrogenuinely.ca` and no `gmail.com` appears under Domains (the Proton-domain fix was only tested on `rhuang`).
-- [ ] **SES production access** (sandbox only delivers to verified recipients). No config change
-      needed afterwards. Then re-test sending to an unverified address.
+- [x] **SES production access** (granted 2026-10-15; no config change needed). Delivers to any
+      recipient now, not just verified identities.
 - [x] **Test autodiscovery** from a fresh Thunderbird profile off the tailnet (just email + password). Only the HTTPS endpoint was verified, not a real client.
 - [x] **Verify the new Cloudflare tokens can edit DNS.** Only zone/DNS *read* was tested. Run astaging ACME order, or wait for the first renewal and check `journalctl -u acme-order-renew-mail.estrogenuinely.ca`.
 
