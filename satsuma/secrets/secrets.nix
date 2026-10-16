@@ -17,6 +17,8 @@ in
   "qbittorrent-password.age".publicKeys = common;
   "vaultwarden_token.age".publicKeys = common;
   "matrix_oidc.age".publicKeys = common;
+  "synapse_registration_secret.age".publicKeys = common;
+  "matrix_alertbot_token.age".publicKeys = common;
   "nextcloud_oidc_secret.age".publicKeys = common;
   "restic_postgres_password.age".publicKeys = common;
   "grafana_admin_pass.age".publicKeys = common;

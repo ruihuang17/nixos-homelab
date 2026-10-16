@@ -13,8 +13,24 @@
     group = "matrix-synapse";
   };
 
+  # Registration shared secret, used to register the homelab alert bot (and any
+  # future service bots) via `register_new_matrix_user`. Kept out of the Nix
+  # store via agenix and injected through Synapse's extraConfigFiles so it is
+  # not persisted to a world-readable store path.
+  age.secrets.synapse_registration_secret = {
+    file = "/etc/nixos/satsuma/secrets/synapse_registration_secret.age";
+    mode = "440";
+    owner = "matrix-synapse";
+    group = "matrix-synapse";
+  };
+
   services.matrix-synapse = {
     enable = true;
+    # Secrets (registration shared secret) injected at runtime, not baked into
+    # the Nix store.
+    extraConfigFiles = [
+      config.age.secrets.synapse_registration_secret.path
+    ];
     settings = {
       # server_name is the permanent Matrix identity (user IDs, room IDs,
       # federation signatures). The homeserver was wiped and rebuilt when
