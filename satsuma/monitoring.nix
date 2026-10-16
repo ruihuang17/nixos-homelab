@@ -345,8 +345,8 @@ in
                   uid = "homelab-disk-full";
                   title = "Filesystem almost full";
                   expr = ''
-                    (node_filesystem_avail_bytes{mountpoint="/", fstype!~"tmpfs|ramfs|overlay|squashfs|devtmpfs"}
-                      / node_filesystem_size_bytes{mountpoint="/", fstype!~"tmpfs|ramfs|overlay|squashfs|devtmpfs"}) < 0.10'';
+                    (node_filesystem_avail_bytes{mountpoint=~"/|/hdd", fstype!~"tmpfs|ramfs|overlay|squashfs|devtmpfs"}
+                      / node_filesystem_size_bytes{mountpoint=~"/|/hdd", fstype!~"tmpfs|ramfs|overlay|squashfs|devtmpfs"}) < 0.10'';
                   forDur = "15m";
                   summary = "{{ $labels.instance }} {{ $labels.mountpoint }} has <10% free space.";
                   labels.severity = "warning";
