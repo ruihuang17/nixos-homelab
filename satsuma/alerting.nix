@@ -6,9 +6,9 @@
 }:
 let
   # The homelab-alerts Matrix room (created with the homelab-alertbot user).
-  # Grafana's Matrix contact point posts to this receiver at
-  #   http://127.0.0.1:9686/alerts/<roomID>
-  alertRoomId = "!k9Y9GnXSOfor4J0h6PqDJWBfSyCw889EYbcbbXyUAVs:estrogenuinely.ca";
+  # NB: this Synapse returns the room ID without a ":server" suffix; use the
+  # exact value from `/_matrix/client/v3/joined_rooms`.
+  alertRoomId = "!k9Y9GnXSOfor4J0h6PqDJWBfSyCw889EYbcbbXyUAVs";
   receiverPort = 9686;
 
   # Config for metio/matrix-alertmanager-receiver. The access token is read
