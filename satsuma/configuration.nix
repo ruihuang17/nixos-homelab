@@ -39,6 +39,7 @@ in
     ./postgres-backup.nix
     ./monitoring.nix
     ./monitoring-overview.nix
+    ./alerting.nix
 
     ./nextcloud
     ./arr-stack

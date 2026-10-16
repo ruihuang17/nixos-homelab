@@ -9,4 +9,5 @@ in
   "stalwart_admin.age".publicKeys = common;
   "ses_smtp_user.age".publicKeys = common;
   "ses_smtp_pass.age".publicKeys = common;
+  "homelab_svc_smtp.age".publicKeys = common;
 }

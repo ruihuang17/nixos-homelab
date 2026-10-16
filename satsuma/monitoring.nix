@@ -4,6 +4,86 @@
   lib,
   ...
 }:
+let
+  # Build the query+reduce+threshold data pipeline for a Grafana-managed alert
+  # rule. `expr` is a PromQL instant query whose result is non-empty exactly
+  # when the alert should fire (e.g. `up == 0`). We reduce to the last value
+  # and the threshold C fires when that value is >= 1 (i.e. the series exists).
+  mkFiringData = expr: [
+    {
+      refId = "A";
+      datasourceUid = "prometheus";
+      relativeTimeRange = {
+        from = 300;
+        to = 0;
+      };
+      model = {
+        refId = "A";
+        expr = expr;
+        instant = true;
+        datasource = {
+          type = "prometheus";
+          uid = "prometheus";
+        };
+      };
+    }
+    {
+      refId = "B";
+      datasourceUid = "__expr__";
+      model = {
+        refId = "B";
+        type = "reduce";
+        reducer = "last";
+        expression = "A";
+        datasource = {
+          type = "__expr__";
+          uid = "__expr__";
+        };
+      };
+    }
+    {
+      refId = "C";
+      datasourceUid = "__expr__";
+      model = {
+        refId = "C";
+        type = "threshold";
+        expression = "B";
+        datasource = {
+          type = "__expr__";
+          uid = "__expr__";
+        };
+        conditions = [
+          {
+            evaluator = {
+              type = "gt";
+              params = [ 0 ];
+            };
+          }
+        ];
+      };
+    }
+  ];
+
+  # Helper to assemble a single alert rule.
+  mkRule =
+    {
+      uid,
+      title,
+      expr,
+      forDur ? "5m",
+      summary,
+      labels ? { },
+    }:
+    {
+      inherit uid title labels;
+      condition = "C";
+      data = mkFiringData expr;
+      noDataState = "OK";
+      execErrState = "Alerting";
+      "for" = forDur;
+      annotations.summary = summary;
+    };
+in
 {
   # Grafana admin password, kept out of the Nix store via agenix.
   # Decryptable by the satsuma host key (see secrets/secrets.nix).
@@ -26,6 +106,16 @@
   # Kanidm OAuth2 client secret for the "grafana" client.
   age.secrets.grafana_oidc_secret = {
     file = "/etc/nixos/satsuma/secrets/grafana_oidc_secret.age";
+    mode = "400";
+    owner = "grafana";
+    group = "grafana";
+  };
+
+  # SMTP password for the homelab-svc mail account, used by Grafana's email
+  # contact point to send alerts via Stalwart (mail.estrogenuinely.ca:587).
+  # Same secret as Nextcloud's mail_smtppassword (plain homelab-svc password).
+  age.secrets.grafana_mail_pass = {
+    file = "/etc/nixos/satsuma/secrets/mail_pass.age";
     mode = "400";
     owner = "grafana";
     group = "grafana";
@@ -119,6 +209,18 @@
 
       analytics.reporting_enabled = false;
 
+      # SMTP for alert emails, relayed through Stalwart as homelab-svc.
+      # Password read at runtime from the agenix secret, not in the store.
+      smtp = {
+        enabled = true;
+        host = "mail.estrogenuinely.ca:587";
+        user = "homelab-svc";
+        password = "$__file{${config.age.secrets.grafana_mail_pass.path}}";
+        from_address = "alerts@estrogenuinely.ca";
+        from_name = "Homelab Grafana";
+        startTLS_policy = "MandatoryStartTLS";
+      };
+
       # Single sign-on through Kanidm (client "grafana", scope map homelab_user).
       # The local admin login stays enabled as a break-glass fallback.
       "auth.generic_oauth" = {
@@ -167,6 +269,95 @@
           options.foldersFromFilesStructure = false;
         }
       ];
+
+      # Unified alerting: contact points (email + Matrix via webhook receiver),
+      # notification policy, and alert rules — all provisioned from the flake.
+      alerting = {
+        enable = true;
+
+        contactPoints.settings = {
+          apiVersion = 1;
+          contactPoints = [
+            {
+              orgId = 1;
+              name = "homelab";
+              receivers = [
+                {
+                  uid = "homelab-email";
+                  type = "email";
+                  settings.addresses = "rui@estrogenuinely.ca";
+                }
+                {
+                  uid = "homelab-matrix";
+                  type = "webhook";
+                  # matrix-alertmanager-receiver on satsuma -> homelab-alerts room.
+                  settings = {
+                    url = "http://127.0.0.1:9686/alerts/homelab";
+                    httpMethod = "POST";
+                  };
+                }
+              ];
+            }
+          ];
+        };
+
+        policies.settings = {
+          apiVersion = 1;
+          policies = [
+            {
+              orgId = 1;
+              receiver = "homelab";
+              group_by = [
+                "alertname"
+                "instance"
+              ];
+              group_wait = "30s";
+              group_interval = "5m";
+              repeat_interval = "4h";
+            }
+          ];
+        };
+
+        rules.settings = {
+          apiVersion = 1;
+          groups = [
+            {
+              orgId = 1;
+              name = "homelab-core";
+              folder = "Homelab";
+              interval = "1m";
+              rules = [
+                (mkRule {
+                  uid = "homelab-host-down";
+                  title = "Host down (node_exporter unreachable)";
+                  expr = "up{job=\"node\"} == 0";
+                  forDur = "3m";
+                  summary = "node_exporter target {{ $labels.instance }} is down (up == 0).";
+                  labels.severity = "critical";
+                })
+                (mkRule {
+                  uid = "homelab-service-down";
+                  title = "Service down";
+                  expr = "homelab:service_up == 0";
+                  forDur = "5m";
+                  summary = "Service {{ $labels.service }} on {{ $labels.host }} is DOWN.";
+                  labels.severity = "critical";
+                })
+                (mkRule {
+                  uid = "homelab-disk-full";
+                  title = "Filesystem almost full";
+                  expr = ''
+                    (node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs|overlay|squashfs|devtmpfs"}
+                      / node_filesystem_size_bytes{fstype!~"tmpfs|ramfs|overlay|squashfs|devtmpfs"}) < 0.10'';
+                  forDur = "15m";
+                  summary = "{{ $labels.instance }} {{ $labels.mountpoint }} has <10% free space.";
+                  labels.severity = "warning";
+                })
+              ];
+            }
+          ];
+        };
+      };
     };
   };
 }

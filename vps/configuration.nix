@@ -3,6 +3,7 @@
     ./hardware-configuration.nix
     ./stalwart.nix
     ./backup-target.nix
+    ./satsuma-watcher.nix
   ];
 
   # Workaround for https://github.com/NixOS/nix/issues/8502
