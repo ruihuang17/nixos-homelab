@@ -222,8 +222,98 @@ The three non-NixOS hosts don't use the flake, so they were set up by hand.
 - Rotate the Grafana admin password: re-encrypt
   `satsuma/secrets/grafana_admin_pass.age` with agenix and rebuild.
 
+## Alerting
+
+Set up 2026-10-15. Grafana's built-in **unified alerting** evaluates rules
+against Prometheus and notifies on two channels — **email** and **Matrix** —
+plus a separate **VPS dead-man's-switch** that catches satsuma itself going down.
+All of it is provisioned from the flake. Mail goes out through our own server
+(see [[System Mail (Alerts)]]).
+
+### Channels
+
+| Channel | How | Reaches you when… |
+| ------- | --- | ----------------- |
+| Email → `rui@estrogenuinely.ca` | Grafana SMTP as `homelab-svc` via `mail.estrogenuinely.ca:587` → SES | anything except satsuma fully down |
+| Matrix → `homelab-alerts` room | Grafana webhook → `matrix-alertmanager-receiver` → Synapse | anything except satsuma down (Synapse runs on satsuma) |
+| Email (VPS watcher) | the `mail` VPS pings satsuma; emails via its local Stalwart → SES | **satsuma itself is down** |
+
+The Matrix room is `#homelab-alerts` (`!k9Y9GnXSOfor4J0h6PqDJWBfSyCw889EYbcbbXyUAVs`),
+posted to by the bot `@homelab-alertbot:estrogenuinely.ca`. rhuang is invited.
+
+### satsuma — `satsuma/monitoring.nix`
+
+- `services.grafana.settings.smtp`: host `mail.estrogenuinely.ca:587`, user
+  `homelab-svc`, from `alerts@estrogenuinely.ca`, `MandatoryStartTLS`. Password
+  from the agenix secret `grafana_mail_pass` (= `mail_pass.age`, the homelab-svc
+  password), read via `$__file{}` so it never lands in the store.
+- `services.grafana.provision.alerting` (there is **no** `.enable` option —
+  defining `.contactPoints/.policies/.rules.settings` is what turns it on):
+  - **Contact point `homelab`** with two integrations: `email` (rui@) and
+    `webhook` → `http://127.0.0.1:9686/alerts/homelab` (the Matrix receiver).
+  - **Policy**: root route → `homelab`, grouped by `alertname`+`instance`.
+  - **Rules** (folder *Homelab*, group `homelab-core`, 1 m interval), built by the
+    `mkRule`/`mkFiringData` helpers (query A → reduce last B → threshold C `> 0`):
+    - **Host down** — `up{job="node"} == 0` (orange / mac-mini / homeassistant /
+      mail; 3 m).
+    - **Service down** — `homelab:service_up == 0` (the recording rule from
+      `monitoring-overview.nix`; 5 m).
+    - **Filesystem almost full** — real filesystems <10% free (15 m).
+
+### satsuma — `satsuma/alerting.nix`
+
+Runs `matrix-alertmanager-receiver` (metio, in nixpkgs) on `127.0.0.1:9686`. It
+takes Grafana's webhook (Alertmanager-format) payloads and posts to the Matrix
+room using the bot's access token (agenix `matrix_alertbot_token`, injected via
+`EnvironmentFile`). `room-mapping` exposes the pretty name `homelab` →
+the room ID. Firing/resolved message templates give the 🔥/✅ one-liners.
+
+The bot was registered with `register_new_matrix_user` using a temporary
+`registration_shared_secret`, which is now kept (declaratively, via
+`services.matrix-synapse.extraConfigFiles` + agenix
+`synapse_registration_secret`) so future service bots can be provisioned the
+same way. See [[SMS Matrix Bridge]] for the Synapse setup.
+
+### mail / VPS — `vps/satsuma-watcher.nix`
+
+The one thing Grafana can't do: tell you satsuma is down (Grafana, Synapse and
+Postfix all run on satsuma). A systemd timer on the **mail** VPS runs every 2
+minutes and `tailscale ping`s satsuma (`100.72.25.50`) — ping, not
+node_exporter, because satsuma's exporter is loopback-only and unreachable from
+the VPS. After `failThreshold = 3` consecutive misses it emails `rui@` via the
+VPS's **local** Stalwart (auth `homelab-svc`, from `alerts@`), and emails again
+on recovery. State lives in `/var/lib/satsuma-watcher`. This is **email-only**:
+Matrix would be down too in this scenario, and the VPS→Stalwart→SES path is
+independent of satsuma. Secret: `vps/secrets/homelab_svc_smtp.age`
+(`SMTP_USER`/`SMTP_PASS`).
+
+### Verified (2026-10-15)
+
+- Grafana provisioned the contact point (email + webhook) and 3 rules; a
+  transient always-firing rule delivered 🔥 to the `homelab-alerts` room **and**
+  queued email through Stalwart → SES (*Delivery completed*).
+- Matrix receiver: direct webhook POST → room message, no join errors (after
+  fixing the room ID — this Synapse returns IDs without the `:server` suffix).
+- VPS watcher: live run against an up satsuma is a clean no-op; a forced-failure
+  run emailed FIRING on the 3rd miss and RESOLVED on recovery; the mailer must
+  connect to `mail.estrogenuinely.ca` (not `127.0.0.1`) so the TLS cert matches.
+
+### Gotchas
+
+- `provision.alerting` has no `enable` — just define the `.settings`.
+- The Matrix room ID here has **no `:server` suffix**; use the exact value from
+  `/_matrix/client/v3/joined_rooms`.
+- Grafana 13 removed the old contact-point test endpoints; test via
+  `/apis/notifications.alerting.grafana.app/v1beta1/.../receivers/<uid>/test` or
+  just let a rule fire.
+- `pkgs.writers.writePython3` runs flake8 — keep one import per line, etc.
+- The VPS watcher sends from `alerts@`; that is already allowed by Stalwart's
+  `must-match-sender` exception for `homelab-svc` (see [[System Mail (Alerts)]]).
+
 ## Not done yet / ideas
 
-- No alerting (Alertmanager) — Prometheus only collects and graphs for now.
+- Alerting is live (email + Matrix + VPS satsuma-watcher). Still **dashboard-only
+  for ZFS/cert specifics** — could add ZFS-pool and cert-expiry alert rules
+  (the data already exists in the Homelab Overview).
 - Only host-level metrics (node_exporter). Service-level exporters
   (PostgreSQL, nginx, ZFS, smartctl, etc.) could be added later.
