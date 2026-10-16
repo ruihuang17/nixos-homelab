@@ -258,7 +258,11 @@ posted to by the bot `@homelab-alertbot:estrogenuinely.ca`. rhuang is invited.
       mail; 3 m).
     - **Service down** — `homelab:service_up == 0` (the recording rule from
       `monitoring-overview.nix`; 5 m).
-    - **Filesystem almost full** — real filesystems <10% free (15 m).
+    - **Filesystem almost full** — `/` on every host **plus satsuma's HDD pool
+      `/hdd`** <10% free (15 m). Selector `mountpoint=~"/|/hdd"` so it ignores
+      external/removable mounts (e.g. mac-mini's `/Volumes/*`), APFS system
+      volumes, bind-mounts, and per-dataset ZFS noise. On satsuma `/` is the SSD
+      (ZFS root) and `/hdd` is the separate bulk-storage pool.
 
 ### satsuma — `satsuma/alerting.nix`
 
