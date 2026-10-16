@@ -168,8 +168,5 @@ nixos-rebuild switch`.
 - The old **Proton SMTP app token** is now unused everywhere; revoke it in Proton
   when convenient.
 - No automated test that mail still flows (e.g. a daily `sendmail` canary → inbox).
-- SES is still in **sandbox** (see [[Stalwart]]): outbound only reaches *verified*
-  recipients until production access is granted. `rui@`/`lena@` work; alerts to an
-  unverified external address will be held by SES.
 - See [[Monitoring]] → *Grafana alerting* for turning these mail paths into real
   alert notifications.
