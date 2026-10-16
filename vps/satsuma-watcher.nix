@@ -14,7 +14,9 @@ let
   # Standalone mailer: reads subject/body/creds from the environment and sends
   # via the VPS's local Stalwart submission port (STARTTLS, AUTH homelab-svc).
   mailer = pkgs.writers.writePython3 "satsuma-watcher-mailer" { } ''
-    import os, smtplib, ssl
+    import os
+    import smtplib
+    import ssl
     from email.message import EmailMessage
 
     msg = EmailMessage()
