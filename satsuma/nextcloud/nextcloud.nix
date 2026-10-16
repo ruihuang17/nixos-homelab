@@ -27,13 +27,16 @@
       maintenance_window_start = 9;
       default_phone_region = "CA";
       mail_smtpmode = "smtp";
-      mail_smtphost = "smtp.protonmail.ch";
+      mail_smtphost = "mail.estrogenuinely.ca";
       mail_smtpport = 587;
-      mail_smtpsecure = "";
+      mail_smtpsecure = "tls";
       mail_smtpauth = true;
-      mail_smtpname = "nextcloud@ruihuang.io";
+      # Authenticate as the shared homelab-svc kanidm account (login is the
+      # kanidm name, not an email); send as nextcloud@estrogenuinely.ca, one
+      # of homelab-svc's authorized Stalwart senders.
+      mail_smtpname = "homelab-svc";
       mail_from_address = "nextcloud";
-      mail_domain = "ruihuang.io";
+      mail_domain = "estrogenuinely.ca";
       allow_local_remote_servers = true;
       lost_password_link = "disabled";
     };

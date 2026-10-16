@@ -34,8 +34,10 @@
     defaults.monitored = "-a -c interval=10800 -o on -s (S/../.././02|L/../../7/04) ";
     notifications.mail = {
       enable = true;
-      recipient = "alerts@ruihuang.io";
-      sender = "alerts@ruihuang.io";
+      # Deliver disk alerts to a real mailbox; send them as the shared alerts
+      # address (one of homelab-svc's authorized senders on Stalwart).
+      recipient = "rui@estrogenuinely.ca";
+      sender = "alerts@estrogenuinely.ca";
     };
   };
 

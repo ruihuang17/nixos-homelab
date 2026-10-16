@@ -22,13 +22,18 @@
       ROCKET_PORT = 8222;
       ROCKET_LOG = "critical";
 
-      # Email
-      SMTP_HOST = "smtp.protonmail.ch";
+      # Email — relayed through our Stalwart server, authenticating as the
+      # shared homelab-svc kanidm account (login is the kanidm name, not an
+      # email) and sending as vaultwarden@estrogenuinely.ca (one of
+      # homelab-svc's authorized Stalwart senders). SMTP_PASSWORD comes from
+      # the agenix environmentFile (vaultwarden_token.age).
+      SMTP_HOST = "mail.estrogenuinely.ca";
       SMTP_PORT = 587;
       SMTP_SECURITY = "starttls";
-      SMTP_USERNAME = "vaultwarden@ruihuang.io";
+      SMTP_USERNAME = "homelab-svc";
       SMTP_AUTH_MECHANISM = "Login";
-      SMTP_FROM = SMTP_USERNAME;
+      SMTP_FROM = "vaultwarden@estrogenuinely.ca";
+      SMTP_FROM_NAME = "Vaultwarden";
     };
   };
 }

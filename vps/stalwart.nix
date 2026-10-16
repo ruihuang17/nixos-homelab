@@ -218,6 +218,43 @@ in
         { "else" = "'ses'"; }
       ];
 
+      # -- Sender authorization (MTA AUTH stage) -----------------------------
+      # By default Stalwart enforces mustMatchSender: an authenticated
+      # principal may only use a MAIL FROM that is one of its own addresses
+      # (primary + aliases). Our homelab services on satsuma all authenticate
+      # as the single kanidm service account `homelab-svc` but each sets its
+      # own per-service From (alerts@, nextcloud@, vaultwarden@, ...).
+      #
+      # kanidm exposes only one address attribute (`mail`), and its `mail`
+      # also holds users' external addresses (Proton/Gmail). Mapping those as
+      # Stalwart aliases would re-register protonmail.com/gmail.com as local
+      # domains and break outbound mail to them (see the attributes block and
+      # Stalwart.md "Gotchas"). So instead of widening the global attribute
+      # mapping, we keep `email = emailprimary` and grant the exception here:
+      # when authenticated as homelab-svc, allow (no sender match required)
+      # ONLY for the explicit set of @estrogenuinely.ca service addresses.
+      # Everyone else (rhuang, lena, ...) keeps the strict default (true).
+      #
+      # 0.15.x key is `session.auth.must-match-sender`; the expression sees
+      # `authenticated_as` and `sender`. Returning false = "no match
+      # required" (allowed); true = enforce match. String literals must be
+      # quoted inside the expression. `authenticated_as` is the resolved
+      # principal name (kanidm `name`, i.e. "homelab-svc"); we also accept the
+      # SPN form defensively in case a future directory change returns it.
+      session.auth.must-match-sender = [
+        {
+          "if" = ''
+            (authenticated_as == 'homelab-svc' ||
+             authenticated_as == 'homelab-svc@idm.estrogenuinely.ca') &&
+            contains(
+              ['alerts@estrogenuinely.ca', 'nextcloud@estrogenuinely.ca', 'vaultwarden@estrogenuinely.ca'],
+              sender
+            )'';
+          "then" = false;
+        }
+        { "else" = true; }
+      ];
+
       # Do not DKIM-sign in Stalwart. Outbound mail is signed by SES (Easy
       # DKIM, the three *.dkim.amazonses.com CNAMEs). Stalwart's default signs
       # twice (RSA + Ed25519) and SES rejects the message with
