@@ -26,7 +26,10 @@ let
     msg.set_content(os.environ["MAIL_BODY"])
 
     ctx = ssl.create_default_context()
-    with smtplib.SMTP("127.0.0.1", 587, timeout=20) as s:
+    # Connect by hostname so the server's TLS cert (mail.estrogenuinely.ca)
+    # validates. On the VPS this resolves to its own public address; Stalwart's
+    # submission port 587 is listening there.
+    with smtplib.SMTP("mail.estrogenuinely.ca", 587, timeout=20) as s:
         s.starttls(context=ctx)
         s.login(os.environ["SMTP_USER"], os.environ["SMTP_PASS"])
         s.send_message(msg)
