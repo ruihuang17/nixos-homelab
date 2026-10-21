@@ -64,7 +64,7 @@ Services (all native NixOS modules, no containers):
 | qBittorrent                            | Runs inside a network namespace with a PIA WireGuard VPN (Toronto, port forwarding).                                                |
 | PostgreSQL                             | Shared by Nextcloud, Immich, Paperless, Vaultwarden, Synapse and the arr apps.                                                      |
 | Postfix                                | Internal mail relay through Proton SMTP. It accepts mail from the LAN and tailnet.                                                  |
-| NFS                                    | Port 2049, serves `mediaSrv` (the Mac mini mounts it).                                                                              |
+| NFS                                    | Port 2049, ZFS `sharenfs`: `mediaSrv` to the LAN (Mac mini), `data`/`backup` to pomelo. See [[NFS]].                                |
 | Tailscale                              | Acts as a subnet router/exit node ("server" routing features).                                                                      |
 
 Reverse-proxied hosts on other machines: `home.estrogenuinely.ca` goes to Home Assistant (10.0.10.74:8123), and `dns.local.estrogenuinely.ca` goes to orange (:5380).
@@ -105,4 +105,5 @@ Backups:
 - **DNS:** orange serves the LAN. The `*.local.*` names resolve to satsuma.
 - **Remote access:** Tailscale on satsuma, the mail VPS and tangerine. Not installed on orange, the Mac mini or Home Assistant.
 - **Identity:** Kanidm on satsuma is the single sign-on for Nextcloud and Matrix.
+- **Desktop storage:** pomelo mounts `backup`, `data` and `mediaSrv` at `~/NAS` over NFS. See [[NFS]].
 - **Not in the IP table:** the `mail` VPS (Tailscale 100.91.236.114) runs Stalwart mail and is also the offsite backup target. It is defined in the same flake. See [[Stalwart]].
