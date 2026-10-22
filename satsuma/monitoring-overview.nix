@@ -353,11 +353,58 @@ let
 
   # ---------------------------------------------------------------------------
   # Dashboard
+  #
+  # Design notes:
+  #   - One palette everywhere. A host keeps the same colour in every chart, so
+  #     a line is recognisable without reading the legend.
+  #   - The top of the page answers "is anything broken?"; lower rows are for
+  #     investigation (reliability, capacity, and the monitoring stack itself).
+  #   - Status colour is reserved for status. Non-status series use the muted
+  #     palette so red always means "look here".
   # ---------------------------------------------------------------------------
   ds = {
     type = "prometheus";
     uid = "prometheus";
   };
+
+  palette = {
+    ok = "#34D399";
+    warn = "#FBBF24";
+    crit = "#F87171";
+    info = "#38BDF8";
+    accent = "#FB923C";
+    violet = "#A78BFA";
+    teal = "#2DD4BF";
+    pink = "#F472B6";
+    muted = "#94A3B8";
+  };
+
+  # Stable host identity colours, reused by every time series.
+  hostColors = {
+    satsuma = palette.accent;
+    mail = palette.info;
+    orange = palette.violet;
+    mac-mini = palette.teal;
+    homeassistant = palette.pink;
+  };
+
+  hostOverrides = lib.mapAttrsToList (
+    h: c: {
+      matcher = {
+        id = "byRegexp";
+        options = "^${h}$";
+      };
+      properties = [
+        {
+          id = "color";
+          value = {
+            mode = "fixed";
+            fixedColor = c;
+          };
+        }
+      ];
+    }
+  ) hostColors;
 
   target =
     refId: expr: extra:
@@ -373,12 +420,12 @@ let
       options = {
         "0" = {
           text = "DOWN";
-          color = "red";
+          color = palette.crit;
           index = 0;
         };
         "1" = {
           text = "UP";
-          color = "green";
+          color = palette.ok;
           index = 1;
         };
       };
@@ -393,172 +440,127 @@ let
     }) steps;
   };
 
+  # Reusable threshold sets, so the same condition looks the same everywhere.
+  greenRed = [
+    { color = palette.ok; }
+    {
+      color = palette.crit;
+      value = 1;
+    }
+  ];
+  redGreen = [
+    { color = palette.crit; }
+    {
+      color = palette.ok;
+      value = 1;
+    }
+  ];
+  capacity = [
+    { color = palette.ok; }
+    {
+      color = palette.warn;
+      value = 0.75;
+    }
+    {
+      color = palette.crit;
+      value = 0.9;
+    }
+  ];
+  certDays = [
+    { color = palette.crit; }
+    {
+      color = palette.warn;
+      value = 7;
+    }
+    {
+      color = palette.ok;
+      value = 14;
+    }
+  ];
+  uptimePct = [
+    { color = palette.crit; }
+    {
+      color = palette.warn;
+      value = 95;
+    }
+    {
+      color = palette.ok;
+      value = 99;
+    }
+  ];
+  latency = [
+    { color = palette.ok; }
+    {
+      color = palette.warn;
+      value = 0.2;
+    }
+    {
+      color = palette.crit;
+      value = 0.4;
+    }
+  ];
+
   nServices = toString (lib.length services);
   nHosts = toString (lib.length (lib.attrNames hosts));
 
-  # Big number tile at the top.
   statPanel =
     {
       x,
+      y ? 0,
+      w ? 4,
+      h ? 4,
       title,
       expr,
       unit ? "none",
       steps,
       decimals ? null,
       description ? "",
+      graphMode ? "none",
+      colorMode ? "value",
+      textMode ? "value",
+      instant ? false,
+      min ? null,
+      max ? null,
     }:
     {
       type = "stat";
       inherit title description;
       datasource = ds;
-      gridPos = {
-        inherit x;
-        y = 0;
-        w = 4;
-        h = 4;
-      };
-      # Instant: these show the current state, so avoid range-step alignment.
+      gridPos = { inherit x y w h; };
       targets = [
         (target "A" expr {
-          instant = true;
-          range = false;
+          inherit instant;
+          range = !instant;
         })
       ];
       fieldConfig = {
-        defaults = {
-          inherit unit;
-          thresholds = thresholds steps;
-          color.mode = "thresholds";
-          noValue = "n/a";
-        }
-        // lib.optionalAttrs (decimals != null) { inherit decimals; };
+        defaults =
+          {
+            inherit unit;
+            thresholds = thresholds steps;
+            color.mode = "thresholds";
+            noValue = "n/a";
+          }
+          // lib.optionalAttrs (decimals != null) { inherit decimals; }
+          // lib.optionalAttrs (min != null) { inherit min; }
+          // lib.optionalAttrs (max != null) { inherit max; };
         overrides = [ ];
       };
       options = {
-        colorMode = "background";
-        graphMode = "none";
-        textMode = "value";
+        inherit colorMode graphMode textMode;
         justifyMode = "center";
+        orientation = "auto";
         reduceOptions = {
           calcs = [ "lastNotNull" ];
           fields = "";
           values = false;
         };
+        text = {
+          titleSize = 13;
+          valueSize = 38;
+        };
       };
     };
-
-  topRow = [
-    (statPanel {
-      x = 0;
-      title = "Machines up";
-      expr = ''sum(up{job="node"})'';
-      unit = "suffix:/${nHosts}";
-      steps = [
-        { color = "red"; }
-        {
-          color = "orange";
-          value = 1;
-        }
-        {
-          color = "green";
-          value = lib.toInt nHosts;
-        }
-      ];
-    })
-    (statPanel {
-      x = 4;
-      title = "Services up";
-      expr = "sum(homelab:service_up)";
-      unit = "suffix:/${nServices}";
-      steps = [
-        { color = "red"; }
-        {
-          color = "orange";
-          value = 1;
-        }
-        {
-          color = "green";
-          value = lib.toInt nServices;
-        }
-      ];
-    })
-    (statPanel {
-      x = 8;
-      title = "Services down";
-      expr = "count(homelab:service_up == 0) or vector(0)";
-      steps = [
-        { color = "green"; }
-        {
-          color = "red";
-          value = 1;
-        }
-      ];
-    })
-    (statPanel {
-      x = 12;
-      title = "Failed systemd units";
-      expr = ''sum(node_systemd_unit_state{state="failed"}) or vector(0)'';
-      description = "satsuma, mail and orange";
-      steps = [
-        { color = "green"; }
-        {
-          color = "red";
-          value = 1;
-        }
-      ];
-    })
-    (statPanel {
-      x = 16;
-      title = "ZFS pools not online";
-      expr = ''count(node_zfs_zpool_state{state!="online"} == 1) or vector(0)'';
-      steps = [
-        { color = "green"; }
-        {
-          color = "red";
-          value = 1;
-        }
-      ];
-    })
-    (statPanel {
-      x = 20;
-      title = "Next cert expiry";
-      expr = ''(min(probe_ssl_earliest_cert_expiry{check="cert"}) - time()) / 86400'';
-      unit = "d";
-      decimals = 0;
-      steps = [
-        { color = "red"; }
-        {
-          color = "orange";
-          value = 7;
-        }
-        {
-          color = "green";
-          value = 14;
-        }
-      ];
-    })
-  ];
-
-  rowPanel = y: title: {
-    type = "row";
-    inherit title;
-    collapsed = false;
-    gridPos = {
-      x = 0;
-      inherit y;
-      w = 24;
-      h = 1;
-    };
-    panels = [ ];
-  };
-
-  # Machines table: one row per node_exporter instance.
-  diskExpr = lib.concatStringsSep " or " (
-    lib.mapAttrsToList (
-      h: v:
-      "(1 - node_filesystem_avail_bytes{instance=${q h}, mountpoint=${q v.mount}} / node_filesystem_size_bytes{instance=${q h}, mountpoint=${q v.mount}})"
-    ) hosts
-  );
 
   tableTarget =
     refId: expr:
@@ -568,12 +570,76 @@ let
       format = "table";
     };
 
-  gauge = {
-    "custom.cellOptions" = {
-      type = "gauge";
-      mode = "basic";
+  tsPanel =
+    {
+      x,
+      y,
+      w,
+      h,
+      title,
+      description ? "",
+      unit ? "none",
+      targets,
+      overrides ? [ ],
+      legend ? {
+        displayMode = "list";
+        placement = "bottom";
+        calcs = [ ];
+      },
+      min ? null,
+      max ? null,
+      decimals ? null,
+      thresholdSteps ? null,
+      stacking ? null,
+    }:
+    {
+      type = "timeseries";
+      inherit title description;
+      datasource = ds;
+      gridPos = { inherit x y w h; };
+      inherit targets;
+      fieldConfig = {
+        defaults =
+          {
+            inherit unit;
+            color = { mode = "palette-classic"; };
+            custom =
+              {
+                lineWidth = 2;
+                fillOpacity = 8;
+                gradientMode = "opacity";
+                showPoints = "never";
+                spanNulls = true;
+                axisPlacement = "auto";
+                axisColorMode = "text";
+                scaleDistribution = { type = "linear"; };
+              }
+              // lib.optionalAttrs (stacking != null) {
+                stacking = { mode = stacking; };
+              }
+              // lib.optionalAttrs (thresholdSteps != null) {
+                thresholdsStyle = {
+                  mode = "dashed";
+                  lineWidth = 1;
+                };
+              };
+          }
+          // lib.optionalAttrs (thresholdSteps != null) {
+            thresholds = thresholds thresholdSteps;
+          }
+          // lib.optionalAttrs (decimals != null) { inherit decimals; }
+          // lib.optionalAttrs (min != null) { inherit min; }
+          // lib.optionalAttrs (max != null) { inherit max; };
+        inherit overrides;
+      };
+      options = {
+        inherit legend;
+        tooltip = {
+          mode = "multi";
+          sort = "desc";
+        };
+      };
     };
-  };
 
   percentColumn = name: {
     matcher = {
@@ -594,22 +660,22 @@ let
         value = 1;
       }
       {
+        id = "decimals";
+        value = 1;
+      }
+      {
+        id = "custom.align";
+        value = "right";
+      }
+      {
         id = "custom.cellOptions";
-        value = gauge."custom.cellOptions";
+        value = {
+          type = "color-text";
+        };
       }
       {
         id = "thresholds";
-        value = thresholds [
-          { color = "green"; }
-          {
-            color = "orange";
-            value = 0.75;
-          }
-          {
-            color = "red";
-            value = 0.9;
-          }
-        ];
+        value = thresholds capacity;
       }
       {
         id = "color";
@@ -620,16 +686,148 @@ let
     ];
   };
 
+  rowPanel = y: title: {
+    type = "row";
+    inherit title;
+    collapsed = false;
+    gridPos = {
+      x = 0;
+      inherit y;
+      w = 24;
+      h = 1;
+    };
+    panels = [ ];
+  };
+
+  # A host's primary filesystem, used for the "disk used" column.
+  diskExpr = lib.concatStringsSep " or " (
+    lib.mapAttrsToList (
+      h: v:
+      "(1 - node_filesystem_avail_bytes{instance=${q h}, mountpoint=${q v.mount}} / node_filesystem_size_bytes{instance=${q h}, mountpoint=${q v.mount}})"
+    ) hosts
+  );
+
+  # ---------------------------------------------------------------------------
+  # Layout
+  # ---------------------------------------------------------------------------
+  kpiH = 4;
+  fleetRowY = kpiH;
+  fleetY = fleetRowY + 1;
+  fleetH = 8;
+  servicesRowY = fleetY + fleetH;
+  groupsY = servicesRowY + 1;
+
+  # One tile per service, one panel per group.
+  tileCount = g: lib.length (lib.filter (s: s.group == g) services);
+  perRow = 3;
+  groupRows = (lib.length groupNames + perRow - 1) / perRow;
+  tilesPerRow = 4; # tiles per row inside a group panel (see minVizWidth below)
+  panelHeight = g: if tileCount g > tilesPerRow then 7 else 5;
+  # Height of each row of group panels = tallest panel in that row.
+  groupRowHeights = lib.genList (
+    r: lib.foldl' lib.max 0 (map panelHeight (lib.sublist (r * perRow) perRow groupNames))
+  ) groupRows;
+  groupRowY = r: groupsY + lib.foldl' (a: b: a + b) 0 (lib.take r groupRowHeights);
+
+  historyRowY = groupRowY groupRows;
+  historyY = historyRowY + 1;
+  historyH = 16;
+  reliabilityRowY = historyY + historyH;
+  reliabilityY = reliabilityRowY + 1;
+  reliabilityH = 8;
+  infraRowY = reliabilityY + reliabilityH;
+  infraY1 = infraRowY + 1;
+  infraY2 = infraY1 + 8;
+  storageRowY = infraY2 + 8;
+  storageY = storageRowY + 1;
+  storageH = 8;
+  monitorRowY = storageY + storageH;
+  monitorY = monitorRowY + 1;
+  monitorH = 8;
+
+  # ---------------------------------------------------------------------------
+  # Row 0: the only six numbers needed to know if today is a good day.
+  # ---------------------------------------------------------------------------
+  topRow = [
+    (statPanel {
+      x = 0;
+      title = "Services up / ${nServices}";
+      expr = "sum(homelab:service_up)";
+      steps = [
+        { color = palette.crit; }
+        {
+          color = palette.warn;
+          value = 1;
+        }
+        {
+          color = palette.ok;
+          value = lib.toInt nServices;
+        }
+      ];
+      description = "Blackbox and systemd checks that are currently passing.";
+    })
+    (statPanel {
+      x = 4;
+      title = "Services down";
+      expr = "count(homelab:service_up == 0) or vector(0)";
+      steps = greenRed;
+      description = "Anything above zero is listed under Active alerts.";
+    })
+    (statPanel {
+      x = 8;
+      title = "Machines up / ${nHosts}";
+      expr = ''sum(up{job="node"})'';
+      steps = [
+        { color = palette.crit; }
+        {
+          color = palette.warn;
+          value = 1;
+        }
+        {
+          color = palette.ok;
+          value = lib.toInt nHosts;
+        }
+      ];
+      description = "node_exporter targets: satsuma, mail, orange, mac-mini, homeassistant.";
+    })
+    (statPanel {
+      x = 12;
+      title = "Failed units";
+      expr = ''sum(node_systemd_unit_state{state="failed"}) or vector(0)'';
+      steps = greenRed;
+      description = "systemd units in the failed state across all exporters.";
+    })
+    (statPanel {
+      x = 16;
+      title = "ZFS problems";
+      expr = ''count(node_zfs_zpool_state{state!="online"} == 1) or vector(0)'';
+      steps = greenRed;
+      description = "Pools that are degraded, faulted, or otherwise not online.";
+    })
+    (statPanel {
+      x = 20;
+      title = "Cert expiry";
+      expr = ''(min(probe_ssl_earliest_cert_expiry{check="cert"}) - time()) / 86400'';
+      unit = "d";
+      decimals = 0;
+      steps = certDays;
+      description = "Days until the soonest TLS certificate expires. ACME renews at 30 days.";
+    })
+  ];
+
+  # ---------------------------------------------------------------------------
+  # Fleet: one row per machine, plus the alert list.
+  # ---------------------------------------------------------------------------
   machinesPanel = {
     type = "table";
     title = "Machines";
-    description = "Click a machine name to open its Node Exporter Full dashboard.";
+    description = "Click a machine name to open its Node Exporter Full dashboard. Colour = threshold, not decoration.";
     datasource = ds;
     gridPos = {
       x = 0;
-      y = 5;
-      w = 24;
-      h = 8;
+      y = fleetY;
+      w = 16;
+      h = fleetH;
     };
     targets = [
       (tableTarget "A" ''max by (instance) (up{job="node"})'')
@@ -637,6 +835,8 @@ let
       (tableTarget "C" ''1 - avg by (instance) (rate(node_cpu_seconds_total{job="node", mode="idle"}[5m]))'')
       (tableTarget "D" ''max by (instance) (1 - node_memory_MemAvailable_bytes{job="node"} / node_memory_MemTotal_bytes{job="node"}) or max by (instance) (1 - (node_memory_free_bytes{job="node"} + node_memory_inactive_bytes{job="node"} + node_memory_purgeable_bytes{job="node"}) / node_memory_total_bytes{job="node"})'')
       (tableTarget "E" "max by (instance) (${diskExpr})")
+      (tableTarget "F" ''max by (instance) (node_load1{job="node"})'')
+      (tableTarget "G" ''max by (instance) (node_hwmon_temp_celsius{chip=~"0000:00:08.*|platform_coretemp.*"}) or max by (instance) (node_thermal_zone_temp)'')
     ];
     transformations = [
       {
@@ -648,7 +848,7 @@ let
       }
       {
         id = "filterFieldsByName";
-        options.include.pattern = "^(instance|Value #[A-E])$";
+        options.include.pattern = "^(instance|Value #[A-G])$";
       }
       {
         id = "organize";
@@ -660,6 +860,8 @@ let
             "Value #C" = 3;
             "Value #D" = 4;
             "Value #E" = 5;
+            "Value #F" = 6;
+            "Value #G" = 7;
           };
           renameByName = {
             instance = "Machine";
@@ -668,6 +870,8 @@ let
             "Value #C" = "CPU";
             "Value #D" = "Memory";
             "Value #E" = "Disk";
+            "Value #F" = "Load";
+            "Value #G" = "Temp";
           };
         };
       }
@@ -717,13 +921,7 @@ let
             }
             {
               id = "thresholds";
-              value = thresholds [
-                { color = "red"; }
-                {
-                  color = "green";
-                  value = 1;
-                }
-              ];
+              value = thresholds redGreen;
             }
             {
               id = "color";
@@ -749,34 +947,118 @@ let
             }
             {
               id = "custom.width";
-              value = 140;
+              value = 130;
             }
           ];
         }
         (percentColumn "CPU")
         (percentColumn "Memory")
         (percentColumn "Disk")
+        {
+          matcher = {
+            id = "byName";
+            options = "Load";
+          };
+          properties = [
+            {
+              id = "decimals";
+              value = 2;
+            }
+            {
+              id = "custom.align";
+              value = "right";
+            }
+            {
+              id = "custom.width";
+              value = 80;
+            }
+          ];
+        }
+        {
+          matcher = {
+            id = "byName";
+            options = "Temp";
+          };
+          properties = [
+            {
+              id = "unit";
+              value = "celsius";
+            }
+            {
+              id = "decimals";
+              value = 0;
+            }
+            {
+              id = "thresholds";
+              value = thresholds [
+                { color = palette.ok; }
+                {
+                  color = palette.warn;
+                  value = 70;
+                }
+                {
+                  color = palette.crit;
+                  value = 80;
+                }
+              ];
+            }
+            {
+              id = "color";
+              value = {
+                mode = "thresholds";
+              };
+            }
+            {
+              id = "custom.align";
+              value = "right";
+            }
+            {
+              id = "custom.width";
+              value = 80;
+            }
+          ];
+        }
       ];
     };
     options = {
       showHeader = true;
-      cellHeight = "md";
+      cellHeight = "sm";
     };
   };
 
-  # One tile per service, one panel per group.
-  tileCount = g: lib.length (lib.filter (s: s.group == g) services);
-  perRow = 3;
-  groupRows = (lib.length groupNames + perRow - 1) / perRow;
-  groupsY = 14;
-  tilesPerRow = 4; # tiles per row inside a group panel (see minVizWidth below)
-  panelHeight = g: if tileCount g > tilesPerRow then 7 else 5;
-  # Height of each row of group panels = tallest panel in that row.
-  groupRowHeights = lib.genList (
-    r: lib.foldl' lib.max 0 (map panelHeight (lib.sublist (r * perRow) perRow groupNames))
-  ) groupRows;
-  groupRowY = r: groupsY + lib.foldl' (a: b: a + b) 0 (lib.take r groupRowHeights);
+  alertsPanel = {
+    type = "alertlist";
+    title = "Active alerts";
+    description = "Firing and pending Grafana alerts. Empty means quiet.";
+    gridPos = {
+      x = 16;
+      y = fleetY;
+      w = 8;
+      h = fleetH;
+    };
+    options = {
+      showAlerts = "current";
+      alertName = "";
+      dashboardAlerts = false;
+      alertInstanceLabelFilter = "";
+      stateFilter = {
+        firing = true;
+        pending = true;
+        noData = true;
+        error = true;
+        normal = false;
+      };
+      maxItems = 20;
+      sortOrder = 1;
+      viewMode = "list";
+      groupBy = [ "alertname" ];
+      showNoAlerts = true;
+    };
+  };
 
+  # ---------------------------------------------------------------------------
+  # Services: a tile per check, grouped by what the service is for.
+  # ---------------------------------------------------------------------------
   groupPanel = i: g: {
     type = "stat";
     title = g;
@@ -787,8 +1069,9 @@ let
       w = 8;
       h = lib.elemAt groupRowHeights (i / perRow);
     };
+    # sort() puts DOWN (0) first, so failures surface without scanning.
     targets = [
-      (target "A" "homelab:service_up{group=${q g}}" {
+      (target "A" "sort(homelab:service_up{group=${q g}})" {
         legendFormat = "{{service}}";
         instant = true;
         range = false;
@@ -797,13 +1080,7 @@ let
     fieldConfig = {
       defaults = {
         mappings = upDownMappings;
-        thresholds = thresholds [
-          { color = "red"; }
-          {
-            color = "green";
-            value = 1;
-          }
-        ];
+        thresholds = thresholds redGreen;
         color.mode = "thresholds";
         noValue = "n/a";
       };
@@ -815,10 +1092,9 @@ let
       textMode = "value_and_name";
       justifyMode = "center";
       orientation = "auto";
-      # The service name is the headline; UP/DOWN is secondary.
       text = {
-        titleSize = 15;
-        valueSize = 12;
+        titleSize = 14;
+        valueSize = 11;
       };
       minVizWidth = 180;
       minVizHeight = 50;
@@ -830,12 +1106,11 @@ let
     };
   };
 
-  historyY = groupRowY groupRows;
-
-  # TEMPORARY (remove after 2026-10-13): three services were renamed on
-  # 2026-10-11 to shorten their tiles. This folds the old names' history into
-  # the new names so each service keeps a single history row. It writes the
-  # display name to a separate `svc` label so no label sets collide.
+  # ---------------------------------------------------------------------------
+  # Service health over time
+  # ---------------------------------------------------------------------------
+  # Folds the three services renamed on 2026-10-11 so each keeps one history
+  # row. Writes the display name to `svc` so label sets never collide.
   renamed = {
     "Matrix Synapse" = "Synapse";
     "mautrix-wsproxy" = "wsproxy";
@@ -848,18 +1123,15 @@ let
   historyPanel = {
     type = "status-history";
     title = "Service status history";
+    description = "Every check, one row. A red sliver is a real outage even at 24h zoom.";
     datasource = ds;
     gridPos = {
       x = 0;
-      y = historyY + 1;
+      y = historyY;
       w = 24;
-      h = 26;
+      h = historyH;
     };
-    # Bound the number of points; min_over_time keeps short outages visible
-    # even when each bucket spans many minutes.
-    maxDataPoints = 150;
-    # Outer-join all series on time so services that start recording later
-    # (newly added or renamed) are shown instead of being dropped.
+    maxDataPoints = 60;
     transformations = [
       {
         id = "joinByField";
@@ -870,20 +1142,12 @@ let
       }
     ];
     targets = [
-      (target "A" historyExpr {
-        legendFormat = "{{svc}}";
-      })
+      (target "A" historyExpr { legendFormat = "{{svc}}"; })
     ];
     fieldConfig = {
       defaults = {
         mappings = upDownMappings;
-        thresholds = thresholds [
-          { color = "red"; }
-          {
-            color = "green";
-            value = 1;
-          }
-        ];
+        thresholds = thresholds redGreen;
         color.mode = "thresholds";
         custom.fillOpacity = 80;
       };
@@ -891,151 +1155,872 @@ let
     };
     options = {
       showValue = "never";
-      rowHeight = 0.9;
-      colWidth = 0.95;
+      rowHeight = 0.92;
+      colWidth = 1;
       legend.showLegend = false;
       tooltip.mode = "single";
     };
   };
 
-  detailsY = historyY + 1 + 26 + 1;
-
-  bargauge =
-    {
-      x,
-      title,
-      expr,
-      legend,
-      unit,
-      min ? 0,
-      max ? null,
-      steps,
-      description ? "",
-      mode ? "gradient",
-    }:
-    {
-      type = "bargauge";
-      inherit title description;
-      datasource = ds;
-      gridPos = {
-        inherit x;
-        y = detailsY + 1;
-        w = 8;
-        h = 9;
-      };
-      targets = [
-        (target "A" expr {
-          legendFormat = legend;
-          instant = true;
-        })
-      ];
-      fieldConfig = {
-        defaults = {
-          inherit unit min;
-          thresholds = thresholds steps;
-          color.mode = "thresholds";
-          noValue = "none";
-        }
-        // lib.optionalAttrs (max != null) { inherit max; };
-        overrides = [ ];
-      };
-      options = {
-        orientation = "horizontal";
-        displayMode = mode;
-        showUnfilled = true;
-        valueMode = "color";
-        reduceOptions = {
-          calcs = [ "lastNotNull" ];
-          fields = "";
-          values = false;
-        };
-      };
-    };
-
-  detailPanels = [
-    (rowPanel detailsY "Details")
-    (bargauge {
+  reliabilityPanel = {
+    type = "table";
+    title = "Service reliability (selected range)";
+    description = "Average availability from the recording rule, plus the latest probe time. Sorted worst first.";
+    datasource = ds;
+    gridPos = {
       x = 0;
-      title = "Slowest checks";
-      description = "Probe round-trip time, top 10.";
-      expr = ''topk(10, max by (service) (probe_duration_seconds{job="blackbox", check!="cert"}))'';
-      legend = "{{service}}";
-      unit = "s";
-      max = 0.5;
-      steps = [
-        { color = "green"; }
-        {
-          color = "orange";
-          value = 0.2;
-        }
-        {
-          color = "red";
-          value = 0.4;
-        }
-      ];
-    })
-    (bargauge {
-      x = 8;
-      title = "TLS certificate lifetime left";
-      description = "ACME renews well before expiry; red means renewal is failing.";
-      expr = ''probe_ssl_earliest_cert_expiry{check="cert"} - time()'';
-      legend = "{{service}}";
-      unit = "s";
-      max = 7776000;
-      steps = [
-        { color = "red"; }
-        {
-          color = "orange";
-          value = 604800;
-        }
-        {
-          color = "green";
-          value = 1209600;
-        }
-      ];
-    })
-    {
-      type = "table";
-      title = "Failed systemd units";
-      datasource = ds;
-      gridPos = {
-        x = 16;
-        y = detailsY + 1;
-        w = 8;
-        h = 9;
+      y = reliabilityY;
+      w = 14;
+      h = reliabilityH;
+    };
+    targets = [
+      (tableTarget "A" ''avg_over_time(homelab:service_up[$__range]) * 100'')
+      (tableTarget "B" ''max by (service) (probe_duration_seconds{job="blackbox", check!="cert"}) * 1000'')
+    ];
+    transformations = [
+      {
+        id = "joinByField";
+        options = {
+          byField = "service";
+          mode = "outer";
+        };
+      }
+      {
+        id = "filterFieldsByName";
+        options.include.names = [
+          "service"
+          "host"
+          "group"
+          "Value #A"
+          "Value #B"
+        ];
+      }
+      {
+        id = "organize";
+        options = {
+          indexByName = {
+            service = 0;
+            host = 1;
+            group = 2;
+            "Value #A" = 3;
+            "Value #B" = 4;
+          };
+          renameByName = {
+            service = "Service";
+            host = "Host";
+            group = "Group";
+            "Value #A" = "Uptime";
+            "Value #B" = "Response";
+          };
+        };
+      }
+      {
+        id = "sortBy";
+        options.sort = [ { field = "Uptime"; } ];
+      }
+    ];
+    fieldConfig = {
+      defaults = {
+        custom.align = "left";
+        noValue = "-";
       };
-      targets = [ (tableTarget "A" ''node_systemd_unit_state{state="failed"} == 1'') ];
-      transformations = [
+      overrides = [
         {
-          id = "filterFieldsByName";
-          options.include.names = [
-            "instance"
-            "name"
+          matcher = {
+            id = "byName";
+            options = "Service";
+          };
+          properties = [
+            {
+              id = "custom.width";
+              value = 170;
+            }
           ];
         }
         {
-          id = "organize";
-          options.renameByName = {
-            instance = "Machine";
-            name = "Unit";
+          matcher = {
+            id = "byName";
+            options = "Host";
           };
+          properties = [
+            {
+              id = "custom.width";
+              value = 100;
+            }
+          ];
+        }
+        {
+          matcher = {
+            id = "byName";
+            options = "Group";
+          };
+          properties = [
+            {
+              id = "custom.width";
+              value = 150;
+            }
+          ];
+        }
+        {
+          matcher = {
+            id = "byName";
+            options = "Uptime";
+          };
+          properties = [
+            {
+              id = "unit";
+              value = "percent";
+            }
+            {
+              id = "min";
+              value = 0;
+            }
+            {
+              id = "max";
+              value = 100;
+            }
+            {
+              id = "decimals";
+              value = 2;
+            }
+            {
+              id = "thresholds";
+              value = thresholds uptimePct;
+            }
+            {
+              id = "custom.cellOptions";
+              value = {
+                type = "gauge";
+                mode = "basic";
+              };
+            }
+            {
+              id = "color";
+              value = {
+                mode = "thresholds";
+              };
+            }
+          ];
+        }
+        {
+          matcher = {
+            id = "byName";
+            options = "Response";
+          };
+          properties = [
+            {
+              id = "unit";
+              value = "ms";
+            }
+            {
+              id = "decimals";
+              value = 1;
+            }
+            {
+              id = "custom.width";
+              value = 110;
+            }
+          ];
         }
       ];
-      fieldConfig = {
-        defaults.noValue = "No failed units";
-        overrides = [ ];
+    };
+    options = {
+      showHeader = true;
+      cellHeight = "sm";
+    };
+  };
+
+  certPanel = {
+    type = "table";
+    title = "TLS certificates";
+    description = "Days of validity left. Red under 7 days means ACME renewal is failing.";
+    datasource = ds;
+    gridPos = {
+      x = 14;
+      y = reliabilityY;
+      w = 10;
+      h = reliabilityH;
+    };
+    targets = [
+      (tableTarget "A" ''(probe_ssl_earliest_cert_expiry{check="cert"} - time()) / 86400'')
+    ];
+    transformations = [
+      {
+        id = "filterFieldsByName";
+        options.include.names = [
+          "service"
+          "host"
+          "Value"
+        ];
+      }
+      {
+        id = "organize";
+        options = {
+          indexByName = {
+            service = 0;
+            host = 1;
+            Value = 2;
+          };
+          renameByName = {
+            service = "Certificate";
+            host = "Host";
+            Value = "Days left";
+          };
+        };
+      }
+      {
+        id = "sortBy";
+        options.sort = [ { field = "Days left"; } ];
+      }
+    ];
+    fieldConfig = {
+      defaults = {
+        custom.align = "left";
+        noValue = "-";
       };
-      options.showHeader = true;
-    }
-  ];
+      overrides = [
+        {
+          matcher = {
+            id = "byName";
+            options = "Certificate";
+          };
+          properties = [
+            {
+              id = "custom.width";
+              value = 190;
+            }
+          ];
+        }
+        {
+          matcher = {
+            id = "byName";
+            options = "Host";
+          };
+          properties = [
+            {
+              id = "custom.width";
+              value = 90;
+            }
+          ];
+        }
+        {
+          matcher = {
+            id = "byName";
+            options = "Days left";
+          };
+          properties = [
+            {
+              id = "unit";
+              value = "d";
+            }
+            {
+              id = "decimals";
+              value = 1;
+            }
+            {
+              id = "min";
+              value = 0;
+            }
+            {
+              id = "max";
+              value = 90;
+            }
+            {
+              id = "thresholds";
+              value = thresholds certDays;
+            }
+            {
+              id = "custom.cellOptions";
+              value = {
+                type = "gauge";
+                mode = "basic";
+              };
+            }
+            {
+              id = "color";
+              value = {
+                mode = "thresholds";
+              };
+            }
+          ];
+        }
+      ];
+    };
+    options = {
+      showHeader = true;
+      cellHeight = "sm";
+    };
+  };
+
+  # ---------------------------------------------------------------------------
+  # Infrastructure: the same four questions for every host.
+  # ---------------------------------------------------------------------------
+  cpuPanel = tsPanel {
+    x = 0;
+    y = infraY1;
+    w = 8;
+    h = 8;
+    title = "CPU";
+    description = "Busy CPU, 5 minute average, as a percentage of all cores.";
+    unit = "percent";
+    min = 0;
+    max = 100;
+    decimals = 1;
+    targets = [
+      (target "A" ''100 - (avg by (instance) (rate(node_cpu_seconds_total{job="node", mode="idle"}[5m])) * 100)'' {
+        legendFormat = "{{instance}}";
+      })
+    ];
+    overrides = hostOverrides;
+    legend = {
+      displayMode = "table";
+      placement = "bottom";
+      calcs = [ "lastNotNull" ];
+      sortBy = "Last *";
+      sortDesc = true;
+    };
+  };
+
+  memoryPanel = tsPanel {
+    x = 8;
+    y = infraY1;
+    w = 8;
+    h = 8;
+    title = "Memory";
+    description = "Used memory including cache pressure, percent of total.";
+    unit = "percent";
+    min = 0;
+    max = 100;
+    decimals = 1;
+    targets = [
+      (target "A" ''100 * (max by (instance) (1 - node_memory_MemAvailable_bytes{job="node"} / node_memory_MemTotal_bytes{job="node"}) or max by (instance) (1 - (node_memory_free_bytes{job="node"} + node_memory_inactive_bytes{job="node"} + node_memory_purgeable_bytes{job="node"}) / node_memory_total_bytes{job="node"}))'' {
+        legendFormat = "{{instance}}";
+      })
+    ];
+    overrides = hostOverrides;
+    legend = {
+      displayMode = "table";
+      placement = "bottom";
+      calcs = [ "lastNotNull" ];
+      sortBy = "Last *";
+      sortDesc = true;
+    };
+  };
+
+  networkPanel = tsPanel {
+    x = 16;
+    y = infraY1;
+    w = 8;
+    h = 8;
+    title = "Network";
+    description = "Total traffic across all physical interfaces, all hosts.";
+    unit = "Bps";
+    targets = [
+      (target "A" ''sum(rate(node_network_receive_bytes_total{job="node", device!~"lo|veth.*|docker.*|br-.*|tailscale.*|virbr.*"}[5m]))'' {
+        legendFormat = "Download";
+      })
+      (target "B" ''sum(rate(node_network_transmit_bytes_total{job="node", device!~"lo|veth.*|docker.*|br-.*|tailscale.*|virbr.*"}[5m]))'' {
+        legendFormat = "Upload";
+      })
+    ];
+    overrides = [
+      {
+        matcher = {
+          id = "byName";
+          options = "Download";
+        };
+        properties = [
+          {
+            id = "color";
+            value = {
+              mode = "fixed";
+              fixedColor = palette.info;
+            };
+          }
+        ];
+      }
+      {
+        matcher = {
+          id = "byName";
+          options = "Upload";
+        };
+        properties = [
+          {
+            id = "color";
+            value = {
+              mode = "fixed";
+              fixedColor = palette.accent;
+            };
+          }
+        ];
+      }
+    ];
+    legend = {
+      displayMode = "list";
+      placement = "bottom";
+      calcs = [ "lastNotNull" ];
+    };
+  };
+
+  diskPanel = tsPanel {
+    x = 0;
+    y = infraY2;
+    w = 8;
+    h = 8;
+    title = "Disk throughput";
+    description = "satsuma only: bytes read and written per second, all disks.";
+    unit = "Bps";
+    targets = [
+      (target "A" ''sum(rate(node_disk_read_bytes_total{instance="satsuma"}[5m]))'' {
+        legendFormat = "Read";
+      })
+      (target "B" ''sum(rate(node_disk_written_bytes_total{instance="satsuma"}[5m]))'' {
+        legendFormat = "Write";
+      })
+    ];
+    overrides = [
+      {
+        matcher = {
+          id = "byName";
+          options = "Read";
+        };
+        properties = [
+          {
+            id = "color";
+            value = {
+              mode = "fixed";
+              fixedColor = palette.teal;
+            };
+          }
+        ];
+      }
+      {
+        matcher = {
+          id = "byName";
+          options = "Write";
+        };
+        properties = [
+          {
+            id = "color";
+            value = {
+              mode = "fixed";
+              fixedColor = palette.violet;
+            };
+          }
+        ];
+      }
+    ];
+    legend = {
+      displayMode = "list";
+      placement = "bottom";
+      calcs = [ "lastNotNull" ];
+    };
+  };
+
+  loadPanel = tsPanel {
+    x = 8;
+    y = infraY2;
+    w = 8;
+    h = 8;
+    title = "Load average";
+    description = "1 minute load. Compare against core count; mac-mini is the usual hotspot.";
+    unit = "none";
+    decimals = 2;
+    targets = [
+      (target "A" ''node_load1{job="node"}'' {
+        legendFormat = "{{instance}}";
+      })
+    ];
+    overrides = hostOverrides;
+    legend = {
+      displayMode = "table";
+      placement = "bottom";
+      calcs = [ "lastNotNull" ];
+      sortBy = "Last *";
+      sortDesc = true;
+    };
+  };
+
+  tempPanel = tsPanel {
+    x = 16;
+    y = infraY2;
+    w = 8;
+    h = 8;
+    title = "Temperature";
+    description = "satsuma CPU package, NVMe and board sensors, in Celsius.";
+    unit = "celsius";
+    min = 20;
+    max = 95;
+    decimals = 1;
+    thresholdSteps = [
+      { color = palette.ok; }
+      {
+        color = palette.warn;
+        value = 70;
+      }
+      {
+        color = palette.crit;
+        value = 85;
+      }
+    ];
+    targets = [
+      (target "A" ''max(node_hwmon_temp_celsius{instance="satsuma", chip=~"0000:00:08.*"})'' {
+        legendFormat = "CPU";
+      })
+      (target "B" ''max(node_hwmon_temp_celsius{instance="satsuma", chip=~"nvme.*"})'' {
+        legendFormat = "NVMe";
+      })
+      (target "C" ''max(node_hwmon_temp_celsius{instance="satsuma", chip=~"i2c.*"})'' {
+        legendFormat = "Board";
+      })
+    ];
+    overrides = [
+      {
+        matcher = {
+          id = "byName";
+          options = "CPU";
+        };
+        properties = [
+          {
+            id = "color";
+            value = {
+              mode = "fixed";
+              fixedColor = palette.accent;
+            };
+          }
+        ];
+      }
+      {
+        matcher = {
+          id = "byName";
+          options = "NVMe";
+        };
+        properties = [
+          {
+            id = "color";
+            value = {
+              mode = "fixed";
+              fixedColor = palette.info;
+            };
+          }
+        ];
+      }
+      {
+        matcher = {
+          id = "byName";
+          options = "Board";
+        };
+        properties = [
+          {
+            id = "color";
+            value = {
+              mode = "fixed";
+              fixedColor = palette.muted;
+            };
+          }
+        ];
+      }
+    ];
+    legend = {
+      displayMode = "list";
+      placement = "bottom";
+      calcs = [ "lastNotNull" ];
+    };
+  };
+
+  # ---------------------------------------------------------------------------
+  # Storage
+  # ---------------------------------------------------------------------------
+  filesystemExpr = ''max by (instance, mountpoint) (1 - node_filesystem_avail_bytes{job="node", mountpoint=~"/|/hdd|/System/Volumes/Data|/mnt/data", fstype!~"tmpfs|ramfs|overlay|squashfs|devtmpfs"} / node_filesystem_size_bytes{job="node", mountpoint=~"/|/hdd|/System/Volumes/Data|/mnt/data", fstype!~"tmpfs|ramfs|overlay|squashfs|devtmpfs"})'';
+
+  filesystemPanel = {
+    type = "bargauge";
+    title = "Filesystem usage";
+    description = "Primary filesystem per machine, plus satsuma's media pool.";
+    datasource = ds;
+    gridPos = {
+      x = 0;
+      y = storageY;
+      w = 12;
+      h = storageH;
+    };
+    targets = [
+      (target "A" filesystemExpr {
+        legendFormat = "{{instance}} {{mountpoint}}";
+        instant = true;
+      })
+    ];
+    fieldConfig = {
+      defaults = {
+        unit = "percentunit";
+        min = 0;
+        max = 1;
+        decimals = 1;
+        thresholds = thresholds capacity;
+        color.mode = "thresholds";
+        noValue = "none";
+      };
+      overrides = [ ];
+    };
+    options = {
+      orientation = "horizontal";
+      displayMode = "gradient";
+      showUnfilled = true;
+      valueMode = "color";
+      reduceOptions = {
+        calcs = [ "lastNotNull" ];
+        fields = "";
+        values = false;
+      };
+    };
+  };
+
+  arcPanel = tsPanel {
+    x = 12;
+    y = storageY;
+    w = 12;
+    h = storageH;
+    title = "ZFS ARC";
+    description = "Cache hit rate and how much of the ARC limit is in use. A falling hit rate with rising disk I/O means cache pressure.";
+    unit = "percent";
+    min = 0;
+    max = 100;
+    decimals = 1;
+    targets = [
+      (target "A" ''rate(node_zfs_arc_hits[5m]) / (rate(node_zfs_arc_hits[5m]) + rate(node_zfs_arc_misses[5m])) * 100'' {
+        legendFormat = "Hit rate";
+      })
+      (target "B" ''node_zfs_arc_size / node_zfs_arc_c_max * 100'' {
+        legendFormat = "ARC used";
+      })
+    ];
+    overrides = [
+      {
+        matcher = {
+          id = "byName";
+          options = "Hit rate";
+        };
+        properties = [
+          {
+            id = "color";
+            value = {
+              mode = "fixed";
+              fixedColor = palette.ok;
+            };
+          }
+        ];
+      }
+      {
+        matcher = {
+          id = "byName";
+          options = "ARC used";
+        };
+        properties = [
+          {
+            id = "color";
+            value = {
+              mode = "fixed";
+              fixedColor = palette.info;
+            };
+          }
+        ];
+      }
+    ];
+    legend = {
+      displayMode = "list";
+      placement = "bottom";
+      calcs = [ "lastNotNull" ];
+    };
+  };
+
+  # ---------------------------------------------------------------------------
+  # Monitoring the monitor
+  # ---------------------------------------------------------------------------
+  targetsPanel = {
+    type = "table";
+    title = "Exporter scrape health";
+    description = "Prometheus's own view of the node and Prometheus targets.";
+    datasource = ds;
+    gridPos = {
+      x = 0;
+      y = monitorY;
+      w = 8;
+      h = monitorH;
+    };
+    targets = [
+      (tableTarget "A" ''up{job=~"node|prometheus"}'')
+    ];
+    transformations = [
+      {
+        id = "filterFieldsByName";
+        options.include.names = [
+          "job"
+          "instance"
+          "Value"
+        ];
+      }
+      {
+        id = "organize";
+        options = {
+          indexByName = {
+            job = 0;
+            instance = 1;
+            Value = 2;
+          };
+          renameByName = {
+            job = "Job";
+            instance = "Target";
+            Value = "Status";
+          };
+        };
+      }
+      {
+        id = "sortBy";
+        options.sort = [
+          { field = "Status"; }
+          { field = "Target"; }
+        ];
+      }
+    ];
+    fieldConfig = {
+      defaults = {
+        custom.align = "left";
+        noValue = "-";
+      };
+      overrides = [
+        {
+          matcher = {
+            id = "byName";
+            options = "Status";
+          };
+          properties = [
+            {
+              id = "mappings";
+              value = upDownMappings;
+            }
+            {
+              id = "custom.cellOptions";
+              value = {
+                type = "color-background";
+              };
+            }
+            {
+              id = "thresholds";
+              value = thresholds redGreen;
+            }
+            {
+              id = "color";
+              value = {
+                mode = "thresholds";
+              };
+            }
+            {
+              id = "custom.width";
+              value = 80;
+            }
+          ];
+        }
+      ];
+    };
+    options = {
+      showHeader = true;
+      cellHeight = "sm";
+    };
+  };
+
+  slowestPanel = {
+    type = "bargauge";
+    title = "Slowest checks";
+    description = "Probe round-trip time, top 8.";
+    datasource = ds;
+    gridPos = {
+      x = 8;
+      y = monitorY;
+      w = 8;
+      h = monitorH;
+    };
+    targets = [
+      (target "A" ''topk(8, max by (service) (probe_duration_seconds{job="blackbox", check!="cert"}))'' {
+        legendFormat = "{{service}}";
+        instant = true;
+      })
+    ];
+    fieldConfig = {
+      defaults = {
+        unit = "s";
+        min = 0;
+        max = 0.5;
+        thresholds = thresholds latency;
+        color.mode = "thresholds";
+        noValue = "none";
+      };
+      overrides = [ ];
+    };
+    options = {
+      orientation = "horizontal";
+      displayMode = "gradient";
+      showUnfilled = true;
+      valueMode = "color";
+      reduceOptions = {
+        calcs = [ "lastNotNull" ];
+        fields = "";
+        values = false;
+      };
+    };
+  };
+
+  failedUnitsPanel = {
+    type = "table";
+    title = "Failed systemd units";
+    datasource = ds;
+    gridPos = {
+      x = 16;
+      y = monitorY;
+      w = 8;
+      h = monitorH;
+    };
+    targets = [
+      (tableTarget "A" ''node_systemd_unit_state{state="failed"} == 1'')
+    ];
+    transformations = [
+      {
+        id = "filterFieldsByName";
+        options.include.names = [
+          "instance"
+          "name"
+        ];
+      }
+      {
+        id = "organize";
+        options.renameByName = {
+          instance = "Machine";
+          name = "Unit";
+        };
+      }
+    ];
+    fieldConfig = {
+      defaults.noValue = "No failed units";
+      overrides = [ ];
+    };
+    options = {
+      showHeader = true;
+      cellHeight = "sm";
+    };
+  };
 
   dashboard = {
     uid = "homelab-overview";
     title = "Homelab Overview";
-    tags = [ "homelab" ];
+    description = "satsuma and friends: service health, fleet capacity, and the monitoring stack that watches it all.";
+    tags = [
+      "homelab"
+      "overview"
+      "satsuma"
+    ];
     timezone = "browser";
     schemaVersion = 41;
     editable = true;
+    graphTooltip = 1;
     refresh = "30s";
     time = {
       from = "now-24h";
@@ -1048,20 +2033,50 @@ let
         url = "/d/${nodeDashboardUid}/node-exporter-full";
         icon = "dashboard";
       }
+      {
+        title = "Alerts";
+        type = "link";
+        url = "/alerting/list";
+        icon = "bell";
+      }
+      {
+        title = "Prometheus";
+        type = "link";
+        url = "https://prometheus.local.estrogenuinely.ca";
+        icon = "external link";
+        targetBlank = true;
+      }
     ];
     panels =
       topRow
       ++ [
-        (rowPanel 4 "Machines")
+        (rowPanel fleetRowY "Fleet")
         machinesPanel
-        (rowPanel (groupsY - 1) "Services")
+        alertsPanel
+        (rowPanel servicesRowY "Services")
       ]
       ++ lib.imap0 groupPanel groupNames
       ++ [
-        (rowPanel historyY "History")
+        (rowPanel historyRowY "Service health")
         historyPanel
-      ]
-      ++ detailPanels;
+        (rowPanel reliabilityRowY "Reliability & certificates")
+        reliabilityPanel
+        certPanel
+        (rowPanel infraRowY "Infrastructure")
+        cpuPanel
+        memoryPanel
+        networkPanel
+        diskPanel
+        loadPanel
+        tempPanel
+        (rowPanel storageRowY "Storage")
+        filesystemPanel
+        arcPanel
+        (rowPanel monitorRowY "Monitoring")
+        targetsPanel
+        slowestPanel
+        failedUnitsPanel
+      ];
   };
 
   # Give every panel a stable numeric id.
