@@ -24,4 +24,5 @@ in
   "grafana_admin_pass.age".publicKeys = common;
   "grafana_secret_key.age".publicKeys = common;
   "grafana_oidc_secret.age".publicKeys = common;
+  "hermes-env.age".publicKeys = common;
 }

@@ -40,6 +40,7 @@ in
     ./monitoring.nix
     ./monitoring-overview.nix
     ./alerting.nix
+    ./hermes.nix
 
     ./nextcloud
     ./arr-stack
