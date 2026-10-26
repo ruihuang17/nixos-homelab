@@ -19,7 +19,7 @@ let
     satsuma.mount = "/";
     orange.mount = "/";
     mail.mount = "/";
-    mac-mini.mount = "/System/Volumes/Data";
+    lime.mount = "/System/Volumes/Data";
     homeassistant.mount = "/mnt/data";
   };
 
@@ -111,9 +111,10 @@ let
     # Media
     {
       group = "Media";
+      host = "lime";
       name = "Jellyfin";
       type = "http";
-      target = "http://127.0.0.1:8096/health";
+      target = "http://10.0.10.73:8096/health";
     }
     {
       group = "Media";
@@ -384,7 +385,7 @@ let
     satsuma = palette.accent;
     mail = palette.info;
     orange = palette.violet;
-    mac-mini = palette.teal;
+    lime = palette.teal;
     homeassistant = palette.pink;
   };
 
@@ -788,7 +789,7 @@ let
           value = lib.toInt nHosts;
         }
       ];
-      description = "node_exporter targets: satsuma, mail, orange, mac-mini, homeassistant.";
+      description = "node_exporter targets: satsuma, mail, orange, lime, homeassistant.";
     })
     (statPanel {
       x = 12;
@@ -1623,7 +1624,7 @@ let
     w = 8;
     h = 8;
     title = "Load average";
-    description = "1 minute load. Compare against core count; mac-mini is the usual hotspot.";
+    description = "1 minute load. Compare against core count; lime is the usual hotspot.";
     unit = "none";
     decimals = 2;
     targets = [

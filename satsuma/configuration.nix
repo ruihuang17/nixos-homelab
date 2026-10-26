@@ -21,6 +21,13 @@ in
 {
   nixpkgs.config.allowUnfree = true;
 
+  # Disable password-based SSH authentication for all accounts.
+  # Key-based authentication remains available for root, rhuang, and lena.
+  services.openssh.settings = {
+    PasswordAuthentication = false;
+    KbdInteractiveAuthentication = false;
+  };
+
   imports = [
     # Include the results of the hardware scan.
     ./hardware-configuration.nix
@@ -37,14 +44,42 @@ in
     ./zfs-backup.nix
     ./boot-replication.nix
     ./postgres-backup.nix
+    ./restic-offsite.nix
     ./monitoring.nix
     ./monitoring-overview.nix
     ./alerting.nix
+    ./grove-exporter.nix
     ./hermes.nix
 
     ./nextcloud
     ./arr-stack
   ];
+
+  # ZFS/SMART/media/database telemetry for the Grove dashboard.
+  services.groveExporter = {
+    enable = true;
+    zfs.enable = true;
+    smartctl.enable = true;
+    sonarr.enable = true;
+    radarr.enable = true;
+    prowlarr.enable = true;
+    qbittorrent.enable = true;
+    unifi = {
+      enable = true;
+      user = "grove";
+      passwordFile = config.age.secrets.unifi-grove-password.path;
+    };
+  };
+
+  # Password for the local UniFi account used by the unpoller exporter. The
+  # exporter runs as the unpoller-exporter group, so keep the decrypted copy
+  # readable by that group only.
+  age.secrets.unifi-grove-password = {
+    file = "/etc/nixos/satsuma/secrets/unifi-grove-password.age";
+    owner = "root";
+    group = "unpoller-exporter";
+    mode = "0440";
+  };
 
   # Use the systemd-boot EFI boot loader.
   boot.loader.systemd-boot.enable = true;
@@ -62,6 +97,7 @@ in
     go
     hugo
     ffsubsync
+    nh
   ];
 
   # Power Optimization
@@ -92,6 +128,23 @@ in
   boot.extraModprobeConfig = ''
     options zfs zfs_txg_timeout=30
   '';
+
+  # The exported datasets are separate fstab-generated mount units. `zfs share
+  # -a` only exports datasets that are currently mounted, so ordering zfs-share
+  # after them prevents it from regenerating an empty NFS export list during
+  # `nixos-rebuild switch` (which can restart all of these units at once).
+  systemd.services.zfs-share = {
+    after = [
+      "hdd-data.mount"
+      "hdd-mediaSrv.mount"
+      "hdd-backup.mount"
+    ];
+    wants = [
+      "hdd-data.mount"
+      "hdd-mediaSrv.mount"
+      "hdd-backup.mount"
+    ];
+  };
 
   system.autoUpgrade = {
     enable = true;

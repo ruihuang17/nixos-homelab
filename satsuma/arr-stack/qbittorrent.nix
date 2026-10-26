@@ -39,6 +39,7 @@ in
     pia-username.file = ../secrets/pia-username.age;
     pia-password.file = ../secrets/pia-password.age;
     qbittorrent-password.file = ../secrets/qbittorrent-password.age;
+    qui-session-secret.file = ../secrets/qui-session-secret.age;
   };
 
   environment.systemPackages = with pkgs; [
@@ -58,7 +59,9 @@ in
     before = [ "pia-vpn.service" ];
     serviceConfig = {
       Type = "oneshot";
-      RemainAfterExit = true;
+      # No RemainAfterExit: pia-vpn's ExecStop deletes the generated config, so
+      # this must re-run every time pia-vpn starts/restarts (Requires= alone
+      # will not re-run a unit that is still considered active).
       ExecStart = pkgs.writeShellScript "pia-wg-config-gen" ''
         set -euo pipefail
         umask 077
@@ -287,7 +290,27 @@ in
   users.groups.qbittorrent = { };
 
   # -----------------------------------------------------------------------
-  # 4. Sync PIA's forwarded port
+  # 4. qui - alternative qBittorrent web UI
+  # -----------------------------------------------------------------------
+  services.qui = {
+    enable = true;
+    secretFile = config.age.secrets.qui-session-secret.path;
+    settings = {
+      host = "127.0.0.1";
+      port = 7476;
+      allowedHosts = [
+        "qbittorrent.local.estrogenuinely.ca"
+        "localhost"
+        "127.0.0.1"
+      ];
+      sessionCookieSecure = true;
+      checkForUpdates = false;
+      logLevel = "INFO";
+    };
+  };
+
+  # -----------------------------------------------------------------------
+  # 5. Sync PIA's forwarded port
   # -----------------------------------------------------------------------
   systemd.services.pia-port-forwarder = {
     description = "Sync PIA dynamic port forwarding with qBittorrent Web API";
@@ -331,7 +354,7 @@ in
   };
 
   # -----------------------------------------------------------------------
-  # 5. nginx reverse proxy
+  # 6. nginx reverse proxy
   # -----------------------------------------------------------------------
   services.nginx = {
     enable = true;
@@ -339,13 +362,8 @@ in
       useACMEHost = "estrogenuinely.ca";
       forceSSL = true;
       locations."/" = {
-        proxyPass = "http://${vpnVethIP}:${toString qbtWebUIPort}";
-        extraConfig = ''
-          proxy_set_header Host $host;
-          proxy_set_header X-Real-IP $remote_addr;
-          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-          proxy_set_header X-Forwarded-Proto $scheme;
-        '';
+        proxyPass = "http://127.0.0.1:7476";
+        proxyWebsockets = true;
       };
     };
   };

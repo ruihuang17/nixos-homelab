@@ -1,8 +1,9 @@
 { pkgs, config, ... }:
 
 {
+  # Jellyfin runs on lime (10.0.10.73); keep satsuma data for rollback.
   services.jellyfin = {
-    enable = true;
+    enable = false;
     group = "media";
     hardwareAcceleration = {
       enable = true;
@@ -25,15 +26,14 @@
     };
   };
   environment.systemPackages = with pkgs; [ jellyfin-ffmpeg ];
-  users.users.jellyfin.extraGroups = [
-    "render"
-    "video"
-  ];
+  # Keep the account/UID so /var/lib/jellyfin remains readable if re-enabled.
+  users.users.jellyfin = {
+    isSystemUser = true;
+    group = "media";
+    uid = 986;
+    extraGroups = [ "render" "video" ];
+  };
   hardware.graphics.enable = true;
-
-  systemd.services.jellyfin.serviceConfig.Environment = [
-    "XDG_CACHE_HOME=/var/lib/jellyfin/.cache"
-  ];
   fonts.fontconfig.localConf = ''
     <?xml version="1.0"?>
     <!DOCTYPE fontconfig SYSTEM "fonts.dtd">

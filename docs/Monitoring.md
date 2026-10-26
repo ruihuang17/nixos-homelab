@@ -15,7 +15,7 @@ Prometheus scrapes on port **9100**. See [[Setup Overview]] for the host table a
 | Grafana       | satsuma       | `127.0.0.1:3000`      | `grafana.local.estrogenuinely.ca` (nginx)    |
 | node_exporter | satsuma       | `127.0.0.1:9100`      | local only                                   |
 | node_exporter | orange        | `10.0.10.23:9100`     | LAN                                          |
-| node_exporter | mac-mini      | `10.0.10.73:9100`     | LAN                                          |
+| node_exporter | lime          | `10.0.10.73:9100`     | LAN                                          |
 | node_exporter | homeassistant | `10.0.10.74:9100`     | LAN                                          |
 | node_exporter | mail (VPS)    | `100.91.236.114:9100` | **tailnet only**                             |
 
@@ -32,7 +32,7 @@ Prometheus scrapes every 30 s and keeps 90 days of history. All six targets
   `admin` user remains as a break-glass login; its password is stored encrypted
   with agenix at `satsuma/secrets/grafana_admin_pass.age` 
 - The pre-provisioned dashboard is **Node Exporter Full** (Grafana dashboard
-  1860). Pick a host from the `instance` dropdown (satsuma / orange / mac-mini /
+  1860). Pick a host from the `instance` dropdown (satsuma / orange / lime /
   homeassistant / mail).
 
 ## How it's configured
@@ -118,9 +118,9 @@ Things to know:
   query (`renamed` / `historyExpr` in `monitoring-overview.nix`) folds the old names
   into the new ones so each keeps one row. Delete that shim after 2026-10-13, once
   the old names have aged out of the 24 h view.
-- **29 services** are covered. **mac-mini only appears as a machine**: nothing
-  on it listens except node_exporter, so there is nothing to probe for the iMessage
-  bridge or Sunshine.
+- **29 services** are covered. **lime** runs node_exporter and Jellyfin; satsuma
+  probes Jellyfin directly at `http://10.0.10.73:8096/health`. The iMessage bridge
+  and Sunshine are not probed.
 - The Kanidm, Nextcloud and Collabora checks go through nginx (they resolve to
   localhost via `/etc/hosts`), so they also catch certificate and proxy problems.
   The rest check the backend directly, so an orange DNS outage doesn't turn
@@ -188,7 +188,7 @@ The three non-NixOS hosts don't use the flake, so they were set up by hand.
   `ProtectSystem=strict`, `ProtectHome`, etc.), enabled and listening on `:9100`.
 - Update later by replacing the binary and `systemctl restart node_exporter`.
 
-### mac-mini (macOS / arm64) — Homebrew
+### lime (macOS / arm64) — Homebrew
 
 - Installed with `brew install node_exporter` and started with
   `brew services start node_exporter` (LaunchAgent
@@ -254,13 +254,13 @@ posted to by the bot `@homelab-alertbot:estrogenuinely.ca`. rhuang is invited.
   - **Policy**: root route → `homelab`, grouped by `alertname`+`instance`.
   - **Rules** (folder *Homelab*, group `homelab-core`, 1 m interval), built by the
     `mkRule`/`mkFiringData` helpers (query A → reduce last B → threshold C `> 0`):
-    - **Host down** — `up{job="node"} == 0` (orange / mac-mini / homeassistant /
+    - **Host down** — `up{job="node"} == 0` (orange / lime / homeassistant /
       mail; 3 m).
     - **Service down** — `homelab:service_up == 0` (the recording rule from
       `monitoring-overview.nix`; 5 m).
     - **Filesystem almost full** — `/` on every host **plus satsuma's HDD pool
       `/hdd`** <10% free (15 m). Selector `mountpoint=~"/|/hdd"` so it ignores
-      external/removable mounts (e.g. mac-mini's `/Volumes/*`), APFS system
+      external/removable mounts (e.g. lime's `/Volumes/*`), APFS system
       volumes, bind-mounts, and per-dataset ZFS noise. On satsuma `/` is the SSD
       (ZFS root) and `/hdd` is the separate bulk-storage pool.
 

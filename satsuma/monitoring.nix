@@ -153,7 +153,7 @@ in
           }
           {
             targets = [ "10.0.10.73:9100" ];
-            labels.instance = "mac-mini";
+            labels.instance = "lime";
           }
           {
             targets = [ "10.0.10.74:9100" ];
@@ -349,6 +349,22 @@ in
                       / node_filesystem_size_bytes{mountpoint=~"/|/hdd", fstype!~"tmpfs|ramfs|overlay|squashfs|devtmpfs"}) < 0.10'';
                   forDur = "15m";
                   summary = "{{ $labels.instance }} {{ $labels.mountpoint }} has <10% free space.";
+                  labels.severity = "warning";
+                })
+                (mkRule {
+                  uid = "homelab-restic-offsite-failed";
+                  title = "Offsite backup failed";
+                  expr = "max(node_systemd_unit_state{instance=\"satsuma\", name=~\"restic-backups-ovh.*\", state=\"failed\"}) == 1";
+                  forDur = "10m";
+                  summary = "Offsite restic backup failed on satsuma. Check journalctl -u restic-backups-ovh.service.";
+                  labels.severity = "critical";
+                })
+                (mkRule {
+                  uid = "homelab-restic-offsite-stale";
+                  title = "Offsite backup stale";
+                  expr = "time() - max(node_systemd_timer_last_trigger_seconds{instance=\"satsuma\", name=\"restic-backups-ovh.timer\"}) > 172800 and max(node_systemd_timer_last_trigger_seconds{instance=\"satsuma\", name=\"restic-backups-ovh.timer\"}) > 0";
+                  forDur = "30m";
+                  summary = "The OVH offsite backup timer has not fired in over 48 hours.";
                   labels.severity = "warning";
                 })
               ];

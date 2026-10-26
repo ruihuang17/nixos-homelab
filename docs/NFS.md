@@ -71,15 +71,29 @@ If pomelo accepts the route, NFS traffic goes over `tailscale0` with source
 `100.127.87.100`, which no export allows, and mounts fail with
 `access denied by server`.
 
-### mac-mini
+### lime
 
-`~/NAS/mediaSrv` is an autofs mount of `/hdd/mediaSrv`.
+`~/NAS/mediaSrv` is an autofs mount of `/hdd/mediaSrv`. The map uses NFSv3
+with explicit ports because this macOS client cannot negotiate NFSv4 with
+satsuma:
+
+```
+/Users/rhuang/NAS/mediaSrv  -fstype=nfs,nfsvers=3,proto=tcp,port=2049,mountport=20048,resvport,rw,nolocks,hard,timeo=14  10.0.10.72:/hdd/mediaSrv
+```
+
+`com.apple.automountd` must be enabled, and satsuma's firewall must allow
+TCP/UDP 111 and 20048. If automountd is disabled, access fails with
+`Connection reset by peer` even though a manual NFSv3 mount works.
+
+`nolocks` is required because the NFSv3 lock-manager (NLM) ports are not
+opened; without it, Jellyfin can open a media file but hang on the first read.
+The Mac only reads media, so local locking is not needed.
 
 ## Permissions
 
-- `rhuang` is uid 1000 on both satsuma and pomelo.
-- satsuma group `media` and pomelo group `storage` are both GID 3000, so numeric
-  GID mapping works without idmapd configuration.
+- `rhuang` is uid 1000 on satsuma, pomelo, and the Mac mini.
+- satsuma group `media`, pomelo group `storage`, and the Mac mini group `storage`
+  are all GID 3000, so numeric GID mapping works without idmapd configuration.
 - The dataset roots are `root:media` mode `770` (`2770` on shared subdirectories); `rhuang` has group access.
 - `no_root_squash` is set on all three exports.
 
@@ -93,6 +107,13 @@ findmnt -T ~/NAS/backup
 findmnt -T ~/NAS/data
 findmnt -T ~/NAS/media
 touch ~/NAS/data/.write-test && rm ~/NAS/data/.write-test
+```
+
+From lime:
+
+```bash
+findmnt -T ~/NAS/mediaSrv
+ls ~/NAS/mediaSrv
 ```
 
 From satsuma:
@@ -111,6 +132,13 @@ systemctl status nfs-server
   from that client (exportfs returns ENOENT for unauthorized clients).
 - `nfsdctl: Error: Invalid argument` in `nfs-server` logs on start is currently
   benign; NFS still works.
-- If exports are empty after a reboot, run `sudo zfs share -a`.
-  `zfs-share.service` runs before `nfs-server.service`; this was seen once but
-  did not reproduce on an `nfs-server` restart.
+- `Connection reset by peer` on the Mac mini: enable/load
+  `com.apple.automountd` and confirm the autofs map uses NFSv3 with
+  `mountport=20048`.
+- If exports are empty after a reboot or `nixos-rebuild switch`, run
+  `sudo zfs share -a` to repopulate them. Root cause: `zfs-share.service` runs
+  `zfs share -a`, which only exports datasets that are already mounted. Because
+  `/hdd/backup` is a separate fstab-generated mount unit, a switch that restarts
+  both units at once could run `zfs share -a` first and rewrite
+  `/etc/exports.d/zfs.exports` as empty. `satsuma/configuration.nix` now orders
+  `zfs-share.service` after `hdd-backup.mount` to prevent this.

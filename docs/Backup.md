@@ -5,6 +5,7 @@ Config repo: `/etc/nixos` on satsuma → `github.com:ruihuang17/nixos-homelab` (
 | What                      | Method                                   | Where it lands                                | Schedule                     | Offsite |
 | ------------------------- | ---------------------------------------- | --------------------------------------------- | ---------------------------- | ------- |
 | `/var` (all service data) | sanoid snapshots + syncoid replication   | `hdd/backup/var` (HDD pool, same box)         | snapshots hourly, sync daily | no      |
+| `/var` + `/etc`           | restic to OVHcloud Object Storage        | `satsuma-backup` (Toronto, `ca-east-tor`)      | daily 04:30                  | yes     |
 | PostgreSQL (all DBs)      | `pg_dump` + restic over SFTP via tailnet | `mail` VPS `/var/lib/satsuma-backup/postgres` | dump 03:00, push 03:20       | yes     |
 | Boot / ESP                | rsync-style mirror to second NVMe ESP    | `nvme0n1p1` (`boot-bak`)                      | on ESP change + timer        | no      |
 
@@ -173,3 +174,127 @@ Module: `satsuma/boot-replication.nix`. Mirrors the primary EFI System Partition
 ESP (`nvme0n1p1`, UUID `1BEB-C3B7`, label `boot-bak`, normally unmounted) and registers a UEFI
 boot entry so firmware can boot from the second disk. Triggered by a path watcher on the primary
 ESP and a periodic timer; manual: `systemctl start sync-backup-esp`.
+
+---
+
+## 4. Offsite backup to OVHcloud (Toronto)
+
+Module: `satsuma/restic-offsite.nix`.
+Repo: `s3:https://s3.ca-east-tor.io.cloud.ovh.net/satsuma-backup`.
+
+### What is backed up
+
+- `/var` — all service data, except:
+  - `/var/lib/jellyfin` (re-downloadable media metadata/cache)
+  - `/var/lib/immich/thumbs` and `/var/lib/immich/encoded-video` (regenerable)
+  - live database directories `/var/lib/psql`, `/var/lib/mysql`, `/var/lib/redis-immich`
+    (Postgres dumps are in `/var/backup/postgresql` and are also shipped to the mail VPS)
+  - `/var/cache`, `/var/tmp`, `/var/log`, `/var/lib/docker`, `/var/lib/containers`
+- `/etc` — host keys, network config, and the NixOS tree.
+- `/home` is intentionally **not** included.
+
+Approximate size: ~210 GB (Immich originals are ~201 GB; Nextcloud ~8 GB).
+
+### Bucket / encryption
+
+- OVHcloud Object Storage, region `ca-east-tor` (Toronto), bucket `satsuma-backup`.
+- Standard class; **versioning on**; **Object Lock off** (it would block prune).
+- Lifecycle rule: noncurrent object versions expire after **30 days**, incomplete multipart
+  uploads after **7 days**. Without this, restic prune would only add delete markers and storage
+  would grow forever.
+- OVH **SSE-OMK** server-side encryption is enabled as defence in depth.
+- Restic encrypts client-side. OVH only ever sees restic ciphertext; the restic password is the
+  real protection. SSE-OMK does not let OVH read the data.
+
+### Schedule / retention
+
+- `restic-backups-ovh.timer`: daily at **04:30** (persistent, 10 min random delay).
+- Retention: **14 daily, 8 weekly, 12 monthly**; `forget --prune` runs after each backup.
+- `restic-backups-ovh-check.timer`: **quarterly** (Jan/Apr/Jul/Oct 1 at 12:00) runs
+  `restic check --read-data-subset=1/20` (5% of pack data).
+- Initial upload is throttled to **8 MB/s** (`--limit-upload 8000`). Remove or raise it after the
+  first backup if the WAN can take more.
+
+### Secrets
+
+- `satsuma/secrets/restic_offsite_password.age` — new, independent restic repo password.
+- `satsuma/secrets/restic_s3_env.age` — `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+  `AWS_DEFAULT_REGION=ca-east-tor` for the bucket-scoped S3 user.
+- Both are encrypted to the satsuma host key and the `rhuang` key. They decrypt to
+  `/run/agenix/restic_offsite_password` and `/run/agenix/restic_s3_env` (root, 0400).
+- **Store a copy of the restic password in your password manager.** If satsuma and the
+  `rhuang` key are both lost, the repository is unrecoverable. To read it on satsuma:
+
+  ```bash
+  sudo age -d -i /etc/ssh/ssh_host_ed25519_key \
+    /etc/nixos/satsuma/secrets/restic_offsite_password.age
+  ```
+
+### Check status
+
+```bash
+systemctl list-timers 'restic-backups-ovh*'
+journalctl -u restic-backups-ovh.service -n 50
+restic-ovh snapshots
+restic-ovh stats
+```
+
+`restic-ovh` is the generated wrapper; it already has the repository, password file, and S3
+credentials in its environment. `restic-ovh-check` is the same for the quarterly check.
+
+### Run manually
+
+```bash
+systemctl start restic-backups-ovh.service
+systemctl start restic-backups-ovh-check.service
+```
+
+### Restore
+
+```bash
+# List snapshots.
+restic-ovh snapshots
+
+# Restore everything to /tmp (needs ~210 GB free).
+restic-ovh restore latest --target /tmp/restore
+
+# Restore only one path.
+restic-ovh restore latest --target /tmp/restore --include /var/lib/nextcloud
+
+# Restore a specific snapshot.
+restic-ovh restore <snapshot-id> --target /tmp/restore
+```
+
+If satsuma is gone, decrypt the two `.age` files from the git repo with the `rhuang` key, then
+run restic from any machine with the S3 credentials:
+
+```bash
+export RESTIC_REPOSITORY=s3:https://s3.ca-east-tor.io.cloud.ovh.net/satsuma-backup
+export RESTIC_PASSWORD_FILE=/path/to/decrypted/restic_offsite_password
+export AWS_ACCESS_KEY_ID=...
+export AWS_SECRET_ACCESS_KEY=...
+export AWS_DEFAULT_REGION=ca-east-tor
+restic restore latest --target /tmp/restore
+```
+
+### Caveats
+
+- OVHcloud Canada is **single-AZ**; there is no multi-AZ Canadian region. This is still an
+  offsite copy, separate from the local HDD pool and the mail VPS.
+- `/home` is excluded by design.
+- Live SQLite/other databases (e.g. Vaultwarden) are captured crash-consistently, not with a
+  database-aware dump. Postgres is covered separately by `pg_dump`.
+- Versioning plus the 30-day noncurrent lifecycle gives a 30-day undelete window, but there is no
+  Object Lock, so a compromised satsuma could still delete the bucket contents with its S3 key
+  (and an attacker with the bucket key could remove versions).
+- The first full backup takes roughly 7–8 hours at 8 MB/s. Incremental daily backups are much
+  smaller.
+- Status: repository created and smoke-restore tested **2026-10-26**; initial full backup started
+  **2026-10-26 03:48 EDT**. Check `restic-ovh snapshots` for completion.
+
+### Monitoring
+
+Grafana alert rules (provisioned from `satsuma/monitoring.nix`):
+
+- `homelab-restic-offsite-failed` — `restic-backups-ovh*` unit in `failed` state.
+- `homelab-restic-offsite-stale` — timer has not fired for >48 h.

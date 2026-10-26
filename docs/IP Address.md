@@ -10,7 +10,7 @@
 | 10.0.10.43 | `hibiscus`                   | Lena's laptop  |
 |            |                              |                |
 | 10.0.10.72 | `satsuma`                    | NixOS          |
-| 10.0.10.73 | `mac-mini`                   | MacOS          |
+| 10.0.10.73 | `lime`                       | MacOS          |
 | 10.0.10.74 | `homeassistant`              | HAOS           |
 |            |                              |                |
 

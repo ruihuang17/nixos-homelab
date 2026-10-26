@@ -6,7 +6,7 @@ Documented 2026-10-11 by SSHing into each machine. Desktops and laptops are excl
 | ---- | -- | ---- | -- |
 | `orange` | 10.0.10.23 | DNS server | Armbian (Debian 13 trixie), aarch64 |
 | `satsuma` | 10.0.10.72 | Main server (services, storage) | NixOS (unstable, flake) |
-| `mac-mini` | 10.0.10.73 | iMessage bridge, Sunshine, Jellyfin app | macOS 15.7 on Apple M4 |
+| `lime` | 10.0.10.73 | iMessage bridge, Sunshine, Jellyfin server | macOS 15.7 on Apple M4 |
 | `homeassistant` | 10.0.10.74 | Home automation | Home Assistant OS 18.3 |
 | `gaggimate` | 10.0.10.75 | Coffee Machine | Gaggimate |
 | `marigold` | 10.0.10.76 | Zero Tier Node (AI) | Rasbian |
@@ -62,7 +62,7 @@ Services (all native NixOS modules, no containers):
 | Paperless-ngx                          | Documents. Internal URL only.                                                                                                       |
 | Vaultwarden                            | Password manager.                                                                                                                   |
 | Matrix Synapse                         | `matrix.estrogenuinely.ca`, with mautrix-wsproxy for the SMS/iMessage bridges. Logs in through Kanidm OIDC.                         |
-| Jellyfin                               | Hardware transcoding enabled.                                                                                                       |
+| Hermes Agent                           | Self-hosted AI agent. Dashboard at `hermes.local.estrogenuinely.ca`, gated by Kanidm OIDC. See [[Hermes]].                          |
 | Sonarr, Radarr, Prowlarr, FlareSolverr | The arr stack.                                                                                                                      |
 | qBittorrent                            | Runs inside a network namespace with a PIA WireGuard VPN (Toronto, port forwarding).                                                |
 | PostgreSQL                             | Shared by Nextcloud, Immich, Paperless, Vaultwarden, Synapse and the arr apps.                                                      |
@@ -70,9 +70,9 @@ Services (all native NixOS modules, no containers):
 | NFS                                    | Port 2049, ZFS `sharenfs`: `mediaSrv` to the LAN (Mac mini), `data`/`backup` to pomelo. See [[NFS]].                                |
 | Tailscale                              | Acts as a subnet router/exit node ("server" routing features).                                                                      |
 
-Reverse-proxied hosts on other machines: `home.estrogenuinely.ca` goes to Home Assistant (10.0.10.74:8123), and `dns.local.estrogenuinely.ca` goes to orange (:5380).
+Reverse-proxied hosts on other machines: `home.estrogenuinely.ca` goes to Home Assistant (10.0.10.74:8123), `dns.local.estrogenuinely.ca` goes to orange (:5380), and `jellyfin.local.estrogenuinely.ca` goes to the Mac mini (10.0.10.73:8096).
 
-Firewall allows TCP 25, 80, 443, 1313 and 2049, plus the Tailscale interface.
+Firewall allows TCP 25, 80, 111, 443, 1313, 2049 and 20048, UDP 111 and 20048 for NFSv3/rpcbind, plus the Tailscale interface.
 
 Backups:
 - **Snapshots:** sanoid takes hourly, daily, weekly and monthly snapshots of `zpool/var`.
@@ -81,15 +81,16 @@ Backups:
 - **Boot:** the primary EFI partition is mirrored to the backup one (see Hardware).
 - Details are in [[Backup]].
 
-## mac-mini
+## lime
 
 - Apple M4, 16 GB RAM, 228 GB disk (15% used), macOS 15.7. Set to restart automatically after a power failure, and never sleeps.
 - User `rhuang`. The default shell is fish.
 - **mautrix-imessage** (`~/mautrix-imessage`): Matrix to iMessage bridge. It connects to Synapse on satsuma. See [[SMS Matrix Bridge]].
 - **Sunshine** (Homebrew formula): game-streaming host.
-- **Jellyfin.app** and **BlueBubbles** (Homebrew casks) are installed.
+- **Jellyfin** (Homebrew cask) runs the media server on port 8096; satsuma nginx proxies `jellyfin.local.estrogenuinely.ca` here. **BlueBubbles** is also installed.
+- Jellyfin starts at login via `~/Library/LaunchAgents/com.jellyfin.server.plist`; macOS auto-login is enabled.
 - 1Password and Parsec are also installed.
-- `~/NAS/mediaSrv` is an autofs mount of satsuma's `mediaSrv` over NFS.
+- `~/NAS/mediaSrv` is an autofs mount of satsuma's `mediaSrv` over NFSv3 (explicit `mountport=20048`, `nolocks`); `com.apple.automountd` must be enabled.
 - Homebrew packages are mostly ffmpeg, Go, cmake and other media libs.
 
 ## homeassistant
@@ -107,6 +108,6 @@ Backups:
 
 - **DNS:** orange serves the LAN. The `*.local.*` names resolve to satsuma.
 - **Remote access:** Tailscale on satsuma, the mail VPS and tangerine. Not installed on orange, the Mac mini or Home Assistant.
-- **Identity:** Kanidm on satsuma is the single sign-on for Nextcloud and Matrix.
+- **Identity:** Kanidm on satsuma is the single sign-on for Nextcloud, Matrix, Grafana and Hermes.
 - **Desktop storage:** pomelo mounts `backup`, `data` and `mediaSrv` at `~/NAS` over NFS. See [[NFS]].
 - **Not in the IP table:** the `mail` VPS (Tailscale 100.91.236.114) runs Stalwart mail and is also the offsite backup target. It is defined in the same flake. See [[Stalwart]].

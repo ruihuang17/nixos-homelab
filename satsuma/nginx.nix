@@ -45,9 +45,9 @@
       "ruihuang.io" = {
         useACMEHost = "ruihuang.io";
         forceSSL = true;
-        root = "/srv/www/main/public";
+        root = "/var/lib/www/main/public";
         locations."/countdown/" = {
-          alias = "/srv/www/countdown/";
+          alias = "/var/lib/www/countdown/";
           index = "index.html";
         };
       };
@@ -144,7 +144,7 @@
         useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
         locations."/" = {
-          proxyPass = "http://127.0.0.1:8096";
+          proxyPass = "http://10.0.10.73:8096";
         };
       };
 
@@ -227,11 +227,58 @@
         };
       };
 
+      "hermes.local.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
+        forceSSL = true;
+        locations."/" = {
+          proxyPass = "http://127.0.0.1:9119";
+          proxyWebsockets = true; # dashboard /api/ws and /api/pty
+        };
+      };
+
       "prometheus.local.estrogenuinely.ca" = {
         useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
         locations."/" = {
           proxyPass = "http://127.0.0.1:9090";
+        };
+      };
+
+      # Grove is a static dashboard with a small read-only Prometheus proxy.
+      # Keep the vhost on the LAN/tailnet; it is not a public status page.
+      "grove.local.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
+        forceSSL = true;
+        root = "/var/lib/www/grove";
+        extraConfig = ''
+          allow 10.0.0.0/8;
+          allow 100.64.0.0/10;
+          allow 127.0.0.1;
+          allow ::1;
+          allow fd7a:115c:a1e0::/48;
+          deny all;
+        '';
+        locations."/api/prom/" = {
+          proxyPass = "http://127.0.0.1:9090/";
+          extraConfig = ''
+            proxy_http_version 1.1;
+            proxy_read_timeout 60s;
+            proxy_send_timeout 60s;
+            limit_except GET {
+              deny all;
+            }
+          '';
+        };
+        locations."/assets/" = {
+          extraConfig = ''
+            expires 1y;
+          '';
+        };
+        locations."/" = {
+          extraConfig = ''
+            try_files $uri $uri/ /index.html;
+            expires -1;
+          '';
         };
       };
 

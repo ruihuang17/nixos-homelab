@@ -27,7 +27,6 @@
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq4XsRorOLo7URBB1krIzhJi/ODqjUtD345D/DUrEkH"
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICw7CHZkiNoG7StuF3NBnCHRWvsujJdX4ZTDIhz6YonH"
     ];
-    shell = pkgs.fish;
   };
   security.sudo.wheelNeedsPassword = false;
 
@@ -41,6 +40,7 @@
     btop
     smartmontools
     tree
+    opencode
     inputs.agenix.packages.${stdenv.hostPlatform.system}.default
   ];
 
@@ -87,6 +87,7 @@
         User git
         IdentityFile ~/.ssh/general
   '';
+  programs.tmux.enable = true;
 
   nix.optimise.automatic = true;
   nix.optimise.dates = [ "05:00" ];

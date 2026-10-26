@@ -15,14 +15,20 @@ in
   "pia-username.age".publicKeys = common;
   "pia-password.age".publicKeys = common;
   "qbittorrent-password.age".publicKeys = common;
+  "qui-session-secret.age".publicKeys = common;
   "vaultwarden_token.age".publicKeys = common;
   "matrix_oidc.age".publicKeys = common;
   "synapse_registration_secret.age".publicKeys = common;
   "matrix_alertbot_token.age".publicKeys = common;
   "nextcloud_oidc_secret.age".publicKeys = common;
   "restic_postgres_password.age".publicKeys = common;
+  "restic_offsite_password.age".publicKeys = common;
+  "restic_s3_env.age".publicKeys = common;
   "grafana_admin_pass.age".publicKeys = common;
   "grafana_secret_key.age".publicKeys = common;
   "grafana_oidc_secret.age".publicKeys = common;
   "hermes-env.age".publicKeys = common;
+  "hermes-discord.age".publicKeys = common;
+  "jellyfin-api-key.age".publicKeys = common;
+  "unifi-grove-password.age".publicKeys = common;
 }

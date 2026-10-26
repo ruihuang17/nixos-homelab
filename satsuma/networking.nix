@@ -28,12 +28,14 @@
       allowedTCPPorts = [
         25
         80
+        111
         443
         1313
         2049
+        20048
       ];
       trustedInterfaces = [ config.services.tailscale.interfaceName ];
-      allowedUDPPorts = [ config.services.tailscale.port ];
+      allowedUDPPorts = [ config.services.tailscale.port 111 20048 ];
       checkReversePath = "loose";
     };
   };
