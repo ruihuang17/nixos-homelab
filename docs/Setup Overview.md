@@ -9,7 +9,7 @@ Documented 2026-10-11 by SSHing into each machine. Desktops and laptops are excl
 | `mac-mini` | 10.0.10.73 | iMessage bridge, Sunshine, Jellyfin app | macOS 15.7 on Apple M4 |
 | `homeassistant` | 10.0.10.74 | Home automation | Home Assistant OS 18.3 |
 | `gaggimate` | 10.0.10.75 | Coffee Machine | Gaggimate |
-| `marigold` | 10.0.10.76 | Zero Tier Node | Rasbian |
+| `marigold` | 10.0.10.76 | Zero Tier Node (AI) | Rasbian |
 
 SSH aliases for all of these are in `~/.ssh/config`. Note that `homeassistant` uses port 22222.
 
