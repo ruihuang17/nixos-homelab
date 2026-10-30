@@ -6,7 +6,12 @@
 }:
 let
   vpnNamespace = "torrent-vpn";
-  piaRegion = "ca_toronto";
+  # ca_toronto stopped answering PIA's port-forwarding API (TCP 19999 on the
+  # gateway) on 2026-10-29: Server-10995-8a (192.208.14.191) accepts the
+  # connection and immediately resets it, and the other two wg servers in the
+  # region time out. Montreal answers normally (401 for a token from another
+  # server, which is the expected "API is alive" answer), so use it instead.
+  piaRegion = "ca";
   # piaUsername / piaPassword are no longer plain strings - see age.secrets below
 
   qbtWebUIUser = "admin"; # username isn't sensitive; keep as plain string if you like
@@ -57,11 +62,35 @@ in
   systemd.services.pia-wg-config = {
     description = "Generate PIA WireGuard configuration";
     before = [ "pia-vpn.service" ];
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
     serviceConfig = {
       Type = "oneshot";
+      # The whole chain below Requires= this unit, so a failure here at boot
+      # used to take down pia-vpn, qBittorrent and the port forwarder until
+      # someone started them by hand. Give the retries below room to run.
+      TimeoutStartSec = "10min";
+      Restart = "on-failure";
+      RestartSec = "30s";
       # No RemainAfterExit: pia-vpn's ExecStop deletes the generated config, so
       # this must re-run every time pia-vpn starts/restarts (Requires= alone
       # will not re-run a unit that is still considered active).
+      #
+      # Wait for DNS before talking to PIA: on the 2026-10-29 boot this unit
+      # ran before the network was up, curl exited 6 (could not resolve host)
+      # and everything that depends on it stayed dead.
+      ExecStartPre = pkgs.writeShellScript "pia-wait-for-network" ''
+        i=0
+        until ${pkgs.curl}/bin/curl -sf -o /dev/null -m 10 --connect-timeout 5 \
+            "https://serverlist.piaservers.net/vpninfo/servers/v6"; do
+          i=$((i + 1))
+          if [ "$i" -ge 30 ]; then
+            echo "PIA server list still unreachable after 5 minutes" >&2
+            exit 1
+          fi
+          sleep 10
+        done
+      '';
       ExecStart = pkgs.writeShellScript "pia-wg-config-gen" ''
         set -euo pipefail
         umask 077
@@ -143,8 +172,9 @@ in
         chmod 0600 "${wgConfPath}"
 
         echo "$WG_SERVER_IP" > /etc/wireguard/pia_gateway.txt
+        echo "$WG_SERVER_CN" > /etc/wireguard/pia_hostname.txt
         echo "$PIA_TOKEN"   > /etc/wireguard/pia_token.txt
-        chmod 0600 /etc/wireguard/pia_gateway.txt /etc/wireguard/pia_token.txt
+        chmod 0600 /etc/wireguard/pia_gateway.txt /etc/wireguard/pia_hostname.txt /etc/wireguard/pia_token.txt
       '';
     };
   };
@@ -164,6 +194,8 @@ in
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
+      Restart = "on-failure";
+      RestartSec = "30s";
       ExecStart = pkgs.writeShellScript "pia-vpn-up" ''
         set -e
 
@@ -270,6 +302,9 @@ in
       User = "qbittorrent";
       Group = "qbittorrent";
 
+      Restart = "on-failure";
+      RestartSec = "30s";
+
       NetworkNamespacePath = "/var/run/netns/${vpnNamespace}";
 
       StateDirectory = "qbittorrent";
@@ -319,37 +354,143 @@ in
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       Type = "simple";
+      Restart = "always";
+      RestartSec = "30s";
       NetworkNamespacePath = "/var/run/netns/${vpnNamespace}";
       ExecStart = pkgs.writeShellScript "pia-sync-port" ''
         GATEWAY=$(cat /etc/wireguard/pia_gateway.txt)
+        # PIA's API certificate is issued for the server name (e.g.
+        # montreal435), not for its IP, so the request has to use the name as
+        # the URL host and --connect-to to reach the gateway. Using the bare IP
+        # as the host made curl fail certificate verification (error 60), which
+        # the old script swallowed with -s.
+        HOSTNAME=$(cat /etc/wireguard/pia_hostname.txt)
         TOKEN=$(cat /etc/wireguard/pia_token.txt)
 
-        while true; do
-          SIG_PAYLOAD_RESP=$(${pkgs.curl}/bin/curl -s -m 5 -G \
-            --connect-to "::$GATEWAY:" \
-            --cacert "${piaCaCert}" \
-            --data-urlencode "token=$TOKEN" \
-            "https://$GATEWAY:19999/getSignature")
+        QBT_COOKIE=$(mktemp)
+        trap 'rm -f "$QBT_COOKIE"' EXIT
 
-          PAYLOAD=$(echo "$SIG_PAYLOAD_RESP" | ${pkgs.jq}/bin/jq -r '.payload')
-          SIGNATURE=$(echo "$SIG_PAYLOAD_RESP" | ${pkgs.jq}/bin/jq -r '.signature')
-          PIA_PORT=$(echo "$PAYLOAD" | ${pkgs.coreutils}/bin/base64 -d | ${pkgs.jq}/bin/jq -r '.port')
+        PAYLOAD=""
+        SIGNATURE=""
+        PIA_PORT=""
+
+        # PIA hands out a port + signature that stay valid for about two
+        # months, but the forward is dropped unless bindPort is re-sent every
+        # 15 minutes. The token itself only lives ~24 h, so it is used once to
+        # get the signature and refreshed from the agenix secrets if the API
+        # ever rejects it.
+        refresh_token() {
+          TOKEN=$(${pkgs.curl}/bin/curl -s -m 30 \
+            --connect-timeout 10 --retry 5 --retry-delay 3 --retry-all-errors \
+            --location --request POST \
+            "https://www.privateinternetaccess.com/api/client/v2/token" \
+            --form "username=$(cat ${config.age.secrets.pia-username.path})" \
+            --form "password=$(cat ${config.age.secrets.pia-password.path})" \
+            | ${pkgs.jq}/bin/jq -r '.token // empty')
+          if [ -n "$TOKEN" ]; then
+            echo "$TOKEN" > /etc/wireguard/pia_token.txt
+            chmod 0600 /etc/wireguard/pia_token.txt
+          fi
+        }
+
+        # The qBittorrent Web API refuses unauthenticated requests (403), even
+        # from localhost, so log in before pushing the port. The session
+        # expires after an hour, which is why this runs every iteration.
+        qbt_set_port() {
+          ${pkgs.curl}/bin/curl -s -m 5 -c "$QBT_COOKIE" \
+            -X POST "http://localhost:${toString qbtWebUIPort}/api/v2/auth/login" \
+            --data-urlencode "username=${qbtWebUIUser}" \
+            --data-urlencode "password=$(cat ${config.age.secrets.qbittorrent-password.path})" \
+            >/dev/null
+
+          ${pkgs.curl}/bin/curl -s -m 5 -b "$QBT_COOKIE" \
+            -X POST "http://localhost:${toString qbtWebUIPort}/api/v2/app/setPreferences" \
+            --data-urlencode "json={\"listen_port\": $PIA_PORT}" \
+            -w '%{http_code}' -o /dev/null
+        }
+
+        while true; do
+          if [ -z "$PAYLOAD" ]; then
+            SIG_RESP=$(${pkgs.curl}/bin/curl -s -m 10 -G \
+              --connect-to "$HOSTNAME::$GATEWAY:" \
+              --cacert "${piaCaCert}" \
+              --data-urlencode "token=$TOKEN" \
+              "https://$HOSTNAME:19999/getSignature")
+
+            PAYLOAD=$(echo "$SIG_RESP" | ${pkgs.jq}/bin/jq -r '.payload // empty' 2>/dev/null)
+            SIGNATURE=$(echo "$SIG_RESP" | ${pkgs.jq}/bin/jq -r '.signature // empty' 2>/dev/null)
+
+            if [ -z "$PAYLOAD" ] || [ -z "$SIGNATURE" ]; then
+              echo "PIA getSignature failed on $GATEWAY: $SIG_RESP" >&2
+              PAYLOAD=""
+              refresh_token
+              sleep 300
+              continue
+            fi
+
+            PIA_PORT=$(echo "$PAYLOAD" | ${pkgs.coreutils}/bin/base64 -d | ${pkgs.jq}/bin/jq -r '.port')
+            echo "PIA assigned forwarded port $PIA_PORT"
+          fi
+
+          BIND_RESP=$(${pkgs.curl}/bin/curl -s -m 10 -G \
+            --connect-to "$HOSTNAME::$GATEWAY:" \
+            --cacert "${piaCaCert}" \
+            --data-urlencode "payload=$PAYLOAD" \
+            --data-urlencode "signature=$SIGNATURE" \
+            "https://$HOSTNAME:19999/bindPort")
+
+          if [ "$(echo "$BIND_RESP" | ${pkgs.jq}/bin/jq -r '.status' 2>/dev/null)" != "OK" ]; then
+            echo "PIA bindPort failed on $GATEWAY: $BIND_RESP" >&2
+            PAYLOAD=""
+            SIGNATURE=""
+            sleep 300
+            continue
+          fi
 
           if [ -n "$PIA_PORT" ] && [ "$PIA_PORT" != "null" ]; then
-            ${pkgs.curl}/bin/curl -s -m 5 -G \
-              --connect-to "::$GATEWAY:" \
-              --cacert "${piaCaCert}" \
-              --data-urlencode "payload=$PAYLOAD" \
-              --data-urlencode "signature=$SIGNATURE" \
-              "https://$GATEWAY:19999/bindPort" >/dev/null
-
-            ${pkgs.curl}/bin/curl -s -X POST "http://localhost:${toString qbtWebUIPort}/api/v2/app/setPreferences" \
-              --data-urlencode "json={\"listen_port\": $PIA_PORT}"
+            QBT_STATUS=$(qbt_set_port)
+            if [ "$QBT_STATUS" != "200" ]; then
+              echo "qBittorrent rejected listen_port=$PIA_PORT (HTTP $QBT_STATUS)" >&2
+            fi
           fi
 
           sleep 900
         done
       '';
+    };
+  };
+
+  # -----------------------------------------------------------------------
+  # 5b. Watchdog
+  # -----------------------------------------------------------------------
+  # systemd does not restart a unit whose start job failed because one of its
+  # dependencies failed (Restart= only fires for failures of the service
+  # itself), so a single boot-time hiccup leaves the whole chain dead until
+  # the next boot. Re-assert the stack every few minutes instead.
+  systemd.services.pia-stack-watchdog = {
+    description = "Ensure the PIA VPN / qBittorrent stack is running";
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = pkgs.writeShellScript "pia-stack-watchdog" ''
+        set -u
+        # pia-wg-config is intentionally inactive once it has run (oneshot
+        # without RemainAfterExit); starting pia-vpn re-runs it via Requires=.
+        for unit in pia-vpn qbittorrent pia-port-forwarder; do
+          if ! ${pkgs.systemd}/bin/systemctl is-active --quiet "$unit"; then
+            echo "$unit is not active, starting it" >&2
+            ${pkgs.systemd}/bin/systemctl start "$unit" || true
+          fi
+        done
+      '';
+    };
+  };
+
+  systemd.timers.pia-stack-watchdog = {
+    description = "Check the PIA VPN / qBittorrent stack every 5 minutes";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "3min";
+      OnUnitActiveSec = "5min";
     };
   };
 
