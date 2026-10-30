@@ -89,7 +89,7 @@ let
         echo "$C" > "$FAIL_FILE"
         if [ "$C" -ge ${toString failThreshold} ] && [ ! -f "$DOWN_FILE" ]; then
           send_mail "[homelab] FIRING: satsuma is DOWN" \
-            "The VPS watcher could not reach satsuma over the tailnet for $C consecutive checks (last at $NOW). satsuma hosts Grafana, Synapse and Postfix, so this email via the VPS local Stalwart to SES is the only independent alert path when satsuma is down." && touch "$DOWN_FILE" || true
+            "The VPS watcher could not reach satsuma over the tailnet for $C consecutive checks (last at $NOW). satsuma hosts Grafana, Synapse and Postfix, so this email - sent directly through SES - is the only independent alert path when satsuma is down." && touch "$DOWN_FILE" || true
         fi
       fi
     '';
