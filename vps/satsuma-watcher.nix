@@ -6,7 +6,7 @@
 }:
 let
   satsumaTsIp = "100.72.25.50"; # satsuma's Tailscale IPv4
-  alertTo = "rui@estrogenuinely.ca";
+  alertTo = "rui@estrogenuinely.ca, rui.huang17@protonmail.com";
   alertFrom = "alerts@estrogenuinely.ca";
   # How many consecutive failed probes before we declare satsuma down.
   failThreshold = 3;
