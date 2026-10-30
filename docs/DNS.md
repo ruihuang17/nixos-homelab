@@ -11,20 +11,20 @@ The 2026-10-30 clock/DNSSEC outage is written up at the bottom of this note
 
 ## At a glance
 
-| Thing | Value |
-| ----- | ----- |
-| Host | `orange`, `10.0.10.23` (Armbian 26.11 / Debian 13 trixie, aarch64) |
-| Software | Technitium DNS Server v15.6.2 |
-| Unit | `dns.service` (runs as user `dns-server`) |
-| Ports | `53/udp` + `53/tcp` (DNS), `5380/tcp` (web console) |
-| Web console | <http://10.0.10.23:5380> and <https://dns.local.estrogenuinely.ca> |
-| Config | `/etc/dns` (binary `.config`/`.zone` files — edit via the UI) |
-| App / runtime | `/opt/technitium/dns`, .NET in `/opt/dotnet` |
-| Upstreams | `8.8.8.8`, `8.8.4.4` (Google), recursion + DNSSEC validation on |
-| Authoritative zone | `local.estrogenuinely.ca` (SOA/NS `orange.`, serial 23) |
-| Blocklists | StevenBlack hosts + Hagezi light (wildcard), ~74k domains |
-| Logs | `/var/log/technitium/dns/YYYY-MM-DD.log` |
-| Updates | `technitium-update.timer`, Sundays 04:30 ±15 min |
+| Thing              | Value                                                              |
+| ------------------ | ------------------------------------------------------------------ |
+| Host               | `orange`, `10.0.10.23` (Armbian 26.11 / Debian 13 trixie, aarch64) |
+| Software           | Technitium DNS Server v15.6.2                                      |
+| Unit               | `dns.service` (runs as user `dns-server`)                          |
+| Ports              | `53/udp` + `53/tcp` (DNS), `5380/tcp` (web console)                |
+| Web console        | <http://10.0.10.23:5380> and <https://dns.local.estrogenuinely.ca> |
+| Config             | `/etc/dns` (binary `.config`/`.zone` files — edit via the UI)      |
+| App / runtime      | `/opt/technitium/dns`, .NET in `/opt/dotnet`                       |
+| Upstreams          | `8.8.8.8`, `8.8.4.4` (Google), recursion + DNSSEC validation on    |
+| Authoritative zone | `local.estrogenuinely.ca` (SOA/NS `orange.`, serial 23)            |
+| Blocklists         | StevenBlack hosts + Hagezi light (wildcard), ~74k domains          |
+| Logs               | `/var/log/technitium/dns/YYYY-MM-DD.log`                           |
+| Updates            | `technitium-update.timer`, Sundays 04:30 ±15 min                   |
 
 ## Architecture
 

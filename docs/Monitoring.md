@@ -1,7 +1,5 @@
 # Monitoring (Prometheus + Grafana)
 
-`kiro-cli --resume-id 3810a146-7c1d-4671-863b-30f1854a2bc2`
-
 Set up 2026-10-11. Metrics for every server/host are collected by **Prometheus**
 on satsuma and visualised in **Grafana**. Each host runs a **node_exporter** that
 Prometheus scrapes on port **9100**. See [[Setup Overview]] for the host table and
