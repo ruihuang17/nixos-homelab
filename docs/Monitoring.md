@@ -98,6 +98,12 @@ How a service is checked (`type` in the catalog):
 | `dns` | blackbox asks orange for `jellyfin.local.estrogenuinely.ca` and requires `10.0.10.72` | Technitium (a real answer, not just an open port) |
 | `systemd` | node_exporter says the unit is `active` | things with no reachable port: qBittorrent (inside the VPN netns), PIA VPN, Tailscale, Immich ML, wsproxy (mautrix-wsproxy) |
 
+> **Gap found 2026-10-30:** the `dns` probe asks for a *local* (unsigned) name, so
+> it never exercises DNSSEC. During the clock outage Technitium still answered
+> `jellyfin.local...` correctly and the probe stayed green while every external
+> lookup was `SERVFAIL`. A probe for a signed public name is needed to catch
+> this; see [[DNS]].
+
 Every check ends up as one series, `homelab:service_up{service,host,group,check}`
 (1 = up, 0 = down), recorded every 30 s. A missing probe, unit or host counts as
 **down**, not as "no data". The blackbox exporter runs on satsuma at
