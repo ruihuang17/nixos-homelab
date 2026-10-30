@@ -66,13 +66,15 @@ Services (all native NixOS modules, no containers):
 | Matrix Synapse                         | `matrix.estrogenuinely.ca`, with mautrix-wsproxy for the SMS/iMessage bridges. Logs in through Kanidm OIDC.                         |
 | Hermes Agent                           | Self-hosted AI agent. Dashboard at `hermes.local.estrogenuinely.ca`, gated by Kanidm OIDC. See [[Hermes]].                          |
 | Sonarr, Radarr, Prowlarr, FlareSolverr | The arr stack.                                                                                                                      |
-| qBittorrent                            | Runs inside a network namespace with a PIA WireGuard VPN (Toronto, port forwarding).                                                |
+| qBittorrent                            | Runs inside a network namespace with a PIA WireGuard VPN (Montreal, port forwarding).                                               |
 | PostgreSQL                             | Shared by Nextcloud, Immich, Paperless, Vaultwarden, Synapse and the arr apps.                                                      |
 | Postfix                                | Internal mail relay through Proton SMTP. It accepts mail from the LAN and tailnet.                                                  |
 | NFS                                    | Port 2049, ZFS `sharenfs`: `mediaSrv` to the LAN (Mac mini), `data`/`backup` to pomelo. See [[NFS]].                                |
 | Tailscale                              | Acts as a subnet router/exit node ("server" routing features).                                                                      |
 
 Reverse-proxied hosts on other machines: `home.estrogenuinely.ca` goes to Home Assistant (10.0.10.74:8123), `dns.local.estrogenuinely.ca` goes to orange (:5380), and `jellyfin.local.estrogenuinely.ca` goes to the Mac mini (10.0.10.73:8096).
+
+The media stack — Prowlarr, Sonarr, Radarr, FlareSolverr, qBittorrent inside the PIA namespace, qui and Jellyfin on lime — is documented in [[Media Stack]].
 
 Firewall allows TCP 25, 80, 111, 443, 1313, 2049 and 20048, UDP 111 and 20048 for NFSv3/rpcbind, plus the Tailscale interface.
 
