@@ -70,10 +70,9 @@ in
     ];
 
     extraBackupArgs = [
-      # Keep the initial ~210 GB upload from saturating the WAN. Restic's
-      # --limit-upload unit is KiB/s, so 8000 = ~8 MB/s.
+      # Restic's --limit-upload unit is KiB/s, so 125000 = ~1 Gbps.
       "--limit-upload"
-      "8000"
+      "125000"
       "--exclude-caches"
     ];
 

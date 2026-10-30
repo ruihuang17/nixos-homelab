@@ -36,6 +36,7 @@
     git
     nixfmt
     ethtool
+    dig
     sourceHighlight
     btop
     smartmontools

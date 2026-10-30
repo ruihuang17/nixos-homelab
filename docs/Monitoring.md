@@ -98,12 +98,6 @@ How a service is checked (`type` in the catalog):
 | `dns` | blackbox asks orange for `jellyfin.local.estrogenuinely.ca` and requires `10.0.10.72` | Technitium (a real answer, not just an open port) |
 | `systemd` | node_exporter says the unit is `active` | things with no reachable port: qBittorrent (inside the VPN netns), PIA VPN, Tailscale, Immich ML, wsproxy (mautrix-wsproxy) |
 
-> **Gap found 2026-10-30:** the `dns` probe asks for a *local* (unsigned) name, so
-> it never exercises DNSSEC. During the clock outage Technitium still answered
-> `jellyfin.local...` correctly and the probe stayed green while every external
-> lookup was `SERVFAIL`. A probe for a signed public name is needed to catch
-> this; see [[DNS]].
-
 Every check ends up as one series, `homelab:service_up{service,host,group,check}`
 (1 = up, 0 = down), recorded every 30 s. A missing probe, unit or host counts as
 **down**, not as "no data". The blackbox exporter runs on satsuma at
@@ -269,6 +263,13 @@ posted to by the bot `@homelab-alertbot:estrogenuinely.ca`. rhuang is invited.
       external/removable mounts (e.g. lime's `/Volumes/*`), APFS system
       volumes, bind-mounts, and per-dataset ZFS noise. On satsuma `/` is the SSD
       (ZFS root) and `/hdd` is the separate bulk-storage pool.
+    - **Offsite backup failed** — a `restic-backups-ovh*` systemd unit (daily
+      backup or quarterly check) is in the `failed` state (10 m). Check
+      `journalctl -u restic-backups-ovh.service`.
+    - **Offsite backup stale** — the `restic-backups-ovh.timer` has not fired
+      for >48 h, but only after it has fired at least once (30 m). This catches
+      a timer that was disabled or removed; the failed rule above catches an
+      individual failed run. See [[Backup]] §4.
 
 ### satsuma — `satsuma/alerting.nix`
 
@@ -299,9 +300,9 @@ independent of satsuma. Secret: `vps/secrets/homelab_svc_smtp.age`
 
 ### Verified (2026-10-15)
 
-- Grafana provisioned the contact point (email + webhook) and 3 rules; a
-  transient always-firing rule delivered 🔥 to the `homelab-alerts` room **and**
-  queued email through Stalwart → SES (*Delivery completed*).
+- Grafana provisioned the contact point (email + webhook) and the original 3
+  rules; a transient always-firing rule delivered 🔥 to the `homelab-alerts`
+  room **and** queued email through Stalwart → SES (*Delivery completed*).
 - Matrix receiver: direct webhook POST → room message, no join errors (after
   fixing the room ID — this Synapse returns IDs without the `:server` suffix).
 - VPS watcher: live run against an up satsuma is a clean no-op; a forced-failure

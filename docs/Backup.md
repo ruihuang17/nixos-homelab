@@ -212,8 +212,9 @@ Approximate size: ~210 GB (Immich originals are ~201 GB; Nextcloud ~8 GB).
 - Retention: **14 daily, 8 weekly, 12 monthly**; `forget --prune` runs after each backup.
 - `restic-backups-ovh-check.timer`: **quarterly** (Jan/Apr/Jul/Oct 1 at 12:00) runs
   `restic check --read-data-subset=1/20` (5% of pack data).
-- Initial upload is throttled to **8 MB/s** (`--limit-upload 8000`). Remove or raise it after the
-  first backup if the WAN can take more.
+- Uploads are capped at **1 Gbps** (`--limit-upload 125000`; restic's unit is KiB/s). The initial
+  full backup measured ~126 MB/s (~1.0 Gbps). Actual throughput depends on the WAN, OVH, and
+  restic overhead; raise or remove the cap if the line is faster.
 
 ### Secrets
 
@@ -287,10 +288,17 @@ restic restore latest --target /tmp/restore
 - Versioning plus the 30-day noncurrent lifecycle gives a 30-day undelete window, but there is no
   Object Lock, so a compromised satsuma could still delete the bucket contents with its S3 key
   (and an attacker with the bucket key could remove versions).
-- The first full backup takes roughly 7–8 hours at 8 MB/s. Incremental daily backups are much
-  smaller.
-- Status: repository created and smoke-restore tested **2026-10-26**; initial full backup started
-  **2026-10-26 03:48 EDT**. Check `restic-ovh snapshots` for completion.
+- The first full backup took **21 minutes** for 216.8 GiB raw (150.4 GiB stored) at ~126 MB/s
+  (~1.0 Gbps). Incremental daily backups are much smaller.
+- Status: repository created and smoke-restore tested **2026-10-26**. Initial full backup
+  completed **04:36 EDT** (snapshot `40255014`): 38,036 files / 216.8 GiB raw (150.4 GiB stored)
+  in 21 minutes at ~126 MB/s (~1.0 Gbps). `restic-ovh check` passed and an `/etc/hostname`
+  restore verified. The quarterly `--read-data-subset=1/20` check was also run once manually
+  (**495 packs / 8.2 GiB, 44 s, no errors**), and the 2.3 GiB of orphaned packs from the
+  interrupted first attempt were pruned. A timer catch-up at 04:38 added a small incremental
+  snapshot `9052f998`. The first scheduled daily run succeeded on **2026-10-27 04:31**
+  (snapshot `16de4120`, +110 MiB stored; 3 snapshots total); the next run is
+  **2026-10-28 04:38** (04:30 + random delay).
 
 ### Monitoring
 
