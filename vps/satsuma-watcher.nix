@@ -103,16 +103,16 @@ in
       "tailscaled.service"
     ];
     wants = [ "network-online.target" ];
-
-    # SES credentials, exposed as systemd credentials rather than env vars.
-    # The service still runs as root, but the secret values are only readable
-    # from /run/credentials/satsuma-watcher.service/.
-    credentials.ses_user = config.age.secrets.ses_smtp_user.path;
-    credentials.ses_pass = config.age.secrets.ses_smtp_pass.path;
-
     serviceConfig = {
       Type = "oneshot";
       ExecStart = "${watcher}/bin/satsuma-watcher";
+      # SES credentials, exposed as systemd credentials rather than env vars.
+      # The service still runs as root, but the secret values are only readable
+      # from /run/credentials/satsuma-watcher.service/.
+      LoadCredential = [
+        "ses_user:${config.age.secrets.ses_smtp_user.path}"
+        "ses_pass:${config.age.secrets.ses_smtp_pass.path}"
+      ];
       StateDirectory = "satsuma-watcher";
       DynamicUser = false;
     };
