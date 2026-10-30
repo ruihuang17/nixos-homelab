@@ -43,6 +43,16 @@ Thunderbird ──IMAP/SMTP──▶ Stalwart (vps)  ──LDAPS over Tailscale�
 - kanidm LDAPS (3636) listens on `0.0.0.0` but the firewall only allows it on `tailscale0`.
 - Stalwart does two LDAP things: a service-account bind (`dn=token` + read-only API token)
   for lookups, and a **bind as the user** with the typed password to verify it.
+- **The VPS dead-man's-switch does not use Stalwart.** `vps/satsuma-watcher.nix`
+  sends alert mail directly to SES with the `ses_smtp_user`/`ses_smtp_pass`
+  credentials, because Stalwart auth depends on kanidm on satsuma. Pointing it
+  at `mail.estrogenuinely.ca:587` creates a circular dependency: when satsuma is
+  down, LDAP (and therefore SMTP AUTH) fails. It alerts both
+  `rui@estrogenuinely.ca` and `rui.huang17@protonmail.com`.
+- Grafana alert email still uses Stalwart as `homelab-svc`, from
+  `alerts@estrogenuinely.ca`, to both addresses. satsuma pins
+  `mail.estrogenuinely.ca` in `/etc/hosts` so the SMTP hostname survives a DNS
+  outage.
 
 ## Git / NixOS / deploying
 

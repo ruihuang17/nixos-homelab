@@ -18,7 +18,23 @@ rewrote every sender to a single `alerts@ruihuang.io`.
 | Sender addresses | `alerts@`, `nextcloud@`, `vaultwarden@` `estrogenuinely.ca` |
 | Default sender (no explicit From) | `alerts@estrogenuinely.ca` (via `myorigin`) |
 | Outbound path | satsuma Postfix → Stalwart (vps) → **AWS SES** → internet |
-| Secrets | `postfix_sasl.age`, `mail_pass.age`, `vaultwarden_token.age` (all = `homelab-svc` password) |
+| Alert recipients | `rui@estrogenuinely.ca` and `rui.huang17@protonmail.com` |
+| Alert paths | Grafana → Stalwart; VPS watcher → **SES directly** (see below) |
+| Secrets | `postfix_sasl.age`, `mail_pass.age`, `vaultwarden_token.age` (all = `homelab-svc` password); watcher uses `ses_smtp_user.age` / `ses_smtp_pass.age` |
+
+## Alert destinations
+
+Both monitoring email paths deliver to the same two inboxes:
+
+- `rui@estrogenuinely.ca` (local Stalwart mailbox)
+- `rui.huang17@protonmail.com` (external; Stalwart relays it through SES)
+
+Grafana's single `email` contact point lists both addresses
+(`monitoring.nix`), so every rule notification goes through Stalwart. The VPS
+`satsuma-watcher` is the exception: it sends **directly to SES**, not through
+Stalwart, and puts both addresses in `To:`. This is deliberate — Stalwart
+authenticates against kanidm on satsuma, so when satsuma is down the Stalwart
+submission path is unavailable exactly when the watcher needs it.
 
 ## Why
 
@@ -44,6 +60,10 @@ Vaultwarden ─────────────┘
 - Postfix handles locally-generated system mail (smartd, cron, `OnFailure`).
 - Nextcloud and Vaultwarden talk SMTP to Stalwart **directly** (not through
   Postfix), but with the same `homelab-svc` credential and their own From.
+- The VPS `satsuma-watcher` bypasses this diagram entirely: it sends to SES
+  directly using the `ses_smtp_user`/`ses_smtp_pass` credentials, because
+  Stalwart login depends on kanidm on satsuma. See
+  [[Monitoring]] → *mail / VPS*.
 
 ## The `homelab-svc` account
 
@@ -149,6 +169,14 @@ nixos-rebuild switch`.
 - The Stalwart "Database key defined in local configuration" journal warnings for
   the new `session.auth.must-match-sender.*` keys are **expected and harmless**
   (same as every other local expression key).
+- **Grafana's SMTP no longer depends on DNS.** satsuma pins
+  `15.235.101.89 mail.estrogenuinely.ca` in `/etc/hosts`
+  (`satsuma/monitoring.nix`). Without it, the 2026-10-30 DNSSEC/clock outage
+  made the SMTP hostname unresolvable, so alert mail could not leave satsuma.
+- **The VPS watcher is independent.** It sends to SES directly with
+  `LoadCredential`-injected `ses_smtp_user`/`ses_smtp_pass`; do not point it back
+  at the local Stalwart or it will fail whenever satsuma (and therefore kanidm)
+  is down.
 
 ## Verified (2026-10-15)
 
@@ -162,6 +190,9 @@ nixos-rebuild switch`.
   scoped to exactly the three addresses, no domain-wide spoofing.
 - Nextcloud `occ config:system:get` shows the new host/name/from; Vaultwarden
   restarted clean.
+- 2026-10-30: watcher's direct SES path verified (`SES AUTH OK`, test message
+  delivered); Grafana SMTP auth succeeded against `mail.estrogenuinely.ca:587`
+  via the `/etc/hosts` pin (`15.235.101.89`). Both alert inboxes are configured.
 
 ## Not done yet / ideas
 

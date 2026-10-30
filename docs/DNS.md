@@ -200,15 +200,17 @@ logrotate -d /etc/logrotate.d/technitium-dns
 
 On satsuma, blackbox probes cover:
 
-- DNS: queries `jellyfin.local.estrogenuinely.ca` through `10.0.10.23:53` and
-  requires `10.0.10.72`.
+- **DNS liveness**: queries `jellyfin.local.estrogenuinely.ca` through
+  `10.0.10.23:53` and requires `10.0.10.72`.
+- **DNS validation**: queries `cloudflare.com` (a DNSSEC-signed public name)
+  through `10.0.10.23:53` and requires `NOERROR`. If the clock is wrong or
+  DNSSEC validation is broken, Technitium returns `SERVFAIL` and this probe
+  goes red.
 - Web UI: `GET http://10.0.10.23:5380/`.
 
-**Known gap:** the DNS probe uses a *local, unsigned* name. During the
-2026-10-30 outage it stayed green while every external lookup was `SERVFAIL`.
-A second probe for a DNSSEC-signed public name (e.g. `cloudflare.com` or
-`dns.google` through orange) would catch clock/DNSSEC failures. See
-[[Monitoring]].
+The second probe was added on 2026-10-30 after the incident below. The original
+local-name probe stayed green throughout, because it never exercised DNSSEC.
+See [[Monitoring]].
 
 ## Runbook
 
@@ -395,8 +397,9 @@ Reboot tests:
   the RTC coin cell removes the root cause.**
 - The watchdog restarts `timesyncd`; it does not fix a blocked UDP 123 path
   (outbound NTP is currently allowed).
-- The existing blackbox DNS probe uses a local name and did not alert; a
-  DNSSEC-signed probe is still to be added (see [[Monitoring]]).
+- The existing blackbox DNS probe used a local name and did not alert. A
+  DNSSEC-signed probe (`cloudflare.com`) was added on 2026-10-30 and now feeds
+  the same `homelab:service_up` alerting path (see [[Monitoring]]).
 
 ## Files on orange
 

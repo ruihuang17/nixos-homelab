@@ -93,8 +93,14 @@ How a service is checked (`type` in the catalog):
 | ---- | ----- | -------- |
 | `http` | blackbox GET, any 2xx after redirects | web apps, via their health endpoints |
 | `tcp` | blackbox TCP connect | nginx, PostgreSQL, NFS, Postfix, Stalwart SMTP/IMAP |
-| `dns` | blackbox asks orange for `jellyfin.local.estrogenuinely.ca` and requires `10.0.10.72` | Technitium (a real answer, not just an open port) |
+| `dns` | blackbox asks orange for `jellyfin.local.estrogenuinely.ca` (unsigned, liveness) and `cloudflare.com` (signed, DNSSEC) | Technitium liveness **and** DNSSEC validation |
 | `systemd` | node_exporter says the unit is `active` | things with no reachable port: qBittorrent (inside the VPN netns), PIA VPN, Tailscale, Immich ML, wsproxy (mautrix-wsproxy) |
+
+The DNS catalog has two entries on purpose: `DNS (Technitium)` proves the server
+is alive with a local unsigned name, while `DNS (external DNSSEC)` asks for
+`cloudflare.com` and only succeeds if DNSSEC validation passes. The second was
+added after 2026-10-30, when the first stayed green through a clock/DNSSEC
+failure that made every external lookup `SERVFAIL`.
 
 Every check ends up as one series, `homelab:service_up{service,host,group,check}`
 (1 = up, 0 = down), recorded every 30 s. A missing probe, unit or host counts as
@@ -232,9 +238,13 @@ All of it is provisioned from the flake. Mail goes out through our own server
 
 | Channel | How | Reaches you when… |
 | ------- | --- | ----------------- |
-| Email → `rui@estrogenuinely.ca` | Grafana SMTP as `homelab-svc` via `mail.estrogenuinely.ca:587` → SES | anything except satsuma fully down |
+| Email → `rui@estrogenuinely.ca` + Proton | Grafana SMTP as `homelab-svc` via `mail.estrogenuinely.ca:587` → SES | anything except satsuma fully down |
 | Matrix → `homelab-alerts` room | Grafana webhook → `matrix-alertmanager-receiver` → Synapse | anything except satsuma down (Synapse runs on satsuma) |
-| Email (VPS watcher) | the `mail` VPS pings satsuma; emails via its local Stalwart → SES | **satsuma itself is down** |
+| Email (VPS watcher) | the `mail` VPS pings satsuma; emails **directly through SES** (no Stalwart) | **satsuma itself is down** |
+
+Both email channels go to `rui@estrogenuinely.ca` and
+`rui.huang17@protonmail.com`. Grafana sends to both through its single email
+contact point; the watcher puts both in `To:`.
 
 The Matrix room is `#homelab-alerts` (`!k9Y9GnXSOfor4J0h6PqDJWBfSyCw889EYbcbbXyUAVs`),
 posted to by the bot `@homelab-alertbot:estrogenuinely.ca`. rhuang is invited.
@@ -247,14 +257,18 @@ posted to by the bot `@homelab-alertbot:estrogenuinely.ca`. rhuang is invited.
   password), read via `$__file{}` so it never lands in the store.
 - `services.grafana.provision.alerting` (there is **no** `.enable` option —
   defining `.contactPoints/.policies/.rules.settings` is what turns it on):
-  - **Contact point `homelab`** with two integrations: `email` (rui@) and
-    `webhook` → `http://127.0.0.1:9686/alerts/homelab` (the Matrix receiver).
+  - **Contact point `homelab`** with two integrations: `email`
+    (`rui@estrogenuinely.ca; rui.huang17@protonmail.com`) and `webhook` →
+    `http://127.0.0.1:9686/alerts/homelab` (the Matrix receiver).
   - **Policy**: root route → `homelab`, grouped by `alertname`+`instance`.
   - **Rules** (folder *Homelab*, group `homelab-core`, 1 m interval), built by the
-    `mkRule`/`mkFiringData` helpers (query A → reduce last B → threshold C `> 0`):
-    - **Host down** — `up{job="node"} == 0` (orange / lime / homeassistant /
+    `mkRule`/`mkFiringData` helpers (query A → reduce last B → threshold C `> 0`).
+    Expressions must use `== bool 0`, **not** `== 0`: a plain comparison returns
+    the original value (`0`), which never crosses the `> 0` threshold. That bug
+    made host-down and service-down unfireable until 2026-10-30.
+    - **Host down** — `up{job="node"} == bool 0` (orange / lime / homeassistant /
       mail; 3 m).
-    - **Service down** — `homelab:service_up == 0` (the recording rule from
+    - **Service down** — `homelab:service_up == bool 0` (the recording rule from
       `monitoring-overview.nix`; 5 m).
     - **Filesystem almost full** — `/` on every host **plus satsuma's HDD pool
       `/hdd`** <10% free (15 m). Selector `mountpoint=~"/|/hdd"` so it ignores
@@ -289,14 +303,21 @@ The one thing Grafana can't do: tell you satsuma is down (Grafana, Synapse and
 Postfix all run on satsuma). A systemd timer on the **mail** VPS runs every 2
 minutes and `tailscale ping`s satsuma (`100.72.25.50`) — ping, not
 node_exporter, because satsuma's exporter is loopback-only and unreachable from
-the VPS. After `failThreshold = 3` consecutive misses it emails `rui@` via the
-VPS's **local** Stalwart (auth `homelab-svc`, from `alerts@`), and emails again
-on recovery. State lives in `/var/lib/satsuma-watcher`. This is **email-only**:
-Matrix would be down too in this scenario, and the VPS→Stalwart→SES path is
-independent of satsuma. Secret: `vps/secrets/homelab_svc_smtp.age`
-(`SMTP_USER`/`SMTP_PASS`).
+the VPS. After `failThreshold = 3` consecutive misses it emails both
+`rui@estrogenuinely.ca` and `rui.huang17@protonmail.com`, and emails again on
+recovery. State lives in `/var/lib/satsuma-watcher`. This is **email-only**:
+Matrix would be down too in this scenario.
 
-### Verified (2026-10-15)
+The watcher sends **directly through AWS SES**
+(`email-smtp.us-east-2.amazonaws.com:587`), using the existing
+`ses_smtp_user`/`ses_smtp_pass` agenix secrets injected with
+`LoadCredential`. It deliberately does **not** use the local Stalwart: Stalwart
+authenticates users against kanidm, which runs on satsuma, so during the
+2026-10-29 satsuma outage every watcher submission failed with
+`SMTPServerDisconnected` and no alert was delivered. SES has no dependency on
+the homelab.
+
+### Verified (2026-10-15, updated 2026-10-30)
 
 - Grafana provisioned the contact point (email + webhook) and the original 3
   rules; a transient always-firing rule delivered 🔥 to the `homelab-alerts`
@@ -304,8 +325,13 @@ independent of satsuma. Secret: `vps/secrets/homelab_svc_smtp.age`
 - Matrix receiver: direct webhook POST → room message, no join errors (after
   fixing the room ID — this Synapse returns IDs without the `:server` suffix).
 - VPS watcher: live run against an up satsuma is a clean no-op; a forced-failure
-  run emailed FIRING on the 3rd miss and RESOLVED on recovery; the mailer must
-  connect to `mail.estrogenuinely.ca` (not `127.0.0.1`) so the TLS cert matches.
+  run emailed FIRING on the 3rd miss and RESOLVED on recovery.
+- 2026-10-30: verified the watcher's direct-SES path (`SES AUTH OK`, test mail
+  ingested and delivered), the `LoadCredential` wiring, Grafana's SMTP auth to
+  `mail.estrogenuinely.ca` via the `/etc/hosts` pin, and the new
+  `DNS (external DNSSEC)` probe returning `1`.
+- `== bool 0` was confirmed against the 2026-10-29/30 PIA outage: the expression
+  returns `1` for a down service, so the `> 0` threshold fires.
 
 ### Gotchas
 
@@ -316,8 +342,9 @@ independent of satsuma. Secret: `vps/secrets/homelab_svc_smtp.age`
   `/apis/notifications.alerting.grafana.app/v1beta1/.../receivers/<uid>/test` or
   just let a rule fire.
 - `pkgs.writers.writePython3` runs flake8 — keep one import per line, etc.
-- The VPS watcher sends from `alerts@`; that is already allowed by Stalwart's
-  `must-match-sender` exception for `homelab-svc` (see [[System Mail (Alerts)]]).
+- The VPS watcher sends from `alerts@` **directly through SES**, so it no longer
+  depends on Stalwart's `must-match-sender` exception or on the local mail
+  server being healthy. Grafana still sends through Stalwart as `homelab-svc`.
 
 ## Not done yet / ideas
 
