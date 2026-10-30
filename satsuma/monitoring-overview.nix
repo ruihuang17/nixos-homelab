@@ -197,6 +197,18 @@ let
       target = "10.0.10.23:53";
     }
     {
+      # The probe above only proves Technitium is alive: it asks for a local,
+      # unsigned name, so it stayed green during the 2026-10-30 DNSSEC/clock
+      # outage while every external lookup returned SERVFAIL. This second probe
+      # asks for a signed public name, which only succeeds if validation passed.
+      group = "Network & Home";
+      host = "orange";
+      name = "DNS (external DNSSEC)";
+      type = "dns";
+      module = "dns_external";
+      target = "10.0.10.23:53";
+    }
+    {
       group = "Network & Home";
       host = "orange";
       name = "DNS web UI";
@@ -278,6 +290,21 @@ let
             validate_answer_rrs.fail_if_none_matches_regexp = [ ".*10\\.0\\.10\\.72" ];
           };
         };
+        # A signed public name. If the resolver's clock is wrong (DNSSEC
+        # signatures not yet valid) or validation is broken, Technitium returns
+        # SERVFAIL and this probe fails. Deliberately no answer-regexp: the point
+        # is that validation succeeded, not which CDN address was returned.
+        dns_external = {
+          prober = "dns";
+          timeout = "5s";
+          dns = {
+            query_name = "cloudflare.com";
+            query_type = "A";
+            transport_protocol = "udp";
+            preferred_ip_protocol = "ip4";
+            valid_rcodes = [ "NOERROR" ];
+          };
+        };
       }
       // lib.listToAttrs (
         map (c: {
@@ -302,7 +329,9 @@ let
   serviceTarget = s: {
     targets = [ s.target ];
     labels = {
-      module = s.type;
+      # `module` defaults to the service type; a service can override it when
+      # it needs a different blackbox module (e.g. the external-DNSSEC probe).
+      module = s.module or s.type;
       service = s.name;
       inherit (s) host group;
       check = s.type;

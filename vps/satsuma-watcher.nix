@@ -12,7 +12,13 @@ let
   failThreshold = 3;
 
   # Standalone mailer: reads subject/body/creds from the environment and sends
-  # via the VPS's local Stalwart submission port (STARTTLS, AUTH homelab-svc).
+  # directly through AWS SES (STARTTLS + SASL), NOT through the local Stalwart.
+  #
+  # This is deliberate: Stalwart authenticates users against Kanidm, which runs
+  # on satsuma. Using Stalwart as the relay created a circular dependency - when
+  # satsuma was down, LDAP auth timed out and every watcher email failed with
+  # "SMTPServerDisconnected" (observed 2026-10-29). SES has no dependency on
+  # the homelab, so the dead-man's-switch can actually fire.
   mailer = pkgs.writers.writePython3 "satsuma-watcher-mailer" { } ''
     import os
     import smtplib
@@ -26,10 +32,7 @@ let
     msg.set_content(os.environ["MAIL_BODY"])
 
     ctx = ssl.create_default_context()
-    # Connect by hostname so the server's TLS cert (mail.estrogenuinely.ca)
-    # validates. On the VPS this resolves to its own public address; Stalwart's
-    # submission port 587 is listening there.
-    with smtplib.SMTP("mail.estrogenuinely.ca", 587, timeout=20) as s:
+    with smtplib.SMTP("email-smtp.us-east-2.amazonaws.com", 587, timeout=20) as s:
         s.starttls(context=ctx)
         s.login(os.environ["SMTP_USER"], os.environ["SMTP_PASS"])
         s.send_message(msg)
@@ -50,6 +53,10 @@ let
       DOWN_FILE="$STATE_DIR/is_down"
       [ -f "$FAIL_FILE" ] || echo 0 > "$FAIL_FILE"
 
+      # SES SMTP credentials are injected by systemd as credentials, so they
+      # never appear in the process environment or the Nix store.
+      CRED_DIR="''${CREDENTIALS_DIRECTORY:-/run/credentials/satsuma-watcher.service}"
+
       # Liveness probe: tailscale ping (satsuma's node_exporter is loopback-only,
       # so we check host reachability over the tailnet instead).
       if tailscale ping -c 2 --timeout 5s ${satsumaTsIp} >/dev/null 2>&1; then
@@ -60,6 +67,8 @@ let
 
       send_mail() {
         # $1 = subject, $2 = body
+        SMTP_USER="$(cat "$CRED_DIR/ses_user")" \
+        SMTP_PASS="$(cat "$CRED_DIR/ses_pass")" \
         MAIL_SUBJECT="$1" MAIL_BODY="$2" \
         MAIL_FROM="${alertFrom}" MAIL_TO="${alertTo}" \
           ${mailer}
@@ -87,21 +96,23 @@ let
   };
 in
 {
-  # SMTP creds (homelab-svc) for sending alert mail via the VPS's local Stalwart.
-  age.secrets.homelab_svc_smtp.file = ./secrets/homelab_svc_smtp.age;
-
   systemd.services.satsuma-watcher = {
     description = "Dead-man's-switch: alert by email when satsuma is unreachable";
     after = [
       "network-online.target"
       "tailscaled.service"
-      "stalwart-mail.service"
     ];
     wants = [ "network-online.target" ];
+
+    # SES credentials, exposed as systemd credentials rather than env vars.
+    # The service still runs as root, but the secret values are only readable
+    # from /run/credentials/satsuma-watcher.service/.
+    credentials.ses_user = config.age.secrets.ses_smtp_user.path;
+    credentials.ses_pass = config.age.secrets.ses_smtp_pass.path;
+
     serviceConfig = {
       Type = "oneshot";
       ExecStart = "${watcher}/bin/satsuma-watcher";
-      EnvironmentFile = config.age.secrets.homelab_svc_smtp.path;
       StateDirectory = "satsuma-watcher";
       DynamicUser = false;
     };

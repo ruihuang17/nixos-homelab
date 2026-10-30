@@ -7,8 +7,14 @@
 let
   # Build the query+reduce+threshold data pipeline for a Grafana-managed alert
   # rule. `expr` is a PromQL instant query whose result is non-empty exactly
-  # when the alert should fire (e.g. `up == 0`). We reduce to the last value
-  # and the threshold C fires when that value is >= 1 (i.e. the series exists).
+  # when the alert should fire (e.g. `up == bool 0`). We reduce to the last
+  # value and the threshold C fires when that value is >= 1 (i.e. the series
+  # exists with a truthy value).
+  #
+  # NOTE: use `== bool 0`, not `== 0`. A PromQL comparison without `bool`
+  # returns the ORIGINAL sample value, so `homelab:service_up == 0` yields `0`
+  # for a down service, and the `> 0` threshold below then stays false forever.
+  # With `bool`, a match yields `1` and the alert works.
   mkFiringData = expr: [
     {
       refId = "A";
@@ -120,6 +126,17 @@ in
     owner = "grafana";
     group = "grafana";
   };
+
+  # Pin the mail relay's public IPv4 in /etc/hosts. Grafana's alert emails are
+  # sent to mail.estrogenuinely.ca:587, and satsuma otherwise resolves that name
+  # through orange. During the 2026-10-30 clock/DNSSEC outage every external
+  # lookup was SERVFAIL, so the SMTP connection could not even be established.
+  # /etc/hosts makes delivery independent of DNS. IPv4 only on purpose: the
+  # host's AAAA record would otherwise let Go prefer an IPv6 path that may not
+  # be reachable from this LAN.
+  networking.extraHosts = ''
+    15.235.101.89 mail.estrogenuinely.ca
+  '';
 
   ##########################################################################
   # node_exporter for satsuma itself is provided by the shared
@@ -328,7 +345,7 @@ in
                 (mkRule {
                   uid = "homelab-host-down";
                   title = "Host down (node_exporter unreachable)";
-                  expr = "up{job=\"node\"} == 0";
+                  expr = "up{job=\"node\"} == bool 0";
                   forDur = "3m";
                   summary = "node_exporter target {{ $labels.instance }} is down (up == 0).";
                   labels.severity = "critical";
@@ -336,7 +353,7 @@ in
                 (mkRule {
                   uid = "homelab-service-down";
                   title = "Service down";
-                  expr = "homelab:service_up == 0";
+                  expr = "homelab:service_up == bool 0";
                   forDur = "5m";
                   summary = "Service {{ $labels.service }} on {{ $labels.host }} is DOWN.";
                   labels.severity = "critical";
