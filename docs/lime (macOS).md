@@ -116,3 +116,7 @@ Negative control: a launchd **user agent** that has no FDA should be denied
   input injection is likely broken — irrelevant while it is unused.
 - The mautrix binary and Jellyfin stay out of `/nix/store` for the TCC reasons
   above, even though the rest of the machine is now nix-darwin managed.
+- The source checkout `~/mautrix-imessage/imessage` has **one local commit**
+  (`f9271c9`) bumping `libheif` to 1.23.1 to match Homebrew's library. That is
+  the tree the current binary was built from; reverting it means the next build
+  will not link.
