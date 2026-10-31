@@ -46,7 +46,7 @@
           '';
         };
 
-      # Tail module shared by every NixOS host (satsuma, mail, tangerine).
+      # Tail module shared by every NixOS host (satsuma, mail).
       nixosBase = {
         nixpkgs.config.allowUnfree = true;
         nix.settings.experimental-features = [
@@ -81,17 +81,6 @@
           ./vps/configuration.nix
           ./server-common.nix
           ./lena.nix
-          ./common.nix
-          agenix.nixosModules.default
-          nixosBase
-        ];
-      };
-
-      nixosConfigurations.tangerine = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        specialArgs = { inherit inputs; };
-        modules = [
-          ./tangerine/configuration.nix
           ./common.nix
           agenix.nixosModules.default
           nixosBase

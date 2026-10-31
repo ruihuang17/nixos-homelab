@@ -5,7 +5,6 @@
 | 10.0.10.23 | `orange`                     | DNS            |
 |            |                              |                |
 | 10.0.10.40 | `pomelo`                     | Rui's desktop  |
-| 10.0.10.41 | `tangerine`                  | Rui's laptop   |
 | 10.0.10.42 | `celosia`                    | Lena's desktop |
 | 10.0.10.43 | `hibiscus`                   | Lena's laptop  |
 |            |                              |                |

@@ -148,7 +148,7 @@ cert:
 
 ### Shared server module — `server-common.nix` (flake root)
 
-A new module, imported by **satsuma** and **mail** (not the tangerine laptop),
+A new module, imported by **satsuma** and **mail**,
 that provisions node_exporter consistently. It defines the option group
 `homelab.nodeExporter`:
 
