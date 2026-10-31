@@ -41,7 +41,16 @@ in
       # it directly.
       serviceConfig = {
         Label = "fi.mau.mautrix-imessage";
-        ProgramArguments = [ "${home}/mautrix-imessage/mautrix-imessage" ];
+        # The config holds the appservice as_token/hs_token, so it is decrypted
+        # by agenix into /run/agenix (ramdisk) instead of living in plaintext in
+        # the home directory. -n stops the bridge from writing the decrypted
+        # copy back to the ramdisk.
+        ProgramArguments = [
+          "${home}/mautrix-imessage/mautrix-imessage"
+          "-c"
+          "/run/agenix/imessage-config"
+          "-n"
+        ];
         WorkingDirectory = "${home}/mautrix-imessage";
         EnvironmentVariables.DYLD_LIBRARY_PATH = "${home}/.local/libolm/lib:/opt/homebrew/lib";
         RunAtLoad = true;

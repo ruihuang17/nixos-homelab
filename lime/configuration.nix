@@ -58,6 +58,16 @@
 
   programs.fish.enable = true;
 
+  # mautrix-imessage's config.yaml carries the appservice as_token/hs_token.
+  # agenix decrypts it into a RAM disk at boot; nothing plaintext is written
+  # under the home directory or /var/lib. See lime/agents.nix for the consumer.
+  age.secrets.imessage-config = {
+    file = ./secrets/imessage-config.age;
+    owner = "rhuang";
+    group = "staff";
+    mode = "0400";
+  };
+
   # Login shell: nix's fish. Homebrew's fish reads /opt/homebrew/etc/fish, so
   # nix-darwin's /etc/fish/config.fish (and therefore /run/current-system/sw/bin
   # on PATH) never applied to it. ~/.config/fish/config.fish still loads.
