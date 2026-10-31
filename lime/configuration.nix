@@ -58,6 +58,21 @@
 
   programs.fish.enable = true;
 
+  # Login shell: nix's fish. Homebrew's fish reads /opt/homebrew/etc/fish, so
+  # nix-darwin's /etc/fish/config.fish (and therefore /run/current-system/sw/bin
+  # on PATH) never applied to it. ~/.config/fish/config.fish still loads.
+  environment.shells = [ pkgs.fish ];
+
+  # NOTE: users.knownUsers makes nix-darwin own this account. Removing the
+  # users.users.rhuang block below would make the next activation delete the
+  # user. Keep both or neither.
+  users.knownUsers = [ "rhuang" ];
+  users.users.rhuang = {
+    uid = 1000;
+    gid = 20;
+    shell = pkgs.fish;
+  };
+
   environment.systemPackages = with pkgs; [
     git
     vim
