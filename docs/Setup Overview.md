@@ -63,7 +63,7 @@ Services (all native NixOS modules, no containers):
 | Vaultwarden                            | Password manager.                                                                                                                   |
 | Matrix Synapse                         | `matrix.estrogenuinely.ca`, with mautrix-wsproxy for the SMS/iMessage bridges. Logs in through Kanidm OIDC.                         |
 | Hermes Agent                           | Self-hosted AI agent. Dashboard at `hermes.local.estrogenuinely.ca`, gated by Kanidm OIDC. See [[Hermes]].                          |
-| OpenCode                               | Centralized coding agent and web UI at `satsuma.local.estrogenuinely.ca` (LAN/Tailnet only). See [[OpenCode]].                       |
+| OpenCode                               | Centralized coding agent and web UI at `opencode.local.estrogenuinely.ca` (LAN/Tailnet only). See [[OpenCode]].                       |
 | Sonarr, Radarr, Prowlarr, FlareSolverr | The arr stack.                                                                                                                      |
 | qBittorrent                            | Runs inside a network namespace with a PIA WireGuard VPN (Montreal, port forwarding).                                               |
 | PostgreSQL                             | Shared by Nextcloud, Immich, Paperless, Vaultwarden, Synapse and the arr apps.                                                      |

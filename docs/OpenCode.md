@@ -1,7 +1,8 @@
 # OpenCode Centralization (satsuma)
 
 **Status:** operational since 2026-10-31 16:05 EDT. Rollout on `satsuma` with
-the built-in web UI, reachable over the LAN/Tailnet.
+the built-in web UI, reachable over the LAN/Tailnet at
+`https://opencode.local.estrogenuinely.ca`.
 
 ## Goal
 
@@ -45,7 +46,7 @@ on loopback. The wildcard ACME certificate already covers
 | Process | `opencode serve` under systemd | Foreground server, fixed port/password, standard supervision. Unlike the per-user background service, it is not tied to an interactive login. |
 | User | dedicated system user `opencode` | The agent gets shell access; it must not be root or `rhuang` (wheel = passwordless sudo). |
 | Bind | `127.0.0.1:4096` | Only nginx can reach it. |
-| Ingress | nginx vhost on `satsuma.local.estrogenuinely.ca` | Name already resolves to `10.0.10.72`; `opencode.local.estrogenuinely.ca` is defined too, pending one CNAME. |
+| Ingress | nginx vhost on `opencode.local.estrogenuinely.ca` | CNAME to `satsuma` in Technitium; wildcard cert covers it. |
 | TLS | existing `estrogenuinely.ca` wildcard | DNS-01 via Cloudflare; covers `*.local.estrogenuinely.ca`. |
 | Auth | OpenCode password (basic auth for API, cookie for web UI) | Built in. Username is always `opencode`; password from agenix. |
 | Network ACL | nginx allow LAN + Tailnet, deny everything else | Defence in depth even if 443 is reachable from the WAN. |
@@ -74,8 +75,8 @@ the vhost.
 - `/var/lib/opencode` does not exist yet; root's old store is at
   `/root/.local/share/opencode` (72 MB, includes `auth.json` with the
   OpenRouter key).
-- `satsuma.local.estrogenuinely.ca` resolves and is unused (nginx default
-  answers `OK`).
+- `opencode.local.estrogenuinely.ca` resolves to `10.0.10.72` (CNAME to
+  `satsuma` in Technitium, added 2026-10-31).
 
 ### 1. Secret
 
@@ -108,7 +109,7 @@ Add `satsuma/opencode.nix`:
   127.0.0.1 --port 4096`, `Restart=always`, `StateDirectory=opencode`,
   `EnvironmentFile` = agenix path, sandbox as above, PATH with
   `git/nix/ripgrep/nixd`.
-- nginx vhosts for `satsuma.local…` and `opencode.local…`: proxy to
+- nginx vhost for `opencode.local.estrogenuinely.ca`: proxy to
   `127.0.0.1:4096`, WebSockets on (PTY/SSE), `proxy_buffering off`, 1 h
   timeouts, 100 MB body limit, IP allowlist.
 - `opencode-pair` helper: reads the secret as root, calls `POST /api/pair`,
@@ -147,11 +148,11 @@ journalctl -u opencode -n 50 --no-pager
 curl -fsS -u "opencode:$(sed 's/^OPENCODE_PASSWORD=//' /run/agenix/opencode-password)" \
   http://127.0.0.1:4096/api/info
 curl -fsS -o /dev/null -w '%{http_code}\n' --resolve \
-  satsuma.local.estrogenuinely.ca:443:127.0.0.1 \
-  https://satsuma.local.estrogenuinely.ca/
+  opencode.local.estrogenuinely.ca:443:127.0.0.1 \
+  https://opencode.local.estrogenuinely.ca/
 curl -s -o /dev/null -w '%{http_code}\n' --resolve \
-  satsuma.local.estrogenuinely.ca:443:127.0.0.1 \
-  https://satsuma.local.estrogenuinely.ca/api/info    # expect 401
+  opencode.local.estrogenuinely.ca:443:127.0.0.1 \
+  https://opencode.local.estrogenuinely.ca/api/info    # expect 401
 ```
 
 Then open the web UI in a browser, sign in with the server password, and start
@@ -163,7 +164,7 @@ a session. Confirm a reboot brings the service back
 Web UI:
 
 ```
-https://satsuma.local.estrogenuinely.ca
+https://opencode.local.estrogenuinely.ca
 ```
 
 One-time pairing link (browser or app), run as root:
@@ -177,7 +178,7 @@ TUI from a laptop (password from the secret, or a local env var):
 ```bash
 export OPENCODE_PASSWORD="$(ssh root@satsuma \
   "sed 's/^OPENCODE_PASSWORD=//' /run/agenix/opencode-password")"
-opencode --server https://satsuma.local.estrogenuinely.ca
+opencode --server https://opencode.local.estrogenuinely.ca
 ```
 
 The TUI can then open `/srv/opencode/workspace` or any directory the
@@ -211,9 +212,9 @@ not writable until an ACL/group is added.
    (`ProtectSystem` makes it read-only, not invisible). `ProtectHome` hides
    `/home` and `/root`; `/etc` and `/var` are readable. Do not put secrets in
    world-readable files the agent should not see.
-3. **DNS name.** `opencode.local.estrogenuinely.ca` needs one CNAME to `satsuma`
-   in Technitium (`10.0.10.23:5380`). Until then use `satsuma.local…`.
-   Alternatively, add the CNAME at the same time as the next DNS change.
+3. **DNS name.** Resolved: the CNAME to `satsuma` exists in Technitium.
+   Keep it when editing the `local.estrogenuinely.ca` zone; the wildcard cert
+   covers the name.
 4. **Backups.** Restic currently backs up `/var` nightly. A live SQLite DB is
    copied while running; OpenCode's WAL should make this safe, but a
    `sqlite3 .backup` pre-hook would be stricter if the DB grows.
@@ -254,11 +255,11 @@ Verified:
   unauthenticated → `401`.
 - Web UI through nginx → `200 text/html`; API through nginx with auth → `200`.
 - Existing sessions are visible through `/api/session` (history preserved).
-- From the laptop: `https://satsuma.local.estrogenuinely.ca/` → `200`,
+- From the laptop: `https://opencode.local.estrogenuinely.ca/` → `200`,
   `opencode api --server … get /api/info` → `200`.
 - ACL: a request sourced from `10.200.200.1` (not in the allowlist) → `403`.
 - `sudo opencode-pair` prints a one-time
-  `https://satsuma.local.estrogenuinely.ca/auth/connect/…` link. Opening it in a
+  `https://opencode.local.estrogenuinely.ca/auth/connect/…` link. Opening it in a
   browser sets an `opencode_session` cookie (30 days) and redirects to the app;
   reusing the link returns `401`.
 - `systemctl restart opencode` keeps data and credentials.
@@ -274,13 +275,29 @@ Deviations from the plan:
 - The first start (before that fix) ran without the secret and logged a
   generated password. That password is no longer valid; the secret value is in
   use.
-- `opencode.local.estrogenuinely.ca` is configured but returns `NXDOMAIN`
-  until the CNAME is added. Use `satsuma.local.estrogenuinely.ca` for now.
+- `opencode.local.estrogenuinely.ca` resolves to `10.0.10.72` since the
+  CNAME was added at 16:15; the vhost answers `200 text/html` and the API
+  `401` unauthenticated.
+
+Incident at 16:11 (reverted deployment):
+
+Two `nixos-rebuild switch` runs at 16:11 and 16:12 activated a configuration
+built from a source tree **without** the OpenCode commit, which removed
+`opencode.service` and the nginx vhosts. The commit was still only local on
+`satsuma`, so any checkout without it reproduces this. The config was rebuilt
+from `/etc/nixos` and the commit was pushed. Lesson: push config commits before
+deploying from another machine, and check `systemctl status opencode` after any
+switch that is not yours.
+
+The same activation window also surfaced `mautrix-wsproxy` failing on a missing
+`config.yaml`. The file was restored from the 04:38 restic snapshot; the
+service is healthy again. Unrelated to OpenCode, but it made
+`switch-to-configuration` exit 4 until it was fixed.
 
 Access:
 
-- Web: <https://satsuma.local.estrogenuinely.ca>
+- Web: <https://opencode.local.estrogenuinely.ca>
 - Pair: `sudo opencode-pair`
-- TUI: `OPENCODE_PASSWORD=… opencode --server https://satsuma.local.estrogenuinely.ca`
+- TUI: `OPENCODE_PASSWORD=… opencode --server https://opencode.local.estrogenuinely.ca`
 - Workspace: `/srv/opencode/workspace`
 

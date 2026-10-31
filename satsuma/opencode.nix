@@ -6,7 +6,7 @@
 }:
 let
   port = 4096;
-  primaryHost = "satsuma.local.estrogenuinely.ca";
+  primaryHost = "opencode.local.estrogenuinely.ca";
 
   # Shared by both vhosts. The IP allowlist keeps the agent LAN/Tailnet-only
   # even if port 443 is reachable from the WAN.
@@ -117,20 +117,11 @@ in
     };
   };
 
-  services.nginx.virtualHosts = {
-    "${primaryHost}" = {
-      useACMEHost = "estrogenuinely.ca";
-      forceSSL = true;
-    }
-    // proxy;
-
-    # Optional nicer name; needs a CNAME to satsuma in Technitium.
-    "opencode.local.estrogenuinely.ca" = {
-      useACMEHost = "estrogenuinely.ca";
-      forceSSL = true;
-    }
-    // proxy;
-  };
+  services.nginx.virtualHosts."${primaryHost}" = {
+    useACMEHost = "estrogenuinely.ca";
+    forceSSL = true;
+  }
+  // proxy;
 
   # sudo opencode-pair -> one-time login URL for a browser or the mobile app.
   environment.systemPackages = [
