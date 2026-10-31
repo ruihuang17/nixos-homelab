@@ -24,6 +24,17 @@
     group = "matrix-synapse";
   };
 
+  # mautrix-imessage appservice registration. Contains the as_token/hs_token the
+  # bridge and Synapse share, so it must not live as a plaintext file under
+  # /var/lib. agenix decrypts it to /run/agenix at boot and Synapse reads it
+  # from there via app_service_config_files.
+  age.secrets.imessage-appservice = {
+    file = "/etc/nixos/satsuma/secrets/imessage-appservice.age";
+    mode = "440";
+    owner = "matrix-synapse";
+    group = "matrix-synapse";
+  };
+
   services.matrix-synapse = {
     enable = true;
     # Secrets (registration shared secret) injected at runtime, not baked into
@@ -81,7 +92,7 @@
         }
       ];
       app_service_config_files = [
-        "/var/lib/matrix-synapse/imessage-registraction.yaml"
+        config.age.secrets.imessage-appservice.path
         "/var/lib/matrix-synapse/sms-registration.yaml"
       ];
     };
