@@ -90,7 +90,10 @@
       darwinConfigurations.lime = nix-darwin.lib.darwinSystem {
         system = "aarch64-darwin";
         specialArgs = { inherit inputs; };
-        modules = [ ./lime/configuration.nix ];
+        modules = [
+          ./lime/configuration.nix
+          agenix.darwinModules.default
+        ];
       };
     };
 }

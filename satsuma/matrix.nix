@@ -24,6 +24,27 @@
     group = "matrix-synapse";
   };
 
+  # mautrix-imessage appservice registration. Contains the as_token/hs_token the
+  # bridge and Synapse share, so it must not live as a plaintext file under
+  # /var/lib. agenix decrypts it to /run/agenix at boot and Synapse reads it
+  # from there via app_service_config_files.
+  age.secrets.imessage-appservice = {
+    file = "/etc/nixos/satsuma/secrets/imessage-appservice.age";
+    mode = "440";
+    owner = "matrix-synapse";
+    group = "matrix-synapse";
+  };
+
+  # mautrix-wsproxy keeps the same appservice tokens in its own config. Decrypt
+  # it from agenix as well so no plaintext copy of the tokens remains under
+  # /var/lib.
+  age.secrets.mautrix-wsproxy-config = {
+    file = "/etc/nixos/satsuma/secrets/mautrix-wsproxy-config.age";
+    mode = "0400";
+    owner = "mautrix-wsproxy";
+    group = "mautrix-wsproxy";
+  };
+
   services.matrix-synapse = {
     enable = true;
     # Secrets (registration shared secret) injected at runtime, not baked into
@@ -81,7 +102,7 @@
         }
       ];
       app_service_config_files = [
-        "/var/lib/matrix-synapse/imessage-registraction.yaml"
+        config.age.secrets.imessage-appservice.path
         "/var/lib/matrix-synapse/sms-registration.yaml"
       ];
     };
@@ -102,7 +123,7 @@
     serviceConfig = {
       # mautrix-wsproxy reads ./config.yaml relative to its working directory,
       # so config.yaml needs to live in /var/lib/mautrix-wsproxy too.
-      ExecStart = "/var/lib/mautrix-wsproxy/mautrix-wsproxy";
+      ExecStart = "/var/lib/mautrix-wsproxy/mautrix-wsproxy -config ${config.age.secrets.mautrix-wsproxy-config.path}";
       WorkingDirectory = "/var/lib/mautrix-wsproxy";
       Restart = "on-failure";
       RestartSec = "5s";

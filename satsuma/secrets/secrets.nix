@@ -30,6 +30,8 @@ in
   "hermes-env.age".publicKeys = common;
   "hermes-discord.age".publicKeys = common;
   "jellyfin-api-key.age".publicKeys = common;
+  "imessage-appservice.age".publicKeys = common;
+  "mautrix-wsproxy-config.age".publicKeys = common;
   "unifi-grove-password.age".publicKeys = common;
   "opencode-password.age".publicKeys = common;
 }
