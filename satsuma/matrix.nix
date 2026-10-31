@@ -45,6 +45,14 @@
     group = "mautrix-wsproxy";
   };
 
+  # The SMS bridge's appservice registration (same treatment as iMessage).
+  age.secrets.sms-appservice = {
+    file = "/etc/nixos/satsuma/secrets/sms-appservice.age";
+    mode = "440";
+    owner = "matrix-synapse";
+    group = "matrix-synapse";
+  };
+
   services.matrix-synapse = {
     enable = true;
     # Secrets (registration shared secret) injected at runtime, not baked into
@@ -103,7 +111,7 @@
       ];
       app_service_config_files = [
         config.age.secrets.imessage-appservice.path
-        "/var/lib/matrix-synapse/sms-registration.yaml"
+        config.age.secrets.sms-appservice.path
       ];
     };
   };

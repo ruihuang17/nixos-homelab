@@ -32,6 +32,7 @@ in
   "jellyfin-api-key.age".publicKeys = common;
   "imessage-appservice.age".publicKeys = common;
   "mautrix-wsproxy-config.age".publicKeys = common;
+  "sms-appservice.age".publicKeys = common;
   "unifi-grove-password.age".publicKeys = common;
   "opencode-password.age".publicKeys = common;
 }
