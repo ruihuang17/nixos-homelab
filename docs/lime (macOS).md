@@ -17,6 +17,40 @@ the machine. That only works because **FileVault is off** — turning FileVault 
 would stop the box coming back unattended, taking Jellyfin and the iMessage
 bridge with it.
 
+## nix-darwin
+
+Since 2026-10-31 lime is built from `darwinConfigurations.lime` in this flake
+(`lime/configuration.nix`, `lime/agents.nix`, `lime/homebrew.nix`). It is the
+first non-NixOS host here; the three NixOS configs are unaffected.
+
+```sh
+cd ~/nixos-homelab && git pull
+sudo darwin-rebuild switch --flake ~/nixos-homelab#lime
+```
+
+- **Activation must run as root.** Newer nix-darwin removed the internal
+  `sudo`, so `nix run nix-darwin -- switch` fails with "system activation must
+  now be run as root". `sudo darwin-rebuild …` is the supported path.
+- **The login shell is nix's fish** (`/run/current-system/sw/bin/fish`), not
+  Homebrew's. Homebrew's fish reads `/opt/homebrew/etc/fish` and never saw
+  nix-darwin's `/etc/fish/config.fish`, so `/run/current-system/sw/bin` (and
+  with it `darwin-rebuild`) was not on `PATH`. `~/.config/fish/config.fish`
+  still loads as usual.
+- **Everything in `/etc` that nix-darwin owns is generated**: `auto_master`,
+  `auto_nas`, `shells`, `nix/nix.conf`. Hand-edited copies are preserved as
+  `*.before-nix-darwin`; deleting one and rerunning activation regenerates it.
+  nix-darwin refuses to start if it finds an unrecognised `/etc` file, so rename
+  rather than edit.
+- **Homebrew is adopt-only**: `onActivation.cleanup = "none"`, no auto-update, no
+  upgrade. `brew bundle` only installs what is missing. The Brewfile is an
+  inventory, not a lockfile — Homebrew cannot pin versions.
+- **`users.knownUsers = [ "rhuang" ]`** makes nix-darwin own the account. Do not
+  remove `users.users.rhuang` without also removing it from `knownUsers`, or the
+  next activation deletes the user.
+- node_exporter comes from nixpkgs (`prometheus-node-exporter`, same 1.12.1 the
+  brew formula had); the `sh.brew.node_exporter` label was kept so Prometheus
+  and the dashboards did not have to change.
+
 ## Security posture (2026-10-31)
 
 SIP, the sealed system volume and TCC enforcement are all **on**:
@@ -80,5 +114,5 @@ Negative control: a launchd **user agent** that has no FDA should be denied
 - Sunshine is installed via Homebrew but not in use. Its Accessibility/PostEvent
   grants still point at the `2025.924` Cellar path after a formula bump, so
   input injection is likely broken — irrelevant while it is unused.
-- Nothing on lime is managed by Nix yet. If that changes, the mautrix binary and
-  Jellyfin stay out of `/nix/store` for the TCC reasons above.
+- The mautrix binary and Jellyfin stay out of `/nix/store` for the TCC reasons
+  above, even though the rest of the machine is now nix-darwin managed.
