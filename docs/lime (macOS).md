@@ -107,8 +107,13 @@ Negative control: a launchd **user agent** that has no FDA should be denied
 
 - The bridge reads `chat.db` directly (`lsof` shows `chat.db`, `-wal`, `-shm`);
   it is not going through Messages.app for history.
-- `~/mautrix-imessage/config.yaml` holds the Matrix appservice tokens in plaintext
-  (mode 0600). It is not in this repo.
+- `~/mautrix-imessage/config.yaml` is **not** used by the running bridge. The
+  config (including the Matrix appservice `as_token`/`hs_token`) is an agenix
+  secret (`lime/secrets/imessage-config.age`) decrypted at boot to
+  `/run/agenix/imessage-config` (RAM disk, `rhuang:staff 0400`). The launchd
+  agent runs `mautrix-imessage -c /run/agenix/imessage-config -n`. To edit the
+  config: decrypt with `age -d -i ~/.ssh/general`, edit, re-encrypt to
+  `lime/secrets/imessage-config.age`, then `darwin-rebuild switch`.
 - BlueBubbles' TCC rows (Full Disk Access, Accessibility) were removed
   2026-10-31; the app is uninstalled.
 - Sunshine is installed via Homebrew but not in use. Its Accessibility/PostEvent

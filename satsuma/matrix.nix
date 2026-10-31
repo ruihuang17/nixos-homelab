@@ -35,6 +35,16 @@
     group = "matrix-synapse";
   };
 
+  # mautrix-wsproxy keeps the same appservice tokens in its own config. Decrypt
+  # it from agenix as well so no plaintext copy of the tokens remains under
+  # /var/lib.
+  age.secrets.mautrix-wsproxy-config = {
+    file = "/etc/nixos/satsuma/secrets/mautrix-wsproxy-config.age";
+    mode = "0400";
+    owner = "mautrix-wsproxy";
+    group = "mautrix-wsproxy";
+  };
+
   services.matrix-synapse = {
     enable = true;
     # Secrets (registration shared secret) injected at runtime, not baked into
@@ -113,7 +123,7 @@
     serviceConfig = {
       # mautrix-wsproxy reads ./config.yaml relative to its working directory,
       # so config.yaml needs to live in /var/lib/mautrix-wsproxy too.
-      ExecStart = "/var/lib/mautrix-wsproxy/mautrix-wsproxy";
+      ExecStart = "/var/lib/mautrix-wsproxy/mautrix-wsproxy -config ${config.age.secrets.mautrix-wsproxy-config.path}";
       WorkingDirectory = "/var/lib/mautrix-wsproxy";
       Restart = "on-failure";
       RestartSec = "5s";
