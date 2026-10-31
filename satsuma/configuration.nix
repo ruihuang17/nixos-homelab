@@ -50,6 +50,7 @@ in
     ./alerting.nix
     ./grove-exporter.nix
     ./hermes.nix
+    ./opencode.nix
 
     ./nextcloud
     ./arr-stack

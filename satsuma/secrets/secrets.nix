@@ -31,4 +31,5 @@ in
   "hermes-discord.age".publicKeys = common;
   "jellyfin-api-key.age".publicKeys = common;
   "unifi-grove-password.age".publicKeys = common;
+  "opencode-password.age".publicKeys = common;
 }
