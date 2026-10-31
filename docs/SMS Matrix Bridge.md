@@ -58,15 +58,19 @@ is only needed for **outbound**.
 
 ## Server side (satsuma, committed `d43bbc0` in /etc/nixos)
 
-- `/var/lib/matrix-synapse/sms-registration.yaml` (owner matrix-synapse, 644): appservice
-  `id: sms`, namespaces `^@smsbot:` and `^@sms_.*:`. Added to `app_service_config_files` in
-  `satsuma/matrix.nix`.
+- Appservice `id: sms`, namespaces `^@smsbot:` and `^@sms_.*:`. The registration is
+  an **agenix secret** — `satsuma/secrets/sms-appservice.age`, decrypted to
+  `/run/agenix/sms-appservice` (`matrix-synapse:matrix-synapse 440`) and referenced from
+  `app_service_config_files` in `satsuma/matrix.nix`. There is no plaintext
+  `sms-registration.yaml` any more.
 - `satsuma/nginx.nix`: LAN vhost `matrix.local.estrogenuinely.ca` → `http://127.0.0.1:8008`
   (proxyWebsockets, estrogenuinely.ca wildcard ACME cert).
-- `/var/lib/mautrix-wsproxy/config.yaml`: `- id: sms` block with matching tokens (runtime
-  state, not in the nixos repo). wsproxy logs "Found 2 appservices".
+- The wsproxy config is also an agenix secret (`satsuma/secrets/mautrix-wsproxy-config.age`
+  → `/run/agenix/mautrix-wsproxy-config`); wsproxy runs with
+  `-config /run/agenix/mautrix-wsproxy-config` and logs "Found 2 appservices".
+  `satsuma/matrix.nix` holds the wiring; there is no `/var/lib/mautrix-wsproxy/config.yaml`.
 
-Tokens live in `sms-registration.yaml` / wsproxy config / the baked-in app `config.yaml`.
+Tokens live only in the `.age` files (plus the Android app's baked-in `config.yaml`).
 **Keep them secret** (not reproduced in this note).
 
 ## The 4 source patches (vs android-sms 0.1.89 + mautrix-imessage submodule)
