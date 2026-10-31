@@ -124,7 +124,7 @@ Things to know:
   the old names have aged out of the 24 h view.
 - **29 services** are covered. **lime** runs node_exporter and Jellyfin; satsuma
   probes Jellyfin directly at `http://10.0.10.73:8096/health`. The iMessage bridge
-  and Sunshine are not probed.
+  is not probed.
 - The Kanidm, Nextcloud and Collabora checks go through nginx (they resolve to
   localhost via `/etc/hosts`), so they also catch certificate and proxy problems.
   The rest check the backend directly, so an orange DNS outage doesn't turn

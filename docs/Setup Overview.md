@@ -6,7 +6,7 @@ Documented 2026-10-11 by SSHing into each machine. Desktops and laptops are excl
 | ---- | -- | ---- | -- |
 | `orange` | 10.0.10.23 | DNS server | Armbian (Debian 13 trixie), aarch64 |
 | `satsuma` | 10.0.10.72 | Main server (services, storage) | NixOS (unstable, flake) |
-| `lime` | 10.0.10.73 | iMessage bridge, Sunshine, Jellyfin server | macOS 15.7 on Apple M4 |
+| `lime` | 10.0.10.73 | iMessage bridge, Jellyfin server | macOS 15.7.7 on Apple M4 |
 | `homeassistant` | 10.0.10.74 | Home automation | Home Assistant OS 18.3 |
 | `gaggimate` | 10.0.10.75 | Coffee Machine | Gaggimate |
 | `marigold` | 10.0.10.76 | Zero Tier Node (AI) | Rasbian |
@@ -86,15 +86,16 @@ Backups:
 
 ## lime
 
-- Apple M4, 16 GB RAM, 228 GB disk (15% used), macOS 15.7. Set to restart automatically after a power failure, and never sleeps.
+- Apple M4, 16 GB RAM, 228 GB disk (15% used), macOS 15.7.7. Set to restart automatically after a power failure, and never sleeps.
 - User `rhuang`. The default shell is fish.
-- **mautrix-imessage** (`~/mautrix-imessage`): Matrix to iMessage bridge. It connects to Synapse on satsuma. See [[SMS Matrix Bridge]].
-- **Sunshine** (Homebrew formula): game-streaming host.
-- **Jellyfin** (Homebrew cask) runs the media server on port 8096; satsuma nginx proxies `jellyfin.local.estrogenuinely.ca` here. **BlueBubbles** is also installed.
+- **mautrix-imessage** (`~/mautrix-imessage`): Matrix to iMessage bridge, run by the launchd user agent `fi.mau.mautrix-imessage` (config `platform: mac`). It connects to Synapse on satsuma and needs **Full Disk Access** for its binary to read `~/Library/Messages/chat.db`. See [[SMS Matrix Bridge]] for the Pixel/SMS counterpart.
+- **Jellyfin** (Homebrew cask) runs the media server on port 8096; satsuma nginx proxies `jellyfin.local.estrogenuinely.ca` here. It needs network-volume access for the NFS mount.
+- **node_exporter** (Homebrew, `sh.brew.node_exporter`) listens on 9100 and is scraped by satsuma as `instance="lime"`.
 - Jellyfin starts at login via `~/Library/LaunchAgents/com.jellyfin.server.plist`; macOS auto-login is enabled.
-- 1Password and Parsec are also installed.
+- 1Password and Parsec are also installed. Sunshine is installed via Homebrew but unused.
 - `~/NAS/mediaSrv` is an autofs mount of satsuma's `mediaSrv` over NFSv3 (explicit `mountport=20048`, `nolocks`); `com.apple.automountd` must be enabled.
 - Homebrew packages are mostly ffmpeg, Go, cmake and other media libs.
+- SIP, the boot security policy and the TCC grants are in [[lime (macOS)]]. **BlueBubbles was removed on 2026-10-31** — it was the reason SIP had been disabled.
 
 ## homeassistant
 
