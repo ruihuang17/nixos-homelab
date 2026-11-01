@@ -38,7 +38,7 @@ Prometheus scrapes every 30 s and keeps 90 days of history. All six targets
 Everything on satsuma is declared in the NixOS flake at `/etc/nixos` (see
 [[Setup Overview]] → satsuma).
 
-### satsuma — `satsuma/monitoring.nix`
+### satsuma — `satsuma/monitoring/monitoring.nix`
 
 - `services.prometheus` on `127.0.0.1:9090`, 90 day retention, 30 s scrape
   interval. One `node` job with a static target per host (each tagged with an
@@ -49,7 +49,7 @@ Everything on satsuma is declared in the NixOS flake at `/etc/nixos` (see
     store. (`secret_key` is mandatory on current nixpkgs — Grafana no longer
     ships a default.)
   - The Prometheus datasource is provisioned with a fixed `uid = "prometheus"`.
-  - The dashboard is provisioned from `satsuma/grafana-dashboards/`. The JSON was
+  - The dashboard is provisioned from `satsuma/monitoring/grafana-dashboards/`. The JSON was
     downloaded from grafana.com (1860), its `${DS_PROMETHEUS}` placeholders were
     rewritten to the `prometheus` datasource uid, and the `__inputs`/`__requires`
     blocks were stripped so it imports without prompting.
@@ -64,7 +64,7 @@ Same pattern as Nextcloud and Matrix (see [[Setup Overview]] → Identity).
   matching). Scope map: `homelab_user` → `openid profile email groups`. Created
   with `kanidm system oauth2 create grafana ...`; the Kanidm side is not in the
   flake, only in Kanidm's database.
-- Grafana side is `auth.generic_oauth` in `satsuma/monitoring.nix`. PKCE is on
+- Grafana side is `auth.generic_oauth` in `satsuma/monitoring/monitoring.nix`. PKCE is on
   (Kanidm requires it). The client secret is the agenix file
   `satsuma/secrets/grafana_oidc_secret.age`, read through `$__file{}`.
 - Roles come from the `groups` claim: members of `homelab_admin` get Grafana
@@ -79,13 +79,13 @@ Same pattern as Nextcloud and Matrix (see [[Setup Overview]] → Identity).
   been tested yet, so check that `rhuang` lands as Admin and a non-admin
   `homelab_user` as Viewer.
 
-### Homelab Overview dashboard — `satsuma/monitoring-overview.nix`
+### Service probes — `satsuma/monitoring/monitoring-overview.nix`
 
-One page with the status of every machine and service
-(`https://grafana.local.estrogenuinely.ca/d/homelab-overview`). It is
-**generated from a service catalog** at the top of `monitoring-overview.nix`, and
-that same catalog also produces the probes and recording rules, so adding a
-service means adding one line to `services` and rebuilding.
+A service catalog at the top of `monitoring-overview.nix` drives the blackbox
+probes and the recording rules. Adding a service means adding one entry to
+`services` and rebuilding. (The "Homelab Overview" Grafana dashboard that used to
+be generated from this catalog was removed on 2026-11-01. Only the probes and
+rules remain.)
 
 How a service is checked (`type` in the catalog):
 
@@ -105,39 +105,20 @@ failure that made every external lookup `SERVFAIL`.
 Every check ends up as one series, `homelab:service_up{service,host,group,check}`
 (1 = up, 0 = down), recorded every 30 s. A missing probe, unit or host counts as
 **down**, not as "no data". The blackbox exporter runs on satsuma at
-`127.0.0.1:9115`.
-
-Panels: machines/services/failed-units/ZFS/cert summary tiles, a machines table
-(status, uptime, CPU, memory, disk; click a name for Node Exporter Full), one tile
-group per service category, a 24 h status history, slowest checks, TLS
-certificate lifetime left (`*.estrogenuinely.ca`, `*.ruihuang.io`, mail), and a
-failed-units list.
+`127.0.0.1:9115`. TLS certificate lifetime is probed too
+(`*.estrogenuinely.ca`, `*.ruihuang.io`, mail).
 
 Things to know:
-- Service names are kept short so each tile's name fits on one line (Grafana
-  left-aligns wrapped text). The tile text sizes are in `groupPanel`; the name is
-  deliberately larger than the UP/DOWN text.
-- **Temporary shim:** on 2026-10-11 "Matrix Synapse", "mautrix-wsproxy" and "PIA
-  port forward" were renamed to "Synapse", "wsproxy" and "PIA forward". The history
-  query (`renamed` / `historyExpr` in `monitoring-overview.nix`) folds the old names
-  into the new ones so each keeps one row. Delete that shim after 2026-10-13, once
-  the old names have aged out of the 24 h view.
-- **29 services** are covered. **lime** runs node_exporter and Jellyfin; satsuma
-  probes Jellyfin directly at `http://10.0.10.73:8096/health`. The iMessage bridge
-  is not probed.
 - The Kanidm, Nextcloud and Collabora checks go through nginx (they resolve to
   localhost via `/etc/hosts`), so they also catch certificate and proxy problems.
   The rest check the backend directly, so an orange DNS outage doesn't turn
   everything red.
-- The service history starts when the rules were created (2026-10-11 ~22:45), so
-  the 24 h view fills in gradually.
-- **orange's node_exporter now runs with `--collector.systemd`** (edited in its unit
+- Jellyfin runs on lime; satsuma probes it directly at
+  `http://10.0.10.73:8096/health`. The iMessage bridge is not probed.
+- **orange's node_exporter runs with `--collector.systemd`** (edited in its unit
   file) so failed units on orange are counted too.
-- `prometheus.local.estrogenuinely.ca` has **no DNS record on orange** (unlike
-  `grafana.local`), so that URL doesn't resolve from the LAN yet; add the record in
-  Technitium if you want it.
 
-### nginx — `satsuma/nginx.nix`
+### nginx — `satsuma/core/nginx.nix`
 
 Two internal vhosts were added, both using the `estrogenuinely.ca` wildcard
 cert:
@@ -222,7 +203,7 @@ The three non-NixOS hosts don't use the flake, so they were set up by hand.
   Prometheus UI → *Status → Targets*.
 - Add a new host: install node_exporter on it (systemd/brew/docker as above, or
   for a NixOS server just import `server-common.nix`), then add a target entry to
-  the `node` job in `satsuma/monitoring.nix` and `nixos-rebuild switch`.
+  the `node` job in `satsuma/monitoring/monitoring.nix` and `nixos-rebuild switch`.
 - Rotate the Grafana admin password: re-encrypt
   `satsuma/secrets/grafana_admin_pass.age` with agenix and rebuild.
 
@@ -249,7 +230,7 @@ contact point; the watcher puts both in `To:`.
 The Matrix room is `#homelab-alerts` (`!k9Y9GnXSOfor4J0h6PqDJWBfSyCw889EYbcbbXyUAVs`),
 posted to by the bot `@homelab-alertbot:estrogenuinely.ca`. rhuang is invited.
 
-### satsuma — `satsuma/monitoring.nix`
+### satsuma — `satsuma/monitoring/monitoring.nix`
 
 - `services.grafana.settings.smtp`: host `mail.estrogenuinely.ca:587`, user
   `homelab-svc`, from `alerts@estrogenuinely.ca`, `MandatoryStartTLS`. Password
@@ -288,7 +269,7 @@ posted to by the bot `@homelab-alertbot:estrogenuinely.ca`. rhuang is invited.
       Matrix device token was revoked, or the model failed. See
       [[iMessage Digest]] → *Operating it*.
 
-### satsuma — `satsuma/alerting.nix`
+### satsuma — `satsuma/monitoring/alerting.nix`
 
 Runs `matrix-alertmanager-receiver` (metio, in nixpkgs) on `127.0.0.1:9686`. It
 takes Grafana's webhook (Alertmanager-format) payloads and posts to the Matrix
@@ -355,6 +336,6 @@ the homelab.
 
 - Alerting is live (email + Matrix + VPS satsuma-watcher). Still **dashboard-only
   for ZFS/cert specifics** — could add ZFS-pool and cert-expiry alert rules
-  (the data already exists in the Homelab Overview).
+  (the probe data already exists in Prometheus).
 - Only host-level metrics (node_exporter). Service-level exporters
   (PostgreSQL, nginx, ZFS, smartctl, etc.) could be added later.
