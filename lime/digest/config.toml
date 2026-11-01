@@ -4,7 +4,11 @@
 # The macOS launchd agent and agenix wiring are in lime/digest/default.nix.
 
 [matrix]
-homeserver = "https://matrix.local.estrogenuinely.ca"
+# The launchd Aqua agent is subject to macOS Local Network Privacy: the
+# unsigned nixpkgs Python cannot open a socket to 10.0.10.72 (errno 65), even
+# though matrix.local works from an interactive shell. Use the public vhost,
+# as the bridge itself does; hairpin NAT from lime is verified.
+homeserver = "https://matrix.estrogenuinely.ca"
 user_id = "@rhuang:estrogenuinely.ca"
 # Rooms created on this Synapse have no ":server" suffix in their room ID.
 digest_room = "!m6_R299IGBbrqGIlKwEd-jGJZ1W-eYVXd-BOstrIyo0"

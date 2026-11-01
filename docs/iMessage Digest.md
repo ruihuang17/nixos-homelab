@@ -84,7 +84,9 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 ```
 
 `matrix.local.estrogenuinely.ca` is the LAN vhost for Synapse (see
-[[SMS Matrix Bridge]]); it avoids hairpin NAT.
+[[SMS Matrix Bridge]]); it avoids hairpin NAT but **cannot be used by the
+launchd agent** because of macOS Local Network Privacy (see *Known limits*).
+The service uses `https://matrix.estrogenuinely.ca`.
 
 **Bot caveat (resolved):** a bot would relay Matrix messages into iMessage
 depending on `bridge.permissions`, so the service reads with a read-only
@@ -548,7 +550,7 @@ Consequences:
 | ----- | ------ |
 | launchd agent | `ca.estrogenuinely.imessage-digest`, `StartInterval = 300`, `RunAtLoad` |
 | Entry point | `lime/digest/main.py --once`, Python 3.14 from nixpkgs (stdlib only) |
-| Source | Matrix `/rooms/{id}/messages` on `https://matrix.local.estrogenuinely.ca` |
+| Source | Matrix `/rooms/{id}/messages` on `https://matrix.estrogenuinely.ca` |
 | Model | `/opt/homebrew/bin/apfel` (Apple Foundation Models, 8,192 tokens) |
 | Digest room | `#imessage-digest:estrogenuinely.ca` (`!m6_R299…`, no server suffix) |
 | Alerts | Discord DM to Takeko (`454892601175441418`) via the Hermes bot |
@@ -641,6 +643,14 @@ agenix -e imessage-digest.age -i ~/.ssh/general
 
 ### Known limits
 
+- **macOS Local Network Privacy.** The launchd Aqua agent runs an unsigned
+  nixpkgs Python, and macOS refuses its LAN socket with `OSError(65, 'No route
+  to host')`. `curl` and an interactive/SSH Python process are allowed, so this
+  is a TCC/Local Network restriction, not DNS. The service therefore uses the
+  public vhost `https://matrix.estrogenuinely.ca` (hairpin NAT from lime is
+  verified, and mautrix uses the same address). If hairpin ever breaks, replace
+  the Matrix transport with `/usr/bin/curl` rather than re-enabling the LAN
+  hostname.
 - The 8k on-device model is usable but terse. Digest item times are restored by
   matching each item back to a transcript message; heavily paraphrased items can
   be left without a time.
