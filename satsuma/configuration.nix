@@ -57,8 +57,13 @@ in
     ./arr-stack
   ];
 
-  # Loopback Kiro API proxy used by the OpenCode provider.
-  services.kiro-gateway.enable = true;
+  # Kiro API proxy used by the OpenCode provider. Bound to all interfaces;
+  # the module only opens the port on the LAN interface (and tailscale0 is
+  # already trusted), so this is not intentionally WAN-facing.
+  services.kiro-gateway = {
+    enable = true;
+    address = "0.0.0.0";
+  };
 
   # ZFS/SMART/media/database telemetry for the Grove dashboard.
   services.groveExporter = {
