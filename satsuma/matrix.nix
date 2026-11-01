@@ -4,6 +4,20 @@
   config,
   ...
 }:
+let
+  sharedSecretAuthLegacy = pkgs.python3Packages.buildPythonPackage {
+    pname = "matrix-synapse-shared-secret-auth-legacy";
+    version = "1.0.0";
+    format = "other";
+    src = ./shared_secret_auth_legacy.py;
+    dontUnpack = true;
+    doCheck = false;
+    installPhase = ''
+      mkdir -p $out/lib/python3.14/site-packages
+      cp ${./shared_secret_auth_legacy.py} $out/lib/python3.14/site-packages/shared_secret_auth_legacy.py
+    '';
+  };
+in
 {
 
   age.secrets.matrix_oidc = {
@@ -53,12 +67,24 @@
     group = "matrix-synapse";
   };
 
+  # Password provider for the legacy mautrix-imessage double-puppeting method.
+  # The bridge uses the imessage appservice as_token as the shared password
+  # (bridge.login_shared_secret is null), so this file contains that same token.
+  age.secrets.synapse_shared_secret_auth = {
+    file = "/etc/nixos/satsuma/secrets/synapse_shared_secret_auth.age";
+    mode = "0400";
+    owner = "matrix-synapse";
+    group = "matrix-synapse";
+  };
+
   services.matrix-synapse = {
     enable = true;
+    plugins = [ sharedSecretAuthLegacy ];
     # Secrets (registration shared secret) injected at runtime, not baked into
     # the Nix store.
     extraConfigFiles = [
       config.age.secrets.synapse_registration_secret.path
+      "/run/matrix-synapse/shared-secret-auth.yaml"
     ];
     settings = {
       # server_name is the permanent Matrix identity (user IDs, room IDs,
@@ -85,6 +111,17 @@
           ];
         }
       ];
+      # The mautrix backfill sends bursts of historical messages. The defaults
+      # (rc_message 0.2/s, burst 10) cause 429s and also block the user's join
+      # requests. This is a single-user homeserver.
+      rc_message = {
+        per_second = 1;
+        burst_count = 100;
+      };
+      rc_joins = {
+        per_second = 0.5;
+        burst_count = 50;
+      };
       database = {
         args = {
           #dbname = "matrix-synapse";
@@ -114,7 +151,20 @@
         config.age.secrets.sms-appservice.path
       ];
     };
+
   };
+
+  # Legacy mautrix-imessage double puppeting: the bridge logs in as @rhuang
+  # with the imessage appservice as_token as the password. Generate the
+  # password-provider fragment at start so the secret never enters the Nix
+  # store and does not depend on Synapse's YAML env-tag support.
+  systemd.services.matrix-synapse.preStart = lib.mkAfter ''
+    umask 077
+    set -a
+    . ${config.age.secrets.synapse_shared_secret_auth.path}
+    set +a
+    printf 'password_providers:\n  - module: shared_secret_auth_legacy.SharedSecretAuthProvider\n    config:\n      shared_secret: "%s"\n' "$SHARED_SECRET_AUTH" > /run/matrix-synapse/shared-secret-auth.yaml
+  '';
   users.groups.mautrix-wsproxy = { };
   users.users.mautrix-wsproxy = {
     isSystemUser = true;

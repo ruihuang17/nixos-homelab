@@ -33,6 +33,7 @@ in
   "imessage-appservice.age".publicKeys = common;
   "mautrix-wsproxy-config.age".publicKeys = common;
   "sms-appservice.age".publicKeys = common;
+  "synapse_shared_secret_auth.age".publicKeys = common;
   "unifi-grove-password.age".publicKeys = common;
   "opencode-password.age".publicKeys = common;
 }
