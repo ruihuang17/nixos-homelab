@@ -300,6 +300,8 @@ State on 2026-10-31:
 | SIP | enabled |
 | FileVault | **off** (auto-login depends on this) |
 | Auto-login | `rhuang` |
+| Volume owners | `rhuang`, `temp` (`diskutil apfs listCryptoUsers /`) |
+| MDM / bootstrap token | none (`profiles status -type enrollment` → No) |
 | Sleep | disabled (`sleep 0`, `disksleep 0`) |
 | Running | `fi.mau.mautrix-imessage`, Jellyfin, `sh.brew.node_exporter` |
 
@@ -332,8 +334,25 @@ State on 2026-10-31:
 ```sh
 ssh -i /root/.ssh/general rhuang@10.0.10.73
 sudo softwareupdate -d "macOS 27.2-26B123"     # download only
-sudo softwareupdate -i "macOS 27.2-26B123" --restart --agree-to-license
 ```
+
+**Apple Silicon requires a volume-owner password.** `sudo` alone is not enough:
+`softwareupdate -i` fails with `Failed to authenticate` because
+`installerauthagent` wants the console user's password (LocalAuthentication),
+and an MDM/bootstrap-token path is not available on this Mac
+(`profiles status -type enrollment` → not enrolled). `installerauthagent` cannot
+be satisfied over a non-interactive SSH session.
+
+Use the full installer with an interactive password prompt instead:
+
+```sh
+sudo softwareupdate --fetch-full-installer --full-installer-version 27.2
+sudo "/Applications/Install macOS 27 Golden Gate.app/Contents/Resources/startosinstall" \
+  --agreetolicense --reboot --user rhuang --passprompt
+```
+
+The update is already staged (`/System/Volumes/Update`), so the full installer is
+mostly a second copy. Delete the installer app afterwards to reclaim ~17 GB.
 
 Do not interrupt the reboot. The Mac will disappear from SSH during the install.
 
