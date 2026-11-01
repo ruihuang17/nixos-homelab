@@ -416,6 +416,8 @@ bundle adopts cleanly.
 reboot-tested at 01:51. The Mac came back on its own: console user `rhuang`,
 `Finder`/`Dock` running, all three LaunchAgents, Jellyfin/node_exporter `200`,
 `chat.db` open, no Setup Assistant or Installer Progress, and `temp` gone.
+It was **disabled again** for the keychain reset later that night; see
+*Keychain reset / Apple Account blocker* below.
 Keep the command for future use:
 
 ```sh
@@ -450,6 +452,57 @@ The bridge's FDA grant survived the upgrade (`lsof` shows `chat.db`), and
 `/run/agenix/imessage-config` is recreated at boot. The node_exporter `thermal`
 collector error (`no CPU power status has been recorded`) is pre-existing and
 harmless.
+
+### Keychain reset / Apple Account blocker (2026-11-01 01:45)
+
+The login keychain was reset after repeated unlock failures:
+
+- new `login.keychain-db` created at 01:17; `security show-keychain-info`
+  (via `launchctl asuser 1000`) reports `no-timeout`.
+- old keychains preserved as `login_renamed_1.keychain-db` (Jul 24) and
+  `login_renamed_2.keychain-db` (Nov 1 01:05).
+- the whole `~/Library/Keychains` directory is backed up at
+  `/hdd/backup/lime-pre-macos27-20261031/keychains-20261101`.
+
+It did **not** fix Apple Intelligence. The remaining blocker is the Apple
+Account AuthKit state, not the local keychain:
+
+- `akd`: `SecKeyCreateSignature failed ... unable to sign digest`
+  (`AKSError=-536870174`).
+- `accountsd`: `Silent renewal failed!` (`AKAuthenticationError -7013/-7065`),
+  `Credential data is currently unavailable`.
+- `FeatureAccessAgent`: `auth tokens are not available`, and
+  `Bag did not contain path for key: acseGatewayURL`.
+- The Passwords app (iCloud Keychain) does not unlock with the Mac login
+  password, and the Apple Account password is not known to work either.
+- A stuck “Signing Out…” was cancelled by quitting System Settings; the
+  AppleAccount and CloudKit accounts are still present.
+
+The Passwords app also showed a saved “Apple China” account. If the Apple
+Account region is China mainland, Apple Intelligence is not available there at
+all. Do not change the Mac login password for this; it needs the Apple Account
+credential or an account-region change.
+
+Consequences:
+
+- The Apple Intelligence/Siri AI opt-in UI is absent, so `fm`/`apfel` cannot
+  use the model. `apfel --model-info` reports context **8192** but
+  `available: no`.
+- For the digest, fall back to OpenRouter/Hermes until the Apple Account is
+  repaired.
+- **Auto-login is OFF** (disabled for the keychain reset). Re-enable it with the
+  Mac login password, not the Apple Account password:
+
+  ```sh
+  read -s -p "Mac login password: " PW
+  sudo sysadminctl -autologin set -userName rhuang -password "$PW"
+  unset PW
+  sudo sysadminctl -autologin status
+  ```
+
+- Wallpaper: the store was reset and `desktoppr` hangs on 27.2. Pick one in
+  System Settings → Wallpaper. The old store is at
+  `/hdd/backup/lime-pre-macos27-20261031/wallpaper-store-20261101`.
 
 ### Risks / rollback
 
