@@ -105,7 +105,7 @@ directly.
 
 ### 2. NixOS module
 
-Add `satsuma/opencode.nix`:
+Add `satsuma/ai/opencode.nix`:
 
 - `age.secrets.opencode-password`, mode `0400`, owner `opencode`.
 - `users.users.opencode`: system user, home `/var/lib/opencode`, group `users`,
@@ -224,7 +224,7 @@ Two changes remove that hazard for normal rebuilds:
    Verified: a rebuild that changed both `Description` and the unit `.drv`
    kept the same `MainPID`.
 
-   Trade-off: edits to `satsuma/opencode.nix` no longer take effect on their
+   Trade-off: edits to `satsuma/ai/opencode.nix` no longer take effect on their
    own. Apply them with `sudo systemctl restart opencode`, knowing that this
    does end the session.
 
@@ -294,7 +294,7 @@ Rolled out 2026-10-31 16:05 EDT.
 
 Changed files (staged, not committed):
 
-- `satsuma/opencode.nix` (new)
+- `satsuma/ai/opencode.nix` (new)
 - `satsuma/configuration.nix` (import)
 - `satsuma/secrets/opencode-password.age` (new)
 - `satsuma/secrets/secrets.nix` (recipients)
@@ -426,7 +426,7 @@ that gives the agent a Matrix seat as `@rhuang:estrogenuinely.ca`.
 ### OpenCode wiring
 
 The system-wide config at `/etc/opencode/opencode.json` (rendered from
-`satsuma/opencode.nix`) adds:
+`satsuma/ai/opencode.nix`) adds:
 
 ```json
 {

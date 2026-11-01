@@ -9,21 +9,21 @@
   imports = [ inputs.hermes-agent.nixosModules.default ];
 
   age.secrets.hermes-env = {
-    file = ./secrets/hermes-env.age;
+    file = ../secrets/hermes-env.age;
     mode = "0400";
     owner = "hermes";
     group = "hermes";
   };
 
   age.secrets.hermes-discord = {
-    file = ./secrets/hermes-discord.age;
+    file = ../secrets/hermes-discord.age;
     mode = "0400";
     owner = "hermes";
     group = "hermes";
   };
 
   age.secrets.jellyfin-api-key = {
-    file = ./secrets/jellyfin-api-key.age;
+    file = ../secrets/jellyfin-api-key.age;
     mode = "0400";
     owner = "hermes";
     group = "hermes";

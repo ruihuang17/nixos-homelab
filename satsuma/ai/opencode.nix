@@ -165,7 +165,7 @@ let
 in
 {
   age.secrets.opencode-password = {
-    file = ./secrets/opencode-password.age;
+    file = ../secrets/opencode-password.age;
     mode = "0400";
     owner = "root";
     group = "root";

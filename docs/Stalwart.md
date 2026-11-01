@@ -79,8 +79,8 @@ Thunderbird ──IMAP/SMTP──▶ Stalwart (vps)  ──LDAPS over Tailscale�
 | `vps/secrets/*.age` | `cloudflare_api`, `kanidm_ldap_token`, `stalwart_admin`, `ses_smtp_user`, `ses_smtp_pass` |
 | `vps/secrets/secrets.nix` | recipients: `[ vps-host rhuang ]` |
 | `common.nix` | Tailscale moved here (shared by all hosts) |
-| `satsuma/kanidm.nix` | LDAPS bind `0.0.0.0:3636`, firewalled to `tailscale0` |
-| `satsuma/tailscale.nix` | now a no-op (config moved to `common.nix`) |
+| `satsuma/core/kanidm.nix` | LDAPS bind `0.0.0.0:3636`, firewalled to `tailscale0` |
+| `satsuma/core/tailscale.nix` | now a no-op (config moved to `common.nix`) |
 | `flake.nix` | vps output renamed to `mail` |
 
 ## kanidm setup (on satsuma)

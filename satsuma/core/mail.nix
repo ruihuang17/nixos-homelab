@@ -7,7 +7,7 @@
   # (homelab-svc is a kanidm person account whose `mail` holds the per-service
   # @estrogenuinely.ca sender addresses; see docs/Stalwart.md.)
   age.secrets.postfix_sasl = {
-    file = ./secrets/postfix_sasl.age;
+    file = ../secrets/postfix_sasl.age;
     owner = "postfix";
     group = "postfix";
   };

@@ -139,10 +139,10 @@ session.auth.must-match-sender = [
 
 | File | Change |
 | ---- | ------ |
-| `satsuma/mail.nix` | Relay → `[mail.estrogenuinely.ca]:587`; dropped the sender-rewrite `mapFiles`/`smtp_generic_maps`; `myorigin = estrogenuinely.ca`, `myhostname = satsuma.estrogenuinely.ca` |
+| `satsuma/core/mail.nix` | Relay → `[mail.estrogenuinely.ca]:587`; dropped the sender-rewrite `mapFiles`/`smtp_generic_maps`; `myorigin = estrogenuinely.ca`, `myhostname = satsuma.estrogenuinely.ca` |
 | `satsuma/hardware-configuration.nix` | smartd `sender = alerts@…`, `recipient = rui@estrogenuinely.ca` |
-| `satsuma/nextcloud/nextcloud.nix` | SMTP → Stalwart, `mail_smtpname = homelab-svc`, From `nextcloud@…`, `mail_smtpsecure = ""` (STARTTLS) |
-| `satsuma/vaultwarden.nix` | SMTP → Stalwart, `SMTP_USERNAME = homelab-svc`, `SMTP_FROM = vaultwarden@…` |
+| `satsuma/apps/nextcloud/nextcloud.nix` | SMTP → Stalwart, `mail_smtpname = homelab-svc`, From `nextcloud@…`, `mail_smtpsecure = ""` (STARTTLS) |
+| `satsuma/apps/vaultwarden.nix` | SMTP → Stalwart, `SMTP_USERNAME = homelab-svc`, `SMTP_FROM = vaultwarden@…` |
 | `vps/stalwart.nix` | Scoped `session.auth.must-match-sender` exception |
 | `satsuma/secrets/postfix_sasl.age` | `[mail.estrogenuinely.ca]:587 homelab-svc:<pw>` (Postfix texthash) |
 | `satsuma/secrets/mail_pass.age` | Nextcloud `mail_smtppassword` = `homelab-svc` pw (plain) |
@@ -171,7 +171,7 @@ nixos-rebuild switch`.
   (same as every other local expression key).
 - **Grafana's SMTP no longer depends on DNS.** satsuma pins
   `15.235.101.89 mail.estrogenuinely.ca` in `/etc/hosts`
-  (`satsuma/monitoring.nix`). Without it, the 2026-10-30 DNSSEC/clock outage
+  (`satsuma/monitoring/monitoring.nix`). Without it, the 2026-10-30 DNSSEC/clock outage
   made the SMTP hostname unresolvable, so alert mail could not leave satsuma.
 - **The VPS watcher is independent.** It sends to SES directly with
   `LoadCredential`-injected `ses_smtp_user`/`ses_smtp_pass`; do not point it back

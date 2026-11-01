@@ -225,7 +225,7 @@ in
 
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.callPackage ../pkgs/kiro-gateway { };
+      default = pkgs.callPackage ../../pkgs/kiro-gateway { };
       description = "kiro-gateway package to run.";
     };
   };
@@ -244,7 +244,7 @@ in
     # loaded by the OpenCode service so its provider can authenticate to the
     # gateway.
     age.secrets.kiro-gateway-env = {
-      file = ./secrets/kiro-gateway-env.age;
+      file = ../secrets/kiro-gateway-env.age;
       owner = "root";
       group = "root";
       mode = "0400";

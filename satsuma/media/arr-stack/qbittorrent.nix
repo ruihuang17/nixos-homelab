@@ -41,10 +41,10 @@ in
   # agenix secrets
   # -----------------------------------------------------------------------
   age.secrets = {
-    pia-username.file = ../secrets/pia-username.age;
-    pia-password.file = ../secrets/pia-password.age;
-    qbittorrent-password.file = ../secrets/qbittorrent-password.age;
-    qui-session-secret.file = ../secrets/qui-session-secret.age;
+    pia-username.file = ../../secrets/pia-username.age;
+    pia-password.file = ../../secrets/pia-password.age;
+    qbittorrent-password.file = ../../secrets/qbittorrent-password.age;
+    qui-session-secret.file = ../../secrets/qui-session-secret.age;
   };
 
   environment.systemPackages = with pkgs; [

@@ -42,7 +42,7 @@ Layout:
 - `flake.nix`: inputs are nixpkgs-unstable, agenix and nix-darwin.
 - `common.nix`: shared by all hosts. Contains the users, SSH (root login by key only), Tailscale, and fish.
 - `lena.nix`: user for Lena.
-- `satsuma/`: one `.nix` file per service. Secrets are agenix `.age` files in `satsuma/secrets/`.
+- `satsuma/`: one `.nix` file per service, grouped by function (`core/`, `apps/`, `media/`, `matrix/`, `backup/`, `monitoring/`, `ai/`). Secrets are agenix `.age` files in `satsuma/secrets/`.
 
 Hardware:
 - 32 threads, 29 GB RAM.

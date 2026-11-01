@@ -31,30 +31,35 @@ in
   imports = [
     # Include the results of the hardware scan.
     ./hardware-configuration.nix
-    ./nginx.nix
-    ./networking.nix
-    ./kanidm.nix
-    ./paperless.nix
-    ./tailscale.nix
-    ./mail.nix
-    ./postgres.nix
-    ./immich.nix
-    ./vaultwarden.nix
-    ./matrix.nix
-    ./zfs-backup.nix
-    ./boot-replication.nix
-    ./postgres-backup.nix
-    ./restic-offsite.nix
-    ./monitoring.nix
-    ./monitoring-overview.nix
-    ./alerting.nix
-    ./grove-exporter.nix
-    ./hermes.nix
-    ./kiro-gateway.nix
-    ./opencode.nix
+    ./core/networking.nix
+    ./core/nginx.nix
+    ./core/tailscale.nix
+    ./core/kanidm.nix
+    ./core/mail.nix
+    ./core/postgres.nix
 
-    ./nextcloud
-    ./arr-stack
+    ./apps/paperless.nix
+    ./apps/vaultwarden.nix
+    ./apps/nextcloud
+
+    ./media/immich.nix
+    ./media/arr-stack
+
+    ./matrix/matrix.nix
+
+    ./backup/zfs-backup.nix
+    ./backup/boot-replication.nix
+    ./backup/postgres-backup.nix
+    ./backup/restic-offsite.nix
+
+    ./monitoring/monitoring.nix
+    ./monitoring/monitoring-overview.nix
+    ./monitoring/alerting.nix
+    ./monitoring/grove-exporter.nix
+
+    ./ai/hermes.nix
+    ./ai/kiro-gateway.nix
+    ./ai/opencode.nix
   ];
 
   # Kiro API proxy used by the OpenCode provider. Bound to all interfaces;

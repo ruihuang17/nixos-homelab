@@ -23,7 +23,7 @@ satsuma
 
 ## 1. ZFS backup of /var
 
-Module: `satsuma/zfs-backup.nix`
+Module: `satsuma/backup/zfs-backup.nix`
 
 ### How it works
 
@@ -83,7 +83,7 @@ latest `hdd/backup/var` snapshot back into a new `zpool/var`.
 
 `kiro-cli --resume-id 688209e0-9a02-4113-a1da-15bd64dcde5c`
 
-Modules: `satsuma/postgres-backup.nix` (source), `vps/backup-target.nix` (destination).
+Modules: `satsuma/backup/postgres-backup.nix` (source), `vps/backup-target.nix` (destination).
 Commit: `d36bc5d`.
 
 ### Databases covered
@@ -170,7 +170,7 @@ read `/var/lib/satsuma-backup/postgres` directly).
 
 ## 3. Boot disk (ESP) replication
 
-Module: `satsuma/boot-replication.nix`. Mirrors the primary EFI System Partition onto the backup
+Module: `satsuma/backup/boot-replication.nix`. Mirrors the primary EFI System Partition onto the backup
 ESP (`nvme0n1p1`, UUID `1BEB-C3B7`, label `boot-bak`, normally unmounted) and registers a UEFI
 boot entry so firmware can boot from the second disk. Triggered by a path watcher on the primary
 ESP and a periodic timer; manual: `systemctl start sync-backup-esp`.
@@ -179,7 +179,7 @@ ESP and a periodic timer; manual: `systemctl start sync-backup-esp`.
 
 ## 4. Offsite backup to OVHcloud (Toronto)
 
-Module: `satsuma/restic-offsite.nix`.
+Module: `satsuma/backup/restic-offsite.nix`.
 Repo: `s3:https://s3.ca-east-tor.io.cloud.ovh.net/satsuma-backup`.
 
 ### What is backed up
@@ -302,7 +302,7 @@ restic restore latest --target /tmp/restore
 
 ### Monitoring
 
-Grafana alert rules (provisioned from `satsuma/monitoring.nix`):
+Grafana alert rules (provisioned from `satsuma/monitoring/monitoring.nix`):
 
 - `homelab-restic-offsite-failed` — `restic-backups-ovh*` unit in `failed` state.
 - `homelab-restic-offsite-stale` — timer has not fired for >48 h.

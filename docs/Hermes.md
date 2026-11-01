@@ -46,7 +46,7 @@ Everything on satsuma is declared in the NixOS flake at `/etc/nixos` (see
 [[Setup Overview]] → satsuma). Hermes comes from the `hermes-agent` flake input;
 the NixOS module is `inputs.hermes-agent.nixosModules.default`.
 
-### satsuma — `satsuma/hermes.nix`
+### satsuma — `satsuma/ai/hermes.nix`
 
 - `services.hermes-agent.enable = true`.
 - `backend = { mode = "dashboard"; host = "127.0.0.1"; port = 9119; }` starts
@@ -113,7 +113,7 @@ not kept on disk after encryption (this setup used `/root/discord-bot-token`
 mode `0600` and shredded it). Voice playback is disabled because the Opus codec
 is not installed; text chat is unaffected.
 
-### satsuma — `satsuma/nginx.nix`
+### satsuma — `satsuma/core/nginx.nix`
 
 A vhost for `hermes.local.estrogenuinely.ca` proxies to
 `http://127.0.0.1:9119` with `proxyWebsockets = true` (the chat and event
@@ -284,7 +284,7 @@ If the ACLs disappear (for example after a manual `chmod`), restart
   it the provider falls back to the loopback origin, and over plain HTTP the
   PKCE cookie's `SameSite=Lax` behaviour can break the callback.
 - Rebuilding **merges** `settings` into `config.yaml`: keys set in Nix are
-  replaced, but other keys are preserved. Still prefer `satsuma/hermes.nix`;
+  replaced, but other keys are preserved. Still prefer `satsuma/ai/hermes.nix`;
   ad-hoc edits to a key that Nix also sets are lost on the next switch.
 - Discord authorization uses **numeric IDs**, not usernames or `name#discrim`.
   `DISCORD_ALLOWED_USERS` is a comma-separated allowlist and is fail-closed when
