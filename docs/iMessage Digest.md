@@ -62,8 +62,25 @@ Selected on 2026-11-01:
 
 | Chat | Portal room |
 | ---- | ----------- |
-| BLUNT WRAPS 🌯 | `!ngLmKbjUJtXXLFjtZc:estrogenuinely.ca` |
-| Blunt Wraps 2.0 | `!aSIBmlhIyzlrpVoKNL:estrogenuinely.ca` |
+| BLUNT WRAPS 🌯 | `!ngLmKbjUJtXXLFjtZc:estrogenuinely.ca` (live; guid `any;+;chat123…`) |
+| Blunt Wraps 2.0 | `!rDOMDGOdIIFzTKbtzm:estrogenuinely.ca` (live; guid `any;+;77cbc…`) |
+
+**Duplicate portals (2026-11-01 profile migration).** The bridge now has
+~1,853 portal rows, with several rows per chat name (`iMessage;+;chat860…`,
+`any;+;chat860…`, `RCS;+;chat598…`, `any;+;77cbc…`). The live portal is the one
+with the newest `origin_server_ts` and ghost traffic; the older rows stopped
+when the profile was rebuilt. The table above was audited at 12:05 on
+2026-11-01. Re-audit after any bridge migration:
+
+```sh
+sqlite3 ~/mautrix-imessage/mautrix-imessage.db \
+  "select mxid, name from portal where name like '%BLUNT%' or name like '%Blunt%';"
+# for each room, compare /messages?dir=b&limit=200:
+#   number of senders, ghosts, last origin_server_ts, messages in the last 24 h
+```
+
+Do not select a portal by name alone — that is how the first digest ended up
+reading the stale `RCS;+;chat598…` duplicate.
 
 The service reads with a dedicated `@rhuang` device token (`iMessage Digest`),
 stored in `lime/secrets/imessage-digest.age`. The digest room is
@@ -651,6 +668,10 @@ agenix -e imessage-digest.age -i ~/.ssh/general
   verified, and mautrix uses the same address). If hairpin ever breaks, replace
   the Matrix transport with `/usr/bin/curl` rather than re-enabling the LAN
   hostname.
+- **Duplicate portals after a bridge migration.** The 2026-11-01 profile
+  rebuild left ~1,853 portal rows with several rows per chat name. The digest
+  config pins the live portal IDs; a name-based lookup is not safe. Re-audit
+  after any bridge rebuild. See *Room discovery*.
 - The 8k on-device model is usable but terse. Digest item times are restored by
   matching each item back to a transcript message; heavily paraphrased items can
   be left without a time.

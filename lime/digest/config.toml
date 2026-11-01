@@ -15,13 +15,17 @@ digest_room = "!m6_R299IGBbrqGIlKwEd-jGJZ1W-eYVXd-BOstrIyo0"
 state_dir = "/Users/rhuang/Library/Application Support/imessage-digest"
 
 [[rooms]]
-# BLUNT WRAPS
+# Live BLUNT WRAPS portal after the 2026-11-01 profile migration
+# (guid any;+;chat123897768509851981, last message 2026-11-01 10:56).
+# The older chat860705889171676769 portals are stale duplicates.
 id = "!ngLmKbjUJtXXLFjtZc:estrogenuinely.ca"
 label = "BLUNT WRAPS"
 
 [[rooms]]
-# Blunt Wraps 2.0
-id = "!aSIBmlhIyzlrpVoKNL:estrogenuinely.ca"
+# Live Blunt Wraps 2.0 portal (guid any;+;77cbc1212b7442e4acc654a29e73dffd,
+# last message 2026-11-01 12:02). The RCS;+;chat598… portal is an older
+# duplicate that stopped at 00:31.
+id = "!rDOMDGOdIIFzTKbtzm:estrogenuinely.ca"
 label = "Blunt Wraps 2.0"
 
 [model]
