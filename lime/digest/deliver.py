@@ -171,7 +171,17 @@ def render_digest(data: dict) -> str:
         items: list[str] = []
         for raw in data.get(key) or []:
             item = " ".join(str(raw).strip().lstrip("-* ").split())
-            if not item or item.lower() in ("no activity", "none", "n/a"):
+            if not item:
+                continue
+            lower = item.lower()
+            if lower in ("no activity", "none", "n/a"):
+                continue
+            # The small model likes to fill empty sections with "No money or
+            # travel issues mentioned"; treat those as empty, not as an item.
+            if re.match(
+                r"^no\b.*\b(activity|concern|conflict|issue|mention|note|report|found)\b",
+                lower,
+            ):
                 continue
             if len(item) > 500:
                 item = item[:497] + "..."
