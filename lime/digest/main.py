@@ -212,6 +212,9 @@ class DigestService:
                 max_input_tokens=int(synthesis_cfg.get("max_input_tokens", 60000)),
                 http_referer=synthesis_cfg.get("http_referer", ""),
                 title=synthesis_cfg.get("title", ""),
+                data_collection=synthesis_cfg.get("data_collection", "deny"),
+                zdr=bool(synthesis_cfg.get("zdr", False)),
+                allow_fallbacks=bool(synthesis_cfg.get("allow_fallbacks", True)),
             )
 
         discord_cfg = config.get("discord", {})
@@ -872,6 +875,16 @@ def _match_source(item: str, messages: list) -> object | None:
     return None
 
 
+def _item_mentions_participant(item: str, names: dict[str, str]) -> bool:
+    lower = item.lower()
+    for name in names.values():
+        for candidate in (name, (name.split() or [""])[0]):
+            candidate = candidate.strip().lower()
+            if len(candidate) >= 3 and candidate in lower:
+                return True
+    return False
+
+
 def _addressed_to_someone_else(
     body: str, source_sender: str, names: dict[str, str], user_id: str
 ) -> bool:
@@ -927,7 +940,9 @@ def annotate_digest(
                 continue
             when = format_ts(int(source["ts"]), tz)
             speaker = str(source["sender_name"] or source["sender"])
-            if speaker.lower() in item.lower():
+            if speaker.lower() in item.lower() or _item_mentions_participant(
+                item, names
+            ):
                 output.append(f"[{when}] {item}")
             else:
                 output.append(f"[{when}] {speaker}: {item}")

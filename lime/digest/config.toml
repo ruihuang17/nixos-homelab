@@ -54,12 +54,20 @@ max_messages_per_call = 120
 # stay on-device. One transcript per digest leaves lime.
 provider = "openrouter"
 api_base = "https://openrouter.ai/api/v1"
-model = "deepseek/deepseek-v4.1-flash-1017"
+# Claude Haiku 5.5 is cheaper than DeepSeek V4.1 Flash on both input and output,
+# is not a reasoning model (no hidden-token budget), and followed the
+# offer/ask rules in the A/B test.
+model = "anthropic/claude-haiku-5.5"
 max_tokens = 1800
 timeout_seconds = 120
 # Send the whole transcript to the cloud model when it fits; above this, fall
 # back to on-device chunk notes before the cloud final call.
 max_input_tokens = 60000
+# OpenRouter routing: no training/data collection, prefer zero-retention
+# providers. Claude Haiku 5.5 is available on a ZDR route.
+data_collection = "deny"
+zdr = true
+allow_fallbacks = true
 http_referer = "https://estrogenuinely.ca"
 title = "iMessage Digest"
 

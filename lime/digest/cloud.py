@@ -35,6 +35,9 @@ class CloudModel:
         max_input_tokens: int = 60000,
         http_referer: str = "",
         title: str = "",
+        data_collection: str = "deny",
+        zdr: bool = False,
+        allow_fallbacks: bool = True,
     ):
         self.api_base = api_base.rstrip("/")
         self.api_key = api_key
@@ -44,6 +47,12 @@ class CloudModel:
         self.max_input_tokens = max_input_tokens
         self.http_referer = http_referer
         self.title = title
+        self.provider_prefs: dict = {}
+        if data_collection:
+            self.provider_prefs["data_collection"] = data_collection
+        if zdr:
+            self.provider_prefs["zdr"] = True
+        self.provider_prefs["allow_fallbacks"] = allow_fallbacks
 
     def generate_json(
         self,
@@ -69,6 +78,7 @@ class CloudModel:
             "temperature": 0,
             "max_tokens": max_tokens or self.max_tokens,
             "response_format": {"type": "json_object"},
+            "provider": self.provider_prefs,
         }
 
         try:
@@ -119,8 +129,9 @@ class CloudModel:
 
         usage = response.get("usage") or {}
         log.info(
-            "cloud synthesis %s: prompt=%s completion=%s total=%s tokens",
+            "cloud synthesis %s via %s: prompt=%s completion=%s total=%s tokens",
             self.model,
+            response.get("provider", "?"),
             usage.get("prompt_tokens", "?"),
             usage.get("completion_tokens", "?"),
             usage.get("total_tokens", "?"),

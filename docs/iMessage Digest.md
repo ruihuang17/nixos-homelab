@@ -10,8 +10,8 @@ and *Implementation (2026-11-01)* for what was built.
 > rows with several duplicates per chat. The digest agent still runs every five
 > minutes but only writes the heartbeat (`[service] paused = true`); it makes no
 > Matrix, model or Discord calls. Resume after re-auditing the live portals with
-> `lime/digest/audit_portals.py`. The final digest now uses OpenRouter synthesis;
-> event detection stays on-device.
+> `lime/digest/audit_portals.py`. The final digest now uses OpenRouter Claude
+> Haiku 5.5 on a zero-data-retention route; event detection stays on-device.
 
 Goal: summarise a couple of iMessage group chats, deliver scheduled digests, and
 push live alerts for concrete events, using Apple's on-device model where
@@ -27,7 +27,7 @@ See [[SMS Matrix Bridge]] for the bridge, [[lime (macOS)]] for the host, and
 | Rooms | **BLUNT WRAPS 🌯** `!ngLmKbjUJtXXLFjtZc:estrogenuinely.ca` and **Blunt Wraps 2.0** `!rDOMDGOdIIFzTKbtzm:estrogenuinely.ca` | Live portals after the 2026-11-01 migration; older duplicate portals are stale |
 | Source of messages | Matrix portal rooms (mautrix-imessage) | No new Full Disk Access grant, no `chat.db` parser, bridge already normalises iMessage |
 | Inference (alerts) | Apple on-device via `apfel` | Free, private, no request cap; verified `available: yes`, 8,192 tokens on lime |
-| Inference (digest) | OpenRouter `deepseek/deepseek-v4.1-flash-1017` | The 8k on-device model reversed who offered/asked; cloud synthesis is materially better for the daily summary |
+| Inference (digest) | OpenRouter `anthropic/claude-haiku-5.5`, ZDR route | The 8k on-device model reversed who offered/asked; Claude Haiku is faster, cheaper on input/output than DeepSeek V4.1 Flash, and not a reasoning model |
 | Trigger | launchd `StartInterval = 300` | macOS-native scheduler; no iMessage webhook exists |
 | Delivery | Matrix `#imessage-digest` for digests; Discord DM for alerts | Digest is archived; Discord DM actually pushes to Takeko |
 | Host | lime (service), satsuma (Synapse) | Model must run on the Mac; Matrix is already there |
@@ -578,7 +578,7 @@ Consequences:
 | Entry point | `lime/digest/main.py --once`, Python 3.14 from nixpkgs (stdlib only) |
 | Source | Matrix `/rooms/{id}/messages` on `https://matrix.estrogenuinely.ca` |
 | Alerts / notes | `/opt/homebrew/bin/apfel` (Apple Foundation Models, 8,192 tokens) |
-| Digest synthesis | OpenRouter `deepseek/deepseek-v4.1-flash-1017` (one transcript per digest) |
+| Digest synthesis | OpenRouter `anthropic/claude-haiku-5.5` on a ZDR route (one transcript per digest) |
 | Digest room | `#imessage-digest:estrogenuinely.ca` (`!m6_R299…`, no server suffix) |
 | Alerts | Discord DM to Takeko (`454892601175441418`) via the Hermes bot |
 | State | `~/Library/Application Support/imessage-digest/state.sqlite3` |
@@ -602,7 +602,7 @@ Consequences:
    - ≤ 3 alerts per room per local day;
    - quiet 23:00–07:00 unless a `needs_action` request is ≥ 0.90.
 3. Digest pass at 08:00 and 18:00 local (catch-up up to 6 h): send the raw
-   transcript (up to 60k tokens) to the OpenRouter digest model. Above that,
+   transcript (up to 60k tokens) to OpenRouter Claude Haiku 5.5. Above that,
    take on-device chunk notes and tree-reduce them first. The model returns a
    schema-constrained object; code renders the sections, removes cross-section
    duplicates, and grounds each item back to a source message to restore its
@@ -723,10 +723,13 @@ agenix -e imessage-digest.age -i ~/.ssh/general
   `ws://127.0.0.1:29331`. The wsproxy logs `imessage connected to websocket`;
   traffic stays on the LAN and the wsproxy is not exposed publicly. If the
   tunnel dies, check `~/Library/Logs/wsproxy-tunnel.err.log`.
-- **Cloud privacy.** The final digest goes to OpenRouter; one transcript per
-  scheduled digest leaves lime. Event detection and large-window chunk notes
-  remain on-device. If that trade is unacceptable, switch
-  `[synthesis] provider` off and accept the weaker on-device summary.
+- **Cloud privacy.** The final digest goes to OpenRouter Claude Haiku 5.5 on a
+  zero-data-retention route (`data_collection = "deny"`, `zdr = true`); one
+  transcript per scheduled digest leaves lime. Event detection and large-window
+  chunk notes remain on-device. At ~4k input + ~1.3k output tokens, a digest
+  costs roughly $0.001; two per day is about $0.06/month. If that trade is
+  unacceptable, switch `[synthesis] provider` off and accept the weaker
+  on-device summary.
 - The on-device model is still used for alerts and can misread roles. Grounding,
   confidence, daily caps and quiet hours reduce alert noise.
 - “Requests for Rui” is heuristic: self-authored items and asks aimed at another

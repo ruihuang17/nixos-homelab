@@ -8,7 +8,7 @@ for the host table, [[NFS]] for the media mount and [[Media Stack]] for Jellyfin
 | Thing | Managed by | Notes |
 | ----- | ---------- | ----- |
 | mautrix-imessage | launchd user agent `fi.mau.mautrix-imessage` | `platform: mac`; binary `~/mautrix-imessage/mautrix-imessage` |
-| iMessage digest | launchd user agent `ca.estrogenuinely.imessage-digest` | polls two portal rooms, `apfel` alerts + OpenRouter digest; paused pending the bridge portal audit; see [[iMessage Digest]] |
+| iMessage digest | launchd user agent `ca.estrogenuinely.imessage-digest` | polls two portal rooms, `apfel` alerts + OpenRouter Claude Haiku digest; paused pending the bridge portal audit; see [[iMessage Digest]] |
 | wsproxy tunnel | launchd user agent `ca.estrogenuinely.wsproxy-tunnel` | `ssh -L 127.0.0.1:29331` to satsuma; works around Local Network Privacy for the bridge |
 | Jellyfin | launchd user agent `com.jellyfin.server` (`open -a Jellyfin`) | Homebrew cask, `*:8096` |
 | node_exporter | launchd user agent `sh.brew.node_exporter` | `:9100`, scraped by satsuma as `instance="lime"`; also serves the digest heartbeat |
@@ -17,9 +17,10 @@ for the host table, [[NFS]] for the media mount and [[Media Stack]] for Jellyfin
 The [[iMessage Digest]] service runs on the same five-minute launchd cadence as
 node_exporter. It reads the mautrix portal rooms through the Matrix API (no new
 TCC grant), uses Apple's on-device model via Homebrew `apfel` for event alerts
-and an OpenRouter model for the final digest, and writes a textfile metric for
-the stale-run alert. It is currently paused (`[service] paused = true`) until
-the post-migration portal duplicates are re-audited.
+and OpenRouter Claude Haiku 5.5 on a ZDR route for the final digest, and writes a
+textfile metric for the stale-run alert. It is currently paused
+(`[service] paused = true`) until the post-migration portal duplicates are
+re-audited.
 
 The bridge reaches `mautrix-wsproxy` through the
 `ca.estrogenuinely.wsproxy-tunnel` agent: macOS Local Network Privacy blocks
