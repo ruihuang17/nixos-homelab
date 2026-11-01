@@ -538,3 +538,48 @@ Consequences:
 - Apple Intelligence requirements: <https://support.apple.com/en-us/121115>
 - OpenRouter free-model limits: <https://openrouter.ai/docs/api_reference/limits>
 - mautrix-imessage: <https://docs.mau.fi/bridges/go/imessage/index.html>
+
+## Update: 2026-11-01 profile rebuild
+
+The earlier Apple Account/region notes above are historical and were a false
+lead: the account was valid all along. The problem was the old `rhuang` local
+profile (keychain/Secure Enclave credential could not be unlocked with the Mac
+login password). The repair-in-place attempt was abandoned.
+
+A fresh `rhuang` profile was created and verified:
+
+- UID **502** (the old profile was UID 1000), home `/Users/rhuang`, Secure
+  Token enabled, volume owner, admin groups, passwordless sudo and SSH.
+- Apple Account signed in; iCloud Drive is syncing; iMessage has a 19 MB
+  `chat.db` with 8,619 messages.
+- `apfel --model-info` reports `available: yes`; on-device inference works.
+- FileVault is **Off**; auto-login is set to `rhuang`
+  (`Automatic login user: rhuang`). This is the tradeoff for unattended reboot.
+- Nix config now uses `users.users.rhuang.uid = 502` (commit `8da7ddc`).
+  `/opt/homebrew` was re-owned to `rhuang:admin`; `darwin-rebuild switch`
+  completes cleanly.
+- Jellyfin and node_exporter are running under UID 502 and return `200`.
+- mautrix-imessage was migrated (binary, DB, 107 portals) and has Full Disk
+  Access. Its `@rhuang` custom-puppet shared-secret login still emits the known
+  `403/429` warning; historical logs show it is harmless and the bridge then
+  connects to iMessage. Restart it with:
+
+  ```sh
+  launchctl bootstrap gui/502 \
+    /Users/rhuang/Library/LaunchAgents/fi.mau.mautrix-imessage.plist
+  ```
+
+- The old home is preserved at `/Users/rhuang.old-20261101` pending final
+  verification. A full home backup is on satsuma at
+  `/hdd/backup/lime-rhuang-home-20261101`; the account-state snapshot is
+  `/hdd/backup/lime-repair-backup-20261101.tar.gz`.
+- `appletest` (UID 501) remains as an emergency admin and working Apple
+  Account/iMessage profile. It can be deleted after the new `rhuang` profile
+  has survived a reboot and the bridge has been verified.
+- Old iMessage history was not copied into the new profile. If iCloud Messages
+  is enabled, Apple may restore history from the cloud; disable it or clear the
+  history if a clean start is required.
+
+Next: verify the bridge connects to iMessage, confirm the Matrix portal rooms,
+then implement the digest service. The OpenRouter/Hermes fallback is no longer
+needed.
