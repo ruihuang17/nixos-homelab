@@ -74,8 +74,10 @@
     enable = true;
     rules."50-tailscale-optimizations" = {
       onState = [ "routable" ];
+      # networkd-dispatcher exports IFACE; use it instead of hard-coding eth0
+      # (satsuma's NIC is enp4s0, so the old rule silently failed there).
       script = ''
-        ${pkgs.ethtool}/bin/ethtool -K eth0 rx-udp-gro-forwarding on rx-gro-list off
+        ${pkgs.ethtool}/bin/ethtool -K "$IFACE" rx-udp-gro-forwarding on rx-gro-list off
       '';
     };
   };
