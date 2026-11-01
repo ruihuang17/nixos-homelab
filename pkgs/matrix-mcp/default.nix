@@ -79,6 +79,7 @@ python3Packages.buildPythonApplication {
     fastmcp
     filelock
     httpx
+    markdown-it-py
     mindroom-nio
     platformdirs
     py-key-value-aio
@@ -87,6 +88,17 @@ python3Packages.buildPythonApplication {
     rich
     typer
   ];
+
+  # Render fenced code blocks (and other Markdown) into Matrix's
+  # org.matrix.custom.html formatted_body, so clients show real code blocks
+  # instead of literal backticks. The wheel unpack phase has no source tree to
+  # patch, so apply the patch to the installed package.
+  postInstall = ''
+    (
+      cd "$out/${python3Packages.python.sitePackages}"
+      patch -p1 < ${./patches/markdown-formatting.patch}
+    )
+  '';
 
   # The tests need a live Matrix homeserver.
   doCheck = false;

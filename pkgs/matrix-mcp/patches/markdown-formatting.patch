@@ -1,0 +1,69 @@
+--- a/matrix_mcp/matrix_events.py	2026-11-01 14:31:37.010467515 -0500
++++ b/matrix_mcp/matrix_events.py	2026-11-01 14:31:37.070471178 -0500
+@@ -3,6 +3,7 @@
+ from typing import TYPE_CHECKING, Any, cast
+ from uuid import uuid4
+ 
++from markdown_it import MarkdownIt
+ from pydantic import BaseModel, ConfigDict, Field
+ 
+ from matrix_mcp.e2ee import E2EE_UNSUPPORTED, DecryptedEvent
+@@ -21,6 +22,18 @@
+ _EDITABLE_MSGTYPES = frozenset({"m.text", "m.notice", "m.emote"})
+ _MEDIA_MSGTYPES = frozenset({"m.file", "m.image", "m.video", "m.audio"})
+ 
++_MARKDOWN = MarkdownIt("commonmark", {"html": False, "linkify": False})
++
++
++def text_content(body: str, msgtype: str = "m.text") -> dict[str, object]:
++    """Return Matrix text content with a Markdown-rendered HTML body."""
++    return {
++        "msgtype": msgtype,
++        "body": body,
++        "format": "org.matrix.custom.html",
++        "formatted_body": _MARKDOWN.render(body),
++    }
++
+ 
+ class MediaMetadata(BaseModel):
+     model_config = ConfigDict(frozen=True)
+@@ -231,7 +244,7 @@
+         return await self._send(
+             room_id,
+             "m.room.message",
+-            {"msgtype": "m.text", "body": body, "m.relates_to": relation},
++            {**text_content(body), "m.relates_to": relation},
+             transaction,
+         )
+ 
+@@ -297,7 +310,7 @@
+             {
+                 "msgtype": msgtype,
+                 "body": f"* {body}",
+-                "m.new_content": {"msgtype": msgtype, "body": body},
++                "m.new_content": text_content(body, msgtype),
+                 "m.relates_to": {"rel_type": "m.replace", "event_id": event_id},
+             },
+             transaction,
+--- a/matrix_mcp/matrix_client.py	2026-11-01 14:31:37.014467759 -0500
++++ b/matrix_mcp/matrix_client.py	2026-11-01 14:31:37.071471239 -0500
+@@ -42,6 +42,7 @@
+     is_decrypted,
+     mark_encryption,
+     normalize_timeline_event,
++    text_content,
+     trusted_replacements,
+ )
+ from matrix_mcp.matrix_http import MatrixHTTP
+@@ -496,10 +497,7 @@
+                 if re.fullmatch(r"@[^\s:]+:[^\s]+", user_id) is None:
+                     msg = f"Invalid Matrix user ID: {user_id}"
+                     raise ValueError(msg)
+-        content: dict[str, object] = {
+-            "body": body,
+-            "msgtype": "m.text",
+-        }
++        content: dict[str, object] = text_content(body)
+         if mentions is not None:
+             content["m.mentions"] = {"user_ids": mentions}
+         if thread_id:
