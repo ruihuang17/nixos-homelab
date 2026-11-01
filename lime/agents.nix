@@ -65,5 +65,40 @@ in
         StandardErrorPath = "${home}/mautrix-imessage/logs/stderr.log";
       };
     };
+
+    # The unsigned mautrix binary cannot open a LAN socket under macOS Local
+    # Network Privacy (EHOSTUNREACH to 10.0.10.72), while Apple-signed
+    # /usr/bin/ssh can. Forward the wsproxy's loopback port over SSH so the
+    # bridge only connects to 127.0.0.1; see docs/iMessage Digest.md.
+    wsproxy-tunnel = {
+      serviceConfig = {
+        Label = "ca.estrogenuinely.wsproxy-tunnel";
+        ProgramArguments = [
+          "/usr/bin/ssh"
+          "-N"
+          "-o"
+          "BatchMode=yes"
+          "-o"
+          "ConnectTimeout=10"
+          "-o"
+          "ExitOnForwardFailure=yes"
+          "-o"
+          "ServerAliveInterval=30"
+          "-o"
+          "ServerAliveCountMax=3"
+          "-o"
+          "StrictHostKeyChecking=accept-new"
+          "-L"
+          "127.0.0.1:29331:127.0.0.1:29331"
+          "rhuang@10.0.10.72"
+        ];
+        RunAtLoad = true;
+        KeepAlive = true;
+        ThrottleInterval = 10;
+        LimitLoadToSessionType = "Aqua";
+        StandardOutPath = "${logs}/wsproxy-tunnel.log";
+        StandardErrorPath = "${logs}/wsproxy-tunnel.err.log";
+      };
+    };
   };
 }
