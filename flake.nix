@@ -56,9 +56,18 @@
       };
     in
     {
-      packages = nixpkgs.lib.genAttrs [ "x86_64-linux" ] (system: {
-        kiro-gateway = nixpkgs.legacyPackages.${system}.callPackage ./pkgs/kiro-gateway { };
-      });
+      packages = nixpkgs.lib.genAttrs [ "x86_64-linux" ] (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          mindroom-nio = pkgs.callPackage ./pkgs/mindroom-nio { };
+        in
+        {
+          inherit mindroom-nio;
+          matrix-mcp = pkgs.callPackage ./pkgs/matrix-mcp { inherit mindroom-nio; };
+          kiro-gateway = pkgs.callPackage ./pkgs/kiro-gateway { };
+        }
+      );
 
       devShells = nixpkgs.lib.genAttrs [ "x86_64-linux" "aarch64-darwin" ] (system: {
         default = groveShell nixpkgs.legacyPackages.${system};

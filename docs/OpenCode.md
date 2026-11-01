@@ -407,3 +407,85 @@ Access:
 - TUI: `OPENCODE_PASSWORD=… opencode --server https://opencode.local.estrogenuinely.ca`
 - Workspace: `/srv/opencode/workspace`
 
+## Matrix MCP (2026-11-01)
+
+[matrix-mcp](https://github.com/mindroom-ai/matrix-mcp) is a stdio MCP server
+that gives the agent a Matrix seat as `@rhuang:estrogenuinely.ca`.
+
+### Packages
+
+- `pkgs/mindroom-nio` packages the MindRoom fork of matrix-nio (the `nio`
+  import) with its `e2e` extra: `vodozemac`, `peewee`, and `cachetools`.
+- `pkgs/matrix-mcp` pins the `matrix-mcp` 0.9.1 wheel. Upstream requires
+  `fastmcp==3.2.4`; nixpkgs has moved to fastmcp 3.4.x and `mcp` 2.x, so the
+  module builds fastmcp 3.2.4 against `mcp_1` instead of accepting nixpkgs'
+  `broken` marker.
+- Both are exposed as flake packages (`.#matrix-mcp`, `.#mindroom-nio`) and
+  `matrix-mcp` is installed in `environment.systemPackages` on satsuma.
+
+### OpenCode wiring
+
+The system-wide config at `/etc/opencode/opencode.json` (rendered from
+`satsuma/opencode.nix`) adds:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "matrix": {
+        "type": "local",
+        "command": ["/nix/store/…-matrix-mcp-0.9.1/bin/matrix-mcp", "serve"]
+      }
+    }
+  }
+}
+```
+
+The server inherits the OpenCode service environment, so its `HOME` is
+`/var/lib/opencode` and it finds credentials at
+`/var/lib/opencode/.config/matrix-mcp/config.json`. OpenCode's Code Mode
+exposes the tools as `tools.matrix.*` (for example `matrix_whoami`,
+`matrix_list_rooms`, `matrix_read_room_recent`, `matrix_send_message`).
+The running OpenCode service picked up the new server without a restart;
+if a future version does not, restart it with `systemctl restart opencode`
+(which kills in-flight sessions).
+
+### Authentication and E2EE
+
+The login uses Synapse's legacy shared-secret password provider, so root can
+create a dedicated device without an interactive password or SSO callback:
+
+```bash
+sudo matrix-mcp-login          # refuses if credentials already exist
+sudo matrix-mcp-login --force  # creates another device
+```
+
+The current device is `CPSHGXKVEW`, named `matrix-mcp (OpenCode)`, with
+ed25519 fingerprint `XK67Q7I9jxl9Zf5CCu87LJe+DyiiMN+66lClNh6AO+s`. Login also
+publishes the device's encryption keys, so encrypted rooms work immediately;
+the Olm/Megolm store is
+`/var/lib/opencode/.config/matrix-mcp/e2ee-af8dfebb2db8a7ce/`. Older room keys
+can be imported with `matrix-mcp e2ee import-keys <element-export>`.
+
+The access token is a Matrix credential for `@rhuang`, not a host credential,
+but it can read and write every room the user can. `config.json` is mode
+`0600`, the directory and E2EE store are `0700`, and all of it sits under the
+already-restricted `/var/lib/opencode` (inside restic's `/var` coverage).
+Revoke the device from Element/Synapse if the token leaks.
+
+`matrix-mcp-login` is the recovery path if `/var/lib/opencode` is lost or
+`matrix-mcp auth logout` is run. To revoke the credentials locally, run
+`sudo HOME=/var/lib/opencode matrix-mcp auth logout` (this also deletes the
+device's E2EE store). The E2EE store is device-specific: a new login creates a
+new device and cannot decrypt messages sent before it unless keys are imported.
+
+### Verification
+
+Over MCP stdio, and through OpenCode after the config switch:
+
+- `matrix_whoami` → `@rhuang:estrogenuinely.ca`, device `CPSHGXKVEW`.
+- `matrix_list_rooms` → 124 joined rooms.
+- `matrix_get_unread` → responds normally (no unread rooms at setup time).
+- `matrix-mcp config-path` with `HOME=/var/lib/opencode` prints
+  `/var/lib/opencode/.config/matrix-mcp/config.json`.
+

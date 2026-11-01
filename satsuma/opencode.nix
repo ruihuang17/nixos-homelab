@@ -2,11 +2,14 @@
   config,
   pkgs,
   lib,
+  inputs,
   ...
 }:
 let
   port = 4096;
   primaryHost = "opencode.local.estrogenuinely.ca";
+
+  matrix-mcp = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.matrix-mcp;
 
   # Shared by both vhosts. The IP allowlist keeps the agent LAN/Tailnet-only
   # even if port 443 is reachable from the WAN.
@@ -171,9 +174,20 @@ in
   # Global OpenCode config (lower precedence than the user's
   # ~/.config/opencode/opencode.jsonc). The Kiro provider is available to every
   # project; the credential comes from the same agenix file as the gateway.
-  environment.etc."opencode/opencode.json" = lib.mkIf config.services.kiro-gateway.enable {
-    text = builtins.toJSON {
+  # matrix-mcp runs as a stdio server under the OpenCode service (HOME
+  # /var/lib/opencode), where its credentials and E2EE store live.
+  environment.etc."opencode/opencode.json".text = builtins.toJSON (
+    {
       "$schema" = "https://opencode.ai/config.json";
+      mcp.servers.matrix = {
+        type = "local";
+        command = [
+          "${matrix-mcp}/bin/matrix-mcp"
+          "serve"
+        ];
+      };
+    }
+    // lib.optionalAttrs config.services.kiro-gateway.enable {
       providers.kiro = {
         name = "Kiro Gateway";
         env = [ "KIRO_GATEWAY_API_KEY" ];
@@ -181,8 +195,8 @@ in
         settings.baseURL = "http://127.0.0.1:${toString config.services.kiro-gateway.port}/v1";
         models = kiroProviderModels;
       };
-    };
-  };
+    }
+  );
 
   # The service runs as root so the agent can administer the host (nixos-rebuild,
   # systemctl, /etc/nixos, other services' data). There is deliberately no
@@ -251,6 +265,41 @@ in
 
   # sudo opencode-pair -> one-time login URL for a browser or the mobile app.
   environment.systemPackages = [
+    # The MCP server is launched by OpenCode, but keeping it on PATH lets an
+    # admin re-run `matrix-mcp auth ...` and `matrix-mcp e2ee setup` directly.
+    matrix-mcp
+
+    # Recreate the runtime Matrix credentials after `matrix-mcp auth logout`
+    # or a lost /var/lib/opencode. Synapse's legacy shared-secret password
+    # provider lets root log in as @rhuang without an interactive password.
+    # Each run creates a fresh dedicated Matrix device, so the guard requires
+    # --force when credentials already exist.
+    (pkgs.writeShellScriptBin "matrix-mcp-login" ''
+      set -euo pipefail
+      if [ "$(id -u)" -ne 0 ]; then
+        echo "run as root: sudo matrix-mcp-login [--force]" >&2
+        exit 1
+      fi
+      state_dir=/var/lib/opencode/.config/matrix-mcp
+      config=$state_dir/config.json
+      if [ -e "$config" ] && [ "''${1:-}" != "--force" ]; then
+        echo "matrix-mcp is already configured at $config; pass --force to create a new device." >&2
+        exit 1
+      fi
+      set -a
+      . ${config.age.secrets.synapse_shared_secret_auth.path}
+      set +a
+      install -d -m 0700 -o root -g root "$state_dir"
+      # Feed the password on stdin rather than argv, so it never appears in
+      # the process list.
+      printf '%s\n' "$SHARED_SECRET_AUTH" | HOME=/var/lib/opencode ${matrix-mcp}/bin/matrix-mcp auth password \
+        https://matrix.estrogenuinely.ca \
+        @rhuang:estrogenuinely.ca \
+        --device-name "matrix-mcp (OpenCode)" \
+        --config "$config"
+      chmod 0600 "$config"
+    '')
+
     # Detached switch. systemd-run puts the rebuild in its own cgroup
     # (system.slice/<unit>), so it survives this service being restarted and
     # is never killed halfway through activation. Use it from inside an agent
