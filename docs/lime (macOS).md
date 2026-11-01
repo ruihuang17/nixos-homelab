@@ -12,6 +12,9 @@ for the host table, [[NFS]] for the media mount and [[Media Stack]] for Jellyfin
 | node_exporter | launchd user agent `sh.brew.node_exporter` | `:9100`, scraped by satsuma as `instance="lime"` |
 | autofs | `/etc/auto_master` + `/etc/auto_nas` | NFSv3 to satsuma, see [[NFS]] |
 
+Planned: [[iMessage Digest]] — a group-chat summariser/digest service built on
+the bridge's Matrix portal rooms. Plan only as of 2026-10-31.
+
 Auto-login is enabled so all three come back after a reboot without anyone at
 the machine. That only works because **FileVault is off** — turning FileVault on
 would stop the box coming back unattended, taking Jellyfin and the iMessage
