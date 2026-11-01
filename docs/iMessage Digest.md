@@ -577,13 +577,13 @@ A fresh `rhuang` profile was created and verified:
     /Users/rhuang/Library/LaunchAgents/fi.mau.mautrix-imessage.plist
   ```
 
-- The old home is preserved at `/Users/rhuang.old-20261101` pending final
-  verification. A full home backup is on satsuma at
-  `/hdd/backup/lime-rhuang-home-20261101`; the account-state snapshot is
-  `/hdd/backup/lime-repair-backup-20261101.tar.gz`.
-- `appletest` (UID 501) remains as an emergency admin and working Apple
-  Account/iMessage profile. It can be deleted after the new `rhuang` profile
-  has survived a reboot and the bridge has been verified.
+- The old home and `appletest` profile were deleted after the reboot test:
+  `/Users/rhuang.old-20261101` and `/Users/appletest` are gone, stale group
+  memberships were cleaned, and `rhuang` is the only local user and APFS
+  volume owner. Satsuma still holds the pre-cleanup backups at
+  `/hdd/backup/lime-rhuang-home-20261101` and
+  `/hdd/backup/lime-repair-backup-20261101.tar.gz`; remove those separately if
+  the old message history must be purged everywhere.
 - Old iMessage history was not copied into the new profile. If iCloud Messages
   is enabled, Apple may restore history from the cloud; disable it or clear the
   history if a clean start is required.
