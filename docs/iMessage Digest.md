@@ -1,6 +1,10 @@
 # iMessage Group Chat Digest
 
-Status: **plan only** — nothing built yet. Written 2026-10-31.
+Status: **v1 implemented** — 2026-11-01. Scheduled digests, grounded event
+alerts, Matrix + Discord delivery, SQLite state and a Prometheus heartbeat are
+running on lime. See *Implementation (2026-11-01)* below for what was built and
+what is still open.
+
 Goal: summarise a couple of iMessage group chats, deliver scheduled digests, and
 push live alerts for concrete events, using Apple's on-device model where
 possible.
@@ -12,14 +16,14 @@ See [[SMS Matrix Bridge]] for the bridge, [[lime (macOS)]] for the host, and
 
 | Area | Decision | Why |
 | ---- | -------- | --- |
+| Rooms | **BLUNT WRAPS 🌯** `!ngLmKbjUJtXXLFjtZc:estrogenuinely.ca` and **Blunt Wraps 2.0** `!aSIBmlhIyzlrpVoKNL:estrogenuinely.ca` | The two main group chats; chosen 2026-11-01 |
 | Source of messages | Matrix portal rooms (mautrix-imessage) | No new Full Disk Access grant, no `chat.db` parser, bridge already normalises iMessage |
-| Inference (v1) | Apple on-device via `apfel` | Free, private, no request cap, no Xcode needed |
-| Inference (optional) | Private Cloud Compute via a Shortcut, or a paid OpenRouter model | 32k / 1M context and better reasoning for the daily synthesis |
-| Trigger | launchd `StartInterval` + `StartCalendarInterval` | macOS-native scheduler; no iMessage webhook exists |
-| Delivery | Matrix room `#imessage-digest` + HA companion push or Discord DM | Digest is archived; alerts need a channel that actually pushes |
+| Inference (v1) | Apple on-device via `apfel` | Free, private, no request cap; verified `available: yes`, 8,192 tokens on lime |
+| Trigger | launchd `StartInterval = 300` | macOS-native scheduler; no iMessage webhook exists |
+| Delivery | Matrix `#imessage-digest` for digests; Discord DM for alerts | Digest is archived; Discord DM actually pushes to Takeko |
 | Host | lime (service), satsuma (Synapse) | Model must run on the Mac; Matrix is already there |
 | State | SQLite on lime | Cursors, dedupe, chunk notes, digest history |
-| Secrets | agenix (`lime/secrets/`) | Same pattern as the bridge config |
+| Secrets | agenix (`lime/secrets/imessage-digest.age`) | Matrix token + Hermes Discord bot token |
 
 ## What we are not doing
 
@@ -32,6 +36,11 @@ See [[SMS Matrix Bridge]] for the bridge, [[lime (macOS)]] for the host, and
 - **`fm serve` as the service backend.** Beta, no authentication, ignores
   `max_tokens`, and the `fm` CLI licence has a broad “no programmatic access
   except as expressly permitted” clause. Use `fm` for manual tests only.
+- **A dedicated `@digestbot` for v1.** `@rhuang` is not a Synapse admin and the
+  registration-shared-secret HMAC path rejected new users, so the service uses
+  a dedicated long-lived `@rhuang` device token (`iMessage Digest`). It only
+  reads the two portal rooms and writes to `#imessage-digest`, so it never
+  relays anything into iMessage. This also sidesteps the bot-relay caveat.
 - **Per-message inference.** Batch and debounce; model calls are the expensive
   part (in latency, quota, and noise).
 
@@ -49,8 +58,20 @@ So a plain Matrix client can read them.
 
 ### Room discovery
 
-Use a dedicated bot, `@digestbot:estrogenuinely.ca`, and join it to the two
-portal rooms. Then:
+Selected on 2026-11-01:
+
+| Chat | Portal room |
+| ---- | ----------- |
+| BLUNT WRAPS 🌯 | `!ngLmKbjUJtXXLFjtZc:estrogenuinely.ca` |
+| Blunt Wraps 2.0 | `!aSIBmlhIyzlrpVoKNL:estrogenuinely.ca` |
+
+The service reads with a dedicated `@rhuang` device token (`iMessage Digest`),
+stored in `lime/secrets/imessage-digest.age`. The digest room is
+`!m6_R299IGBbrqGIlKwEd-jGJZ1W-eYVXd-BOstrIyo0` (alias
+`#imessage-digest:estrogenuinely.ca`); note that rooms created on this Synapse
+return their ID **without** the `:server` suffix.
+
+Useful discovery commands (still valid):
 
 ```sh
 curl -s -H "Authorization: Bearer $TOKEN" \
@@ -65,10 +86,11 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 `matrix.local.estrogenuinely.ca` is the LAN vhost for Synapse (see
 [[SMS Matrix Bridge]]); it avoids hairpin NAT.
 
-**Bot caveat:** send one test message from the bot inside a portal and confirm it
-does *not* appear in iMessage. mautrix relays Matrix users into the chat
-depending on `bridge.permissions`. If it relays, remove the bot and read with a
-read-only `@rhuang` device token instead.
+**Bot caveat (resolved):** a bot would relay Matrix messages into iMessage
+depending on `bridge.permissions`, so the service reads with a read-only
+`@rhuang` device token instead. Its only write is to `#imessage-digest`; it
+never sends into a portal room. If a bot is added later, send one test message
+inside a portal first and confirm it does *not* appear in iMessage.
 
 ### History
 
@@ -518,16 +540,149 @@ Consequences:
 - There is no clean rollback from 27 to 15. A restore means erase/reinstall.
 - If auto-login or SSH does not come back, physical access is required.
 
-## Open decisions
+## Implementation (2026-11-01)
 
-1. Which two group chats (names → portal room IDs)?
-2. What counts as an “event” — plans/dates only, or money, health, direct
-   requests?
-3. Alert channel: HA companion, Discord DM, Matrix, or email?
-4. Digest cadence: 08:00 only, 08:00 + 18:00, or live burst updates?
-5. Live path: 5-minute launchd interval (v1) or `/sync` daemon (v2)?
-6. Any historical backfill, or start from the upgrade date?
-7. On-device only, or on-device watcher + cloud daily synthesis?
+### What runs
+
+| Piece | Detail |
+| ----- | ------ |
+| launchd agent | `ca.estrogenuinely.imessage-digest`, `StartInterval = 300`, `RunAtLoad` |
+| Entry point | `lime/digest/main.py --once`, Python 3.14 from nixpkgs (stdlib only) |
+| Source | Matrix `/rooms/{id}/messages` on `https://matrix.local.estrogenuinely.ca` |
+| Model | `/opt/homebrew/bin/apfel` (Apple Foundation Models, 8,192 tokens) |
+| Digest room | `#imessage-digest:estrogenuinely.ca` (`!m6_R299…`, no server suffix) |
+| Alerts | Discord DM to Takeko (`454892601175441418`) via the Hermes bot |
+| State | `~/Library/Application Support/imessage-digest/state.sqlite3` |
+| Heartbeat | `…/textfile/imessage_digest.prom`, read by node_exporter |
+| Secret | `lime/secrets/imessage-digest.age` → `/run/agenix/imessage-digest` |
+
+### Flow
+
+1. Every five minutes: poll each portal room backwards from its last stored
+   timestamp; normalise `m.text`/`m.emote`, drop edits, notices, bridge-bot
+   messages and reply fallbacks; insert into SQLite (`event_id` dedupe).
+2. Alert pass: wait 90 s after the last message (debounce), skip messages older
+   than 120 min (first run / long sleep), chunk to ~2,200 tokens, ask for the
+   event schema, and enforce:
+   - `quote` is a normalised substring of a real message body (grounding);
+   - confidence ≥ 0.70;
+   - `needs_action` is ignored unless `kind` is request/deadline/money;
+   - messages authored by Rui are never "requests for Rui";
+   - dedupe `room + summary + when` for 7 days;
+   - ≤ 3 alerts per room per local day;
+   - quiet 23:00–07:00 unless a `needs_action` request is ≥ 0.90.
+3. Digest pass at 08:00 and 18:00 local (catch-up up to 6 h): if the transcript
+   fits ~4,200 tokens, send it straight to the digest model; otherwise take
+   chunk notes and tree-reduce them. The model returns a schema-constrained
+   object; code renders the sections, removes cross-section duplicates, and
+   grounds each item back to a source message to restore its timestamp and
+   speaker.
+4. Write the heartbeat metric, prune messages after 14 days and alert dedupe
+   after 7 days.
+
+### Files
+
+```
+lime/digest/
+  default.nix          # launchd agent, agenix secret, state dir
+  config.toml          # rooms, schedule, thresholds, paths
+  main.py              # poll → events → digest → heartbeat
+  matrix.py            # /messages, /joined_members, /send
+  model.py             # apfel subprocess, schema output, token counting
+  chunk.py             # formatting, token-aware chunks, tree reduce
+  state.py             # SQLite
+  deliver.py           # Matrix digest render + Discord DM alerts
+  prompts/{chunk,digest,event,reduce}.md
+  schemas/{event,digest}.json
+lime/secrets/imessage-digest.age
+```
+
+`lime/agents.nix` now starts node_exporter with
+`--collector.textfile.directory=…/imessage-digest/textfile`; `lime/homebrew.nix`
+lists `apfel`.
+
+### Operating it
+
+```sh
+# one dry pass: poll, scan alerts (printed), do not send anything
+cd ~/nixos-homelab/lime/digest
+nix run nixpkgs#python3 -- main.py --once --dry-run \
+  --secrets /run/agenix/imessage-digest
+
+# force a digest now (posts to #imessage-digest)
+nix run nixpkgs#python3 -- main.py --once --digest \
+  --secrets /run/agenix/imessage-digest
+
+# inspect the agent and logs
+launchctl print gui/502/ca.estrogenuinely.imessage-digest
+tail -f ~/Library/Logs/imessage-digest.err.log
+cat "$HOME/Library/Application Support/imessage-digest/textfile/imessage_digest.prom"
+```
+
+`--events` ignores debounce/quiet/age for alert debugging; `--skip-poll` uses
+only stored messages. The service holds `run.lock`, so a manual run cannot
+overlap a launchd run.
+
+Re-encrypt the secret after rotating the Matrix device or Discord token:
+
+```sh
+cd /etc/nixos/lime/secrets
+agenix -e imessage-digest.age -i ~/.ssh/general
+```
+
+### Verified
+
+- Dry runs polled 18 messages from BLUNT WRAPS and 108 from Blunt Wraps 2.0.
+- Grounding rejected an ungrounded event and self-authored Costco/Minecraft
+  offers; stale overnight messages were excluded from alerts but kept in the
+  digest.
+- The first real digest posted both rooms to `#imessage-digest`; the test DM
+  reached the Hermes bot's DM channel with Takeko.
+
+### Known limits
+
+- The 8k on-device model is usable but terse. Digest item times are restored by
+  matching each item back to a transcript message; heavily paraphrased items can
+  be left without a time.
+- “Requests for Rui” is heuristic: self-authored items and asks aimed at another
+  named member are dropped, but a group ask can still slip through.
+- Matrix posts are plain text (Markdown headings show literally in some
+  clients); Discord alerts are plain text.
+- Windows larger than ~4,200 tokens use chunk notes + tree reduce; that path is
+  implemented but not yet exercised by a full day of heavy traffic.
+- The service posts as `@rhuang`, not a bot. Revoking the `iMessage Digest`
+  device logs the service out; mint a new token and re-encrypt the secret.
+- No historical backfill. The first run looks back 24 h; earlier history stays
+  only in `chat.db` and the bridge DB.
+
+### Next
+
+1. Grafana rule on `imessage_digest_last_success_timestamp_seconds` (stale > 2 h)
+   and a small dashboard.
+2. Send HTML (`org.matrix.custom.html`) so headings render, or drop Markdown.
+3. Improve large-window chunk notes and request targeting; consider reply
+   relations to identify what was aimed at Rui.
+4. Optional: historical export from `chat.db`, image/voice-note summaries,
+   calendar holds.
+
+Phases 0–3 are done; phase 4 is half done (metric + collector, no Grafana rule);
+phase 5 is not started.
+
+## Decisions (resolved 2026-11-01)
+
+| Question | Answer |
+| -------- | ------ |
+| Group chats | BLUNT WRAPS 🌯 and Blunt Wraps 2.0 |
+| What is an “event” | Plans/deadlines, money, travel, health, conflict, and requests aimed at Rui; schema + grounding + confidence gate |
+| Alert channel | Discord DM to Takeko |
+| Digest cadence | 08:00 and 18:00 America/Toronto, 6 h catch-up |
+| Live path | 5-minute one-shot launchd job with a lock (`v1`); `/sync` daemon remains `v2` |
+| Historical backfill | None; first run looks back 24 h |
+| Inference | On-device only (`apfel`); cloud synthesis is not configured |
+
+Remaining open questions are implementation polish, not design choices: request
+targeting, HTML rendering, large-window note quality, and the Grafana stale
+rule.
 
 ## References
 

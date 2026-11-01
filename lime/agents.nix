@@ -14,9 +14,14 @@ in
     # Replaces the Homebrew service (same label and plist path). Binds all
     # interfaces on purpose: Prometheus on satsuma scrapes 10.0.10.73:9100.
     node-exporter = {
-      command = "${pkgs.prometheus-node-exporter}/bin/node_exporter";
       serviceConfig = {
         Label = "sh.brew.node_exporter";
+        ProgramArguments = [
+          "${pkgs.prometheus-node-exporter}/bin/node_exporter"
+          # The iMessage digest writes imessage_digest.prom here; see
+          # lime/digest/default.nix.
+          "--collector.textfile.directory=${home}/Library/Application Support/imessage-digest/textfile"
+        ];
         RunAtLoad = true;
         KeepAlive = true;
         StandardOutPath = "${logs}/node_exporter.log";

@@ -7,4 +7,8 @@ in
     lime
     rhuang
   ];
+  "imessage-digest.age".publicKeys = [
+    lime
+    rhuang
+  ];
 }

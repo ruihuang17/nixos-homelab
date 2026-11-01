@@ -14,6 +14,7 @@
 {
   imports = [
     ./agents.nix
+    ./digest/default.nix
     ./homebrew.nix
   ];
 

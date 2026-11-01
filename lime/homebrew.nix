@@ -23,6 +23,7 @@
 
     brews = [
       "aom"
+      "apfel"
       "boost"
       "brotli"
       "ca-certificates"

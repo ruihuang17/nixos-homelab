@@ -1,0 +1,78 @@
+# iMessage digest service - non-secret configuration.
+#
+# Secrets live in /run/agenix/imessage-digest (MATRIX_TOKEN, DISCORD_BOT_TOKEN).
+# The macOS launchd agent and agenix wiring are in lime/digest/default.nix.
+
+[matrix]
+homeserver = "https://matrix.local.estrogenuinely.ca"
+user_id = "@rhuang:estrogenuinely.ca"
+# Rooms created on this Synapse have no ":server" suffix in their room ID.
+digest_room = "!m6_R299IGBbrqGIlKwEd-jGJZ1W-eYVXd-BOstrIyo0"
+state_dir = "/Users/rhuang/Library/Application Support/imessage-digest"
+
+[[rooms]]
+# BLUNT WRAPS
+id = "!ngLmKbjUJtXXLFjtZc:estrogenuinely.ca"
+label = "BLUNT WRAPS"
+
+[[rooms]]
+# Blunt Wraps 2.0
+id = "!aSIBmlhIyzlrpVoKNL:estrogenuinely.ca"
+label = "Blunt Wraps 2.0"
+
+[model]
+# apfel wraps Apple's on-device Foundation Models framework.
+binary = "/opt/homebrew/bin/apfel"
+timeout_seconds = 300
+# 8,192-token window. Leave room for the answer and the prompt wrapper.
+chunk_tokens = 4200
+note_tokens = 1400
+# Event detection uses narrower chunks: a small model follows the schema more
+# reliably when it has less text to look at.
+event_chunk_tokens = 2200
+# Grounding: reject a quote unless it is this close to the transcript.
+max_messages_per_call = 120
+
+[digest]
+enabled = true
+# Local time (America/Toronto).
+timezone = "America/Toronto"
+times = ["08:00", "18:00"]
+# Catch up a missed slot (Mac asleep / launchd unloaded) for up to this long.
+catchup_minutes = 360
+# First run: pull this much history so there is something to digest.
+initial_lookback_hours = 24
+# Include the previous digest in the prompt for continuity.
+previous_digest_chars = 2400
+# Target size for the merged notes before the final digest call.
+note_target_tokens = 3000
+
+[alerts]
+enabled = true
+min_confidence = 0.70
+# Suppress an identical room+summary+when for this many days.
+dedupe_days = 7
+# Max alerts per room per local day (all kinds).
+max_per_room_per_day = 3
+quiet_start = "23:00"
+quiet_end = "07:00"
+# A high-confidence action request pierces quiet hours.
+quiet_override_confidence = 0.90
+# Wait this long after the last message before scanning a burst.
+debounce_seconds = 90
+# Do not alert on messages older than this (first run, or after a long sleep).
+# They still go into the digest.
+max_age_minutes = 120
+
+[discord]
+enabled = true
+api_base = "https://discord.com/api/v10"
+# Takeko (takekoi). Discord DMs from the Hermes bot.
+user_id = "454892601175441418"
+
+[heartbeat]
+# node_exporter's textfile collector reads this directory (lime/agents.nix).
+prom_path = "/Users/rhuang/Library/Application Support/imessage-digest/textfile/imessage_digest.prom"
+
+[state]
+retention_days = 14

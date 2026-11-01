@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["plans", "decisions", "requests", "questions", "money_travel_health"],
+  "properties": {
+    "plans": {
+      "type": "array",
+      "maxItems": 8,
+      "items": { "type": "string" }
+    },
+    "decisions": {
+      "type": "array",
+      "maxItems": 8,
+      "items": { "type": "string" }
+    },
+    "requests": {
+      "type": "array",
+      "maxItems": 8,
+      "items": { "type": "string" }
+    },
+    "questions": {
+      "type": "array",
+      "maxItems": 8,
+      "items": { "type": "string" }
+    },
+    "money_travel_health": {
+      "type": "array",
+      "maxItems": 8,
+      "items": { "type": "string" }
+    }
+  }
+}

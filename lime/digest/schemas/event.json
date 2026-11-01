@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["has_event", "events"],
+  "properties": {
+    "has_event": { "type": "boolean" },
+    "events": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "summary", "when", "needs_action", "quote", "confidence"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["plan", "deadline", "money", "travel", "health", "conflict", "request", "other"]
+          },
+          "summary": { "type": "string" },
+          "when": { "type": "string" },
+          "needs_action": { "type": "boolean" },
+          "quote": { "type": "string" },
+          "confidence": { "type": "number" }
+        }
+      }
+    }
+  }
+}
