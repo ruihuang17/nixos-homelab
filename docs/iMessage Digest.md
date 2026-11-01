@@ -560,9 +560,17 @@ A fresh `rhuang` profile was created and verified:
   completes cleanly.
 - Jellyfin and node_exporter are running under UID 502 and return `200`.
 - mautrix-imessage was migrated (binary, DB, 107 portals) and has Full Disk
-  Access. Its `@rhuang` custom-puppet shared-secret login still emits the known
-  `403/429` warning; historical logs show it is harmless and the bridge then
-  connects to iMessage. Restart it with:
+  Access. Double puppeting is enabled: Synapse 1.163 loads the small legacy
+  provider in `satsuma/shared_secret_auth_legacy.py` using the iMessage
+  appservice token; the bridge logs "Successfully automatically enabled custom
+  puppet", its `@rhuang` login returns 200, and own messages bridge. The bridge
+  `login_shared_secret` is persisted in the agenix `imessage-config.age`.
+  `rc_message` and `rc_joins` were raised (1/s burst 100; 0.5/s burst 50) to
+  stop backfill 429s. Commit `ac2c6fa`.
+- Some old group-chat backfill still logs `403: ghost user not in room` for
+  portal rooms where a ghost was never joined. Live messages and the selected
+  digest rooms must be checked separately before relying on those rooms.
+  Restart the bridge with:
 
   ```sh
   launchctl bootstrap gui/502 \
@@ -580,6 +588,6 @@ A fresh `rhuang` profile was created and verified:
   is enabled, Apple may restore history from the cloud; disable it or clear the
   history if a clean start is required.
 
-Next: verify the bridge connects to iMessage, confirm the Matrix portal rooms,
-then implement the digest service. The OpenRouter/Hermes fallback is no longer
-needed.
+Next: verify ghost membership for the selected portal rooms, then implement
+the digest service. Double puppeting and own-message bridging are verified.
+The OpenRouter/Hermes fallback is no longer needed.
