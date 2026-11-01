@@ -369,6 +369,14 @@ in
                   labels.severity = "warning";
                 })
                 (mkRule {
+                  uid = "homelab-imessage-digest-stale";
+                  title = "iMessage digest stale";
+                  expr = "time() - max(imessage_digest_last_success_timestamp_seconds{instance=\"lime\"}) > 7200";
+                  forDur = "10m";
+                  summary = "The iMessage digest on lime has not completed successfully in over 2 hours. Check ~/Library/Logs/imessage-digest.err.log.";
+                  labels.severity = "warning";
+                })
+                (mkRule {
                   uid = "homelab-restic-offsite-failed";
                   title = "Offsite backup failed";
                   expr = "max(node_systemd_unit_state{instance=\"satsuma\", name=~\"restic-backups-ovh.*\", state=\"failed\"}) == 1";
