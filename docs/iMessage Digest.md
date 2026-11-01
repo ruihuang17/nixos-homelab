@@ -667,16 +667,16 @@ agenix -e imessage-digest.age -i ~/.ssh/general
 
 ### Next
 
-1. Grafana rule on `imessage_digest_last_success_timestamp_seconds` (stale > 2 h)
-   and a small dashboard.
+1. Small Grafana dashboard for the digest metrics (the stale > 2 h rule is
+   provisioned as `homelab-imessage-digest-stale`).
 2. Send HTML (`org.matrix.custom.html`) so headings render, or drop Markdown.
 3. Improve large-window chunk notes and request targeting; consider reply
    relations to identify what was aimed at Rui.
 4. Optional: historical export from `chat.db`, image/voice-note summaries,
    calendar holds.
 
-Phases 0–3 are done; phase 4 is half done (metric + collector, no Grafana rule);
-phase 5 is not started.
+Phases 0–3 are done; phase 4 is done except log rotation and a dashboard; phase
+5 is not started.
 
 ## Decisions (resolved 2026-11-01)
 
@@ -691,8 +691,7 @@ phase 5 is not started.
 | Inference | On-device only (`apfel`); cloud synthesis is not configured |
 
 Remaining open questions are implementation polish, not design choices: request
-targeting, HTML rendering, large-window note quality, and the Grafana stale
-rule.
+targeting, HTML rendering, large-window note quality, and log rotation.
 
 ## References
 

@@ -282,6 +282,11 @@ posted to by the bot `@homelab-alertbot:estrogenuinely.ca`. rhuang is invited.
       for >48 h, but only after it has fired at least once (30 m). This catches
       a timer that was disabled or removed; the failed rule above catches an
       individual failed run. See [[Backup]] §4.
+    - **iMessage digest stale** — `time() - max(imessage_digest_last_success_timestamp_seconds{instance="lime"}) > 7200`
+      (10 m). The digest service on lime writes this textfile metric every five
+      minutes through node_exporter. A stale value means launchd stopped, the
+      Matrix device token was revoked, or the model failed. See
+      [[iMessage Digest]] → *Operating it*.
 
 ### satsuma — `satsuma/alerting.nix`
 
