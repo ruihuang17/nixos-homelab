@@ -715,15 +715,14 @@ agenix -e imessage-digest.age -i ~/.ssh/general
   rebuild left ~1,853 portal rows with several rows per chat name. The digest
   config pins the live portal IDs; a name-based lookup is not safe. Re-audit
   after any bridge rebuild with `audit_portals.py`. See *Room discovery*.
-- **Bridge wsproxy after the migration (2026-11-01 12:10+).** The bridge's
-  appservice websocket cannot reopen `mautrix-wsproxy.local`:
-  `dial tcp 10.0.10.72:443: connect: no route to host`, while `curl` from lime
-  reaches the same URL. This is the Local Network Privacy restriction again.
-  Inbound iMessage→Matrix still works (the bridge posts through
-  `matrix.estrogenuinely.ca`), so the digest source is unaffected, but
-  Matrix→iMessage and read receipts may not. Fix by exposing the wsproxy on a
-  public vhost and changing `websocket_proxy`, or by granting the binary Local
-  Network access, then restarting the bridge.
+- **Bridge wsproxy (fixed 2026-11-01).** The unsigned bridge cannot open the
+  LAN socket under macOS Local Network Privacy, while Apple-signed
+  `/usr/bin/ssh` can. `lime/agents.nix` now runs
+  `ssh -N -L 127.0.0.1:29331:127.0.0.1:29331 rhuang@10.0.10.72` as
+  `ca.estrogenuinely.wsproxy-tunnel`, and the bridge's `websocket_proxy` is
+  `ws://127.0.0.1:29331`. The wsproxy logs `imessage connected to websocket`;
+  traffic stays on the LAN and the wsproxy is not exposed publicly. If the
+  tunnel dies, check `~/Library/Logs/wsproxy-tunnel.err.log`.
 - **Cloud privacy.** The final digest goes to OpenRouter; one transcript per
   scheduled digest leaves lime. Event detection and large-window chunk notes
   remain on-device. If that trade is unacceptable, switch
@@ -751,7 +750,7 @@ agenix -e imessage-digest.age -i ~/.ssh/general
 4. Improve large-window chunk notes and request targeting; consider reply
    relations to identify what was aimed at Rui.
 5. Optional: historical export from `chat.db`, image/voice-note summaries,
-   calendar holds, and a bridge wsproxy fix.
+   calendar holds, and the duplicate portal cleanup.
 
 Phases 0–3 are done; phase 4 is done except log rotation and a dashboard; phase
 5 is not started. The service is paused pending the bridge portal audit.
@@ -770,7 +769,7 @@ Phases 0–3 are done; phase 4 is done except log rotation and a dashboard; phas
 
 Remaining open questions are implementation polish, not design choices: request
 targeting, HTML rendering, large-window note quality, log rotation, and the
-bridge portal/wsproxy cleanup.
+duplicate portal cleanup.
 
 ## References
 

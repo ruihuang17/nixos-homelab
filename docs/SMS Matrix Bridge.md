@@ -69,6 +69,12 @@ is only needed for **outbound**.
   → `/run/agenix/mautrix-wsproxy-config`); wsproxy runs with
   `-config /run/agenix/mautrix-wsproxy-config` and logs "Found 2 appservices".
   `satsuma/matrix.nix` holds the wiring; there is no `/var/lib/mautrix-wsproxy/config.yaml`.
+- The **lime iMessage bridge** cannot use the LAN wsproxy vhost under macOS
+  Local Network Privacy (the unsigned bridge binary gets `EHOSTUNREACH`). A
+  launchd SSH tunnel on lime (`ca.estrogenuinely.wsproxy-tunnel`) forwards
+  `127.0.0.1:29331` to satsuma, and the bridge config uses
+  `ws://127.0.0.1:29331`. The SMS phone is unaffected and still uses
+  `mautrix-wsproxy.local`.
 
 Tokens live only in the `.age` files (plus the Android app's baked-in `config.yaml`).
 **Keep them secret** (not reproduced in this note).
