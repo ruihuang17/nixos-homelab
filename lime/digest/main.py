@@ -197,7 +197,7 @@ class DigestService:
 
         synthesis_cfg = config.get("synthesis", {})
         self.synthesis: CloudModel | None = None
-        if synthesis_cfg.get("provider") == "openrouter":
+        if synthesis_cfg.get("provider") == "openrouter" and not self.paused:
             openrouter_key = secrets.get("OPENROUTER_API_KEY", "")
             if not openrouter_key:
                 raise RuntimeError("OPENROUTER_API_KEY missing from secrets file")
@@ -216,7 +216,7 @@ class DigestService:
 
         discord_cfg = config.get("discord", {})
         self.discord: Discord | None = None
-        if discord_cfg.get("enabled") and not dry_run:
+        if discord_cfg.get("enabled") and not dry_run and not self.paused:
             discord_token = secrets.get("DISCORD_BOT_TOKEN", "")
             if not discord_token:
                 raise RuntimeError("DISCORD_BOT_TOKEN missing from secrets file")
