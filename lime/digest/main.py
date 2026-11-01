@@ -559,11 +559,13 @@ class DigestService:
                 self.build_and_send_digest(room, now_ms)
             except (ModelError, MatrixError) as exc:
                 log.error("%s: digest failed: %s", label, exc)
-                self.state.set(retry_key, str(now_ms + 30 * 60_000))
+                if not self.dry_run:
+                    self.state.set(retry_key, str(now_ms + 30 * 60_000))
                 continue
-            self.state.set(retry_key, "0")
-            if not force:
-                self.state.set(f"digest_slot:{room_id}", slot_key)
+            if not self.dry_run:
+                self.state.set(retry_key, "0")
+                if not force:
+                    self.state.set(f"digest_slot:{room_id}", slot_key)
 
     def _synthesise(self, prompt: str) -> dict:
         system = self.model.prompt("digest")

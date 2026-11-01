@@ -82,7 +82,17 @@ class CloudModel:
             else:
                 raise
 
-        content = self._content(response)
+        content = ""
+        for attempt in (1, 2):
+            try:
+                content = self._content(response)
+                break
+            except CloudError as exc:
+                if "empty message" in str(exc) and attempt == 1:
+                    log.warning("cloud synthesis returned empty content; retrying")
+                    response = self._post(body)
+                    continue
+                raise
         data = _parse_json(content)
         if data is None:
             log.warning("cloud synthesis returned invalid JSON; asking for repair")
@@ -183,7 +193,12 @@ class CloudModel:
                 if isinstance(part, dict)
             )
         if not isinstance(content, str) or not content.strip():
-            raise CloudError("OpenRouter returned an empty message")
+            reason = choices[0].get("finish_reason")
+            refusal = message.get("refusal")
+            raise CloudError(
+                "OpenRouter returned an empty message "
+                f"(finish={reason!r}, refusal={refusal!r}, keys={sorted(message)})"
+            )
         if choices[0].get("finish_reason") == "length":
             log.warning("cloud synthesis hit max_tokens; digest may be truncated")
         return content
