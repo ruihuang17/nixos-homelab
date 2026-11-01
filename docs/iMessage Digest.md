@@ -412,8 +412,11 @@ bundle adopts cleanly.
    `/hdd/backup/lime-pre-macos27-20261031/temp-home.tar.gz`. Only `rhuang`
    remains a volume owner (`diskutil apfs listCryptoUsers /`).
 
-**Auto-login is currently OFF** because `sysadminctl -autologin off` removes
-`/etc/kcpassword`. Re-enable it with the volume-owner password:
+**Auto-login was re-enabled** at 01:50 with the volume-owner password and
+reboot-tested at 01:51. The Mac came back on its own: console user `rhuang`,
+`Finder`/`Dock` running, all three LaunchAgents, Jellyfin/node_exporter `200`,
+`chat.db` open, no Setup Assistant or Installer Progress, and `temp` gone.
+Keep the command for future use:
 
 ```sh
 read -s -p "macOS password: " PW
@@ -421,6 +424,10 @@ sudo sysadminctl -autologin set -userName rhuang -password "$PW"
 unset PW
 sudo sysadminctl -autologin status
 ```
+
+The wallpaper `SystemWallpaperURL` now points at `Sonoma Horizon.heic` and
+persists across reboot; desktop widget visibility keys are
+`StandardHideWidgets = 0` / `StageManagerHideWidgets = 0`.
 
 ### Post-login cosmetics (2026-11-01)
 
