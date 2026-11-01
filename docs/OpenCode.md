@@ -44,16 +44,16 @@ on loopback. The wildcard ACME certificate already covers
 | Area | Choice | Rationale |
 | ---- | ------ | --------- |
 | Process | `opencode serve` under systemd | Foreground server, fixed port/password, standard supervision. Unlike the per-user background service, it is not tied to an interactive login. |
-| User | dedicated system user `opencode` | The agent gets shell access; it must not be root or `rhuang` (wheel = passwordless sudo). |
+| User | `root` (changed 2026-10-31 23:20, at the owner's request) | The agent administers the box: `nixos-rebuild`, `systemctl`, `/etc/nixos`, other services' data. Accepts that the web password is effectively root on satsuma. |
 | Bind | `127.0.0.1:4096` | Only nginx can reach it. |
 | Ingress | nginx vhost on `opencode.local.estrogenuinely.ca` | CNAME to `satsuma` in Technitium; wildcard cert covers it. |
 | TLS | existing `estrogenuinely.ca` wildcard | DNS-01 via Cloudflare; covers `*.local.estrogenuinely.ca`. |
 | Auth | OpenCode password (basic auth for API, cookie for web UI) | Built in. Username is always `opencode`; password from agenix. |
 | Network ACL | nginx allow LAN + Tailnet, deny everything else | Defence in depth even if 443 is reachable from the WAN. |
 | Data | `/var/lib/opencode`, seeded from root's existing store | Preserves the 72 MB session DB and the OpenRouter credential. `/var` is already in the restic offsite set. |
-| Workspace | `/srv/opencode/workspace` (group `users`, setgid) | Isolated from `/root`; `rhuang` can add checkouts, the service owns writes. |
+| Workspace | `/srv/opencode/workspace` (`root:opencode-workspace`, setgid) | Optional tidy place for checkouts; `rhuang` can add them. Root can write anywhere, so this is convention, not a boundary. |
 | Secrets | agenix `opencode-password.age` | No plaintext password in the Nix store or the repo. |
-| Sandbox | `ProtectSystem=strict`, `ProtectHome=yes`, `ReadWritePaths=/srv/opencode` | Agent can only write its state dir and workspace. |
+| Sandbox | none | Removed with the switch to `User=root`: any filesystem restriction would block the agent from doing what it was made root for. `PrivateTmp` and `NoNewPrivileges` are off too, so shells behave like a normal root login. |
 
 Why not the shared background service (`opencode service`)? It is designed for a
 desktop session: it auto-starts on demand, stores its config in
@@ -206,24 +206,34 @@ not writable until an ACL/group is added.
 
 ## Risks and follow-ups
 
-1. **Single shared identity.** The password grants full access to all sessions
-   and to the `opencode` user's shell. Do not share it; rotate it if leaked.
-2. **Workspace access.** The service can read most of the filesystem
-   (`ProtectSystem` makes it read-only, not invisible). `ProtectHome` hides
-   `/home` and `/root`; `/etc` and `/var` are readable. Do not put secrets in
-   world-readable files the agent should not see.
-3. **DNS name.** Resolved: the CNAME to `satsuma` exists in Technitium.
+1. **The password is root on satsuma.** Since 2026-10-31 the service runs as
+   `root` with a full capability set and no sandbox. Anyone with the server
+   password — or a browser session cookie, or a pairing link — can read every
+   secret on the box, modify `/etc/nixos`, restart or break any service, and
+   reach the tailnet. Treat it exactly like the root SSH key: never paste it
+   into a chat, rotate it if exposed, and keep the nginx ACL in place.
+2. **Prompt injection now means host compromise.** Web content, file contents,
+   or an MCP server can steer the agent toward destructive commands, and
+   nothing at the OS layer stops it any more. NixOS generations are the real
+   safety net: the previous system is always one
+   `nixos-rebuild --rollback switch` (or a boot-menu entry) away. Keep
+   `/etc/nixos` committed so the config is recoverable.
+3. **Self-rebuild interrupts the session.** `nixos-rebuild switch` from inside
+   an agent session restarts `opencode.service` and kills that session
+   mid-flight. Prefer `switch-to-configuration test`, or run the switch from a
+   separate SSH session.
+4. **DNS name.** Resolved: the CNAME to `satsuma` exists in Technitium.
    Keep it when editing the `local.estrogenuinely.ca` zone; the wildcard cert
    covers the name.
-4. **Backups.** Restic currently backs up `/var` nightly. A live SQLite DB is
+5. **Backups.** Restic currently backs up `/var` nightly. A live SQLite DB is
    copied while running; OpenCode's WAL should make this safe, but a
    `sqlite3 .backup` pre-hook would be stricter if the DB grows.
-5. **Resource use.** A session can run arbitrary commands; there is no CPU/mem
+6. **Resource use.** A session can run arbitrary commands; there is no CPU/mem
    quota. Add `CPUQuota=`/`MemoryMax=` to the unit if the box gets starved.
-6. **Public access (optional).** Prefer Tailscale-only or Cloudflare Access in
+7. **Public access (optional).** Prefer Tailscale-only or Cloudflare Access in
    front of nginx. If exposed, add rate limiting and nginx basic auth as a
    second factor.
-7. **Multi-user future.** If Lena or others need access, run one server per
+8. **Multi-user future.** If Lena or others need access, run one server per
    user (different port + data dir + vhost) rather than sharing this one.
 
 ## Implementation record
@@ -240,13 +250,13 @@ Changed files (staged, not committed):
 
 State:
 
-- `opencode.service`: active and enabled, `User=opencode`,
+- `opencode.service`: active and enabled, `User=root` (see the 23:20 revision),
   `ExecStart=opencode serve --hostname 127.0.0.1 --port 4096`, password from
   `/run/agenix/opencode-password` via `serviceConfig.EnvironmentFile`.
 - Data: seeded from root's old store (`72 MB` apparent, `21 MB` allocated) and
   config. The old `service.json` was dropped. `/root/.local/share/opencode` is
   untouched as a fallback.
-- `/srv/opencode/workspace` exists, `opencode:opencode-workspace`, setgid.
+- `/srv/opencode/workspace` exists, `root:opencode-workspace`, setgid.
   `rhuang` was added to `opencode-workspace`.
 
 Verified:
@@ -263,10 +273,9 @@ Verified:
   browser sets an `opencode_session` cookie (30 days) and redirects to the app;
   reusing the link returns `401`.
 - `systemctl restart opencode` keeps data and credentials.
-- Sandbox: the service runs as `opencode` with `ProtectSystem=strict` and
-  `ProtectHome`; only `/srv/opencode` and its state dir are writable. The
-  workspace is `2770 opencode:opencode-workspace`; `opencode` and `rhuang` can
-  both write, other users cannot read it.
+- Sandbox (original rollout): the service ran as `opencode` with
+  `ProtectSystem=strict` and `ProtectHome`; only `/srv/opencode` and its state
+  dir were writable. Superseded by the 23:20 revision below.
 
 Deviations from the plan:
 
@@ -293,6 +302,34 @@ The same activation window also surfaced `mautrix-wsproxy` failing on a missing
 `config.yaml`. The file was restored from the 04:38 restic snapshot; the
 service is healthy again. Unrelated to OpenCode, but it made
 `switch-to-configuration` exit 4 until it was fixed.
+
+Revision 2026-10-31 23:20 — run as root:
+
+Requested by the owner so the agent can administer the host directly.
+
+- `User=root`, `Group=root`; the `opencode` system user and group were removed.
+- All sandbox options dropped (`ProtectSystem`, `ProtectHome`,
+  `PrivateTmp`, `NoNewPrivileges`, `CapabilityBoundingSet`, the `Protect*` and
+  `Restrict*` set). Verified `Uid: 0`, `CapEff: 000001ffffffffff`,
+  `NoNewPrivs: 0`.
+- `path` replaced with `config.system.path` + `config.security.wrapperDir`, so
+  agent shells get the full system profile (`nixos-rebuild`, `systemctl`,
+  `nix`, `git`, `nixd`, …) instead of the previous hand-picked list.
+- State stays at `/var/lib/opencode` (still inside restic's `/var` coverage),
+  now `root:root` mode `0700`; `HOME` points there. The surviving
+  `/root/.local/share/opencode` copy was left alone.
+- Secret owner changed to `root:root`.
+- `/srv/opencode` and its `workspace` are now `root:opencode-workspace`;
+  `rhuang` keeps group write access for adding checkouts.
+
+Verified after the switch: `Uid: 0`, full caps, `PATH` contains the system
+profile, `/api/info` → `200`, 16 sessions intact, web UI → `200`,
+`opencode-pair` still prints a working link, `readlink /run/current-system`
+is the root-enabled generation.
+
+Known consequences, accepted: the password is now root on the host; prompt
+injection equals host compromise; and `nixos-rebuild switch` run from inside a
+session restarts the service and kills that session.
 
 Access:
 

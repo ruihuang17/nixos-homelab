@@ -35,28 +35,19 @@ in
   age.secrets.opencode-password = {
     file = ./secrets/opencode-password.age;
     mode = "0400";
-    owner = "opencode";
-    group = "opencode";
+    owner = "root";
+    group = "root";
   };
 
-  users.users.opencode = {
-    isSystemUser = true;
-    group = "opencode";
-    home = "/var/lib/opencode";
-    createHome = true;
-    extraGroups = [ "opencode-workspace" ];
-    shell = pkgs.bash;
-  };
-  users.groups.opencode = { };
-
-  # Shared workspace: the service owns writes, rhuang can add/edit checkouts,
-  # and other users on the box cannot read it.
+  # The service runs as root so the agent can administer the host (nixos-rebuild,
+  # systemctl, /etc/nixos, other services' data). There is deliberately no
+  # filesystem sandbox: anything else would defeat that purpose.
   users.groups.opencode-workspace = { };
   users.users.rhuang.extraGroups = [ "opencode-workspace" ];
 
   systemd.tmpfiles.rules = [
-    "d /srv/opencode 2770 opencode opencode-workspace -"
-    "d /srv/opencode/workspace 2770 opencode opencode-workspace -"
+    "d /srv/opencode 2770 root opencode-workspace -"
+    "d /srv/opencode/workspace 2770 root opencode-workspace -"
   ];
 
   systemd.services.opencode = {
@@ -70,26 +61,18 @@ in
       OPENCODE_LOG_LEVEL = "info";
     };
 
-    # The agent's shells inherit this PATH; nixd keeps the configured Nix LSP
-    # working for the opencode user.
-    path = with pkgs; [
-      bashInteractive
-      coreutils
-      curl
-      fd
-      git
-      jq
-      nix
-      nixd
-      openssh
-      ripgrep
-      which
+    # The full system profile, so agent shells get nixos-rebuild, systemctl,
+    # nix, git and the rest without per-tool packaging. Also includes the
+    # nixd LSP used by the configured languageserver.
+    path = [
+      config.system.path
+      config.security.wrapperDir
     ];
 
     serviceConfig = {
       Type = "simple";
-      User = "opencode";
-      Group = "opencode";
+      User = "root";
+      Group = "root";
       WorkingDirectory = "/var/lib/opencode";
       ExecStart = "${pkgs.opencode}/bin/opencode serve --hostname 127.0.0.1 --port ${toString port}";
       EnvironmentFile = config.age.secrets.opencode-password.path;
@@ -99,21 +82,8 @@ in
       TimeoutStopSec = 20;
 
       StateDirectory = "opencode";
-      StateDirectoryMode = "0750";
-      ReadWritePaths = [ "/srv/opencode" ];
-      UMask = "0002";
-
-      # Sandbox: the agent can write only its state and the workspace.
-      NoNewPrivileges = true;
-      PrivateTmp = true;
-      ProtectSystem = "strict";
-      ProtectHome = true;
-      ProtectKernelTunables = true;
-      ProtectKernelModules = true;
-      ProtectControlGroups = true;
-      RestrictSUIDSGID = true;
-      LockPersonality = true;
-      CapabilityBoundingSet = "";
+      StateDirectoryMode = "0700";
+      UMask = "0022";
     };
   };
 
