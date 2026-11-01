@@ -386,6 +386,33 @@ sudo darwin-rebuild switch --flake ~/nixos-homelab#lime
 4. Verify the 8k variant/context on this M4/16 GB.
 5. Keep SIP on and FileVault off.
 
+### Result (2026-11-01)
+
+The upgrade succeeded: **macOS 27.2 (26B123)**, SIP enabled, Full security
+policy, Homebrew now resolving `packages.arm64_golden_gate`. `sudo
+darwin-rebuild switch --flake ~/nixos-homelab#lime` completes and the Homebrew
+bundle adopts cleanly.
+
+Two post-upgrade gotchas:
+
+- **The first boot lands on the login window, not auto-login.** macOS marks
+  `AccountInfo.FirstLogins.rhuang = 1`; `autoLoginUser` is still set and the
+  Secure Token is enabled, but a manual login is required once to finish the
+  upgrade. Until that login, `Finder`/`Dock` are not running and the LaunchAgents
+  are loaded but `job state = uninitialized` (`runs = 0`).
+- **Services can be restarted without logging in** with
+  `launchctl kickstart -k gui/1000/<label>` for
+  `fi.mau.mautrix-imessage`, `sh.brew.node_exporter`, and
+  `com.jellyfin.server`. After a kickstart, Jellyfin and node_exporter return
+  `200`, and the bridge reopens `chat.db` and resumes backfill. This is a
+  recovery step, not a substitute for the login: the agents will not come back
+  after the next reboot until the first login completes.
+
+The bridge's FDA grant survived the upgrade (`lsof` shows `chat.db`), and
+`/run/agenix/imessage-config` is recreated at boot. The node_exporter `thermal`
+collector error (`no CPU power status has been recorded`) is pre-existing and
+harmless.
+
 ### Risks / rollback
 
 - This is a two-major-version jump with no full-system backup. The file-level
