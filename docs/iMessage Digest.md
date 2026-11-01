@@ -1,9 +1,17 @@
 # iMessage Group Chat Digest
 
-Status: **v1 implemented** — 2026-11-01. Scheduled digests, grounded event
-alerts, Matrix + Discord delivery, SQLite state and a Prometheus heartbeat are
-running on lime. See *Implementation (2026-11-01)* below for what was built and
-what is still open.
+Status: **v1 implemented, currently paused** — 2026-11-01. Scheduled digests,
+grounded event alerts, Matrix + Discord delivery, SQLite state, a Prometheus
+heartbeat and cloud digest synthesis are in place. The service is paused while
+the bridge finishes its post-profile-migration portal import; see *Paused* below
+and *Implementation (2026-11-01)* for what was built.
+
+> **Paused 2026-11-01.** The bridge's profile migration created ~1,853 portal
+> rows with several duplicates per chat. The digest agent still runs every five
+> minutes but only writes the heartbeat (`[service] paused = true`); it makes no
+> Matrix, model or Discord calls. Resume after re-auditing the live portals with
+> `lime/digest/audit_portals.py`. The final digest now uses OpenRouter synthesis;
+> event detection stays on-device.
 
 Goal: summarise a couple of iMessage group chats, deliver scheduled digests, and
 push live alerts for concrete events, using Apple's on-device model where
@@ -16,14 +24,15 @@ See [[SMS Matrix Bridge]] for the bridge, [[lime (macOS)]] for the host, and
 
 | Area | Decision | Why |
 | ---- | -------- | --- |
-| Rooms | **BLUNT WRAPS 🌯** `!ngLmKbjUJtXXLFjtZc:estrogenuinely.ca` and **Blunt Wraps 2.0** `!aSIBmlhIyzlrpVoKNL:estrogenuinely.ca` | The two main group chats; chosen 2026-11-01 |
+| Rooms | **BLUNT WRAPS 🌯** `!ngLmKbjUJtXXLFjtZc:estrogenuinely.ca` and **Blunt Wraps 2.0** `!rDOMDGOdIIFzTKbtzm:estrogenuinely.ca` | Live portals after the 2026-11-01 migration; older duplicate portals are stale |
 | Source of messages | Matrix portal rooms (mautrix-imessage) | No new Full Disk Access grant, no `chat.db` parser, bridge already normalises iMessage |
-| Inference (v1) | Apple on-device via `apfel` | Free, private, no request cap; verified `available: yes`, 8,192 tokens on lime |
+| Inference (alerts) | Apple on-device via `apfel` | Free, private, no request cap; verified `available: yes`, 8,192 tokens on lime |
+| Inference (digest) | OpenRouter `deepseek/deepseek-v4.1-flash-1017` | The 8k on-device model reversed who offered/asked; cloud synthesis is materially better for the daily summary |
 | Trigger | launchd `StartInterval = 300` | macOS-native scheduler; no iMessage webhook exists |
 | Delivery | Matrix `#imessage-digest` for digests; Discord DM for alerts | Digest is archived; Discord DM actually pushes to Takeko |
 | Host | lime (service), satsuma (Synapse) | Model must run on the Mac; Matrix is already there |
 | State | SQLite on lime | Cursors, dedupe, chunk notes, digest history |
-| Secrets | agenix (`lime/secrets/imessage-digest.age`) | Matrix token + Hermes Discord bot token |
+| Secrets | agenix (`lime/secrets/imessage-digest.age`) | Matrix token, Hermes Discord bot token, OpenRouter key |
 
 ## What we are not doing
 
@@ -568,12 +577,14 @@ Consequences:
 | launchd agent | `ca.estrogenuinely.imessage-digest`, `StartInterval = 300`, `RunAtLoad` |
 | Entry point | `lime/digest/main.py --once`, Python 3.14 from nixpkgs (stdlib only) |
 | Source | Matrix `/rooms/{id}/messages` on `https://matrix.estrogenuinely.ca` |
-| Model | `/opt/homebrew/bin/apfel` (Apple Foundation Models, 8,192 tokens) |
+| Alerts / notes | `/opt/homebrew/bin/apfel` (Apple Foundation Models, 8,192 tokens) |
+| Digest synthesis | OpenRouter `deepseek/deepseek-v4.1-flash-1017` (one transcript per digest) |
 | Digest room | `#imessage-digest:estrogenuinely.ca` (`!m6_R299…`, no server suffix) |
 | Alerts | Discord DM to Takeko (`454892601175441418`) via the Hermes bot |
 | State | `~/Library/Application Support/imessage-digest/state.sqlite3` |
 | Heartbeat | `…/textfile/imessage_digest.prom`, read by node_exporter |
-| Secret | `lime/secrets/imessage-digest.age` → `/run/agenix/imessage-digest` |
+| Secret | `lime/secrets/imessage-digest.age` → `/run/agenix/imessage-digest` (Matrix, Discord, OpenRouter) |
+| Paused | `[service] paused = true`; heartbeat only, no network calls |
 
 ### Flow
 
@@ -590,12 +601,12 @@ Consequences:
    - dedupe `room + summary + when` for 7 days;
    - ≤ 3 alerts per room per local day;
    - quiet 23:00–07:00 unless a `needs_action` request is ≥ 0.90.
-3. Digest pass at 08:00 and 18:00 local (catch-up up to 6 h): if the transcript
-   fits ~4,200 tokens, send it straight to the digest model; otherwise take
-   chunk notes and tree-reduce them. The model returns a schema-constrained
-   object; code renders the sections, removes cross-section duplicates, and
-   grounds each item back to a source message to restore its timestamp and
-   speaker.
+3. Digest pass at 08:00 and 18:00 local (catch-up up to 6 h): send the raw
+   transcript (up to 60k tokens) to the OpenRouter digest model. Above that,
+   take on-device chunk notes and tree-reduce them first. The model returns a
+   schema-constrained object; code renders the sections, removes cross-section
+   duplicates, and grounds each item back to a source message to restore its
+   timestamp and speaker. Only this final call leaves lime.
 4. Write the heartbeat metric, prune messages after 14 days and alert dedupe
    after 7 days.
 
@@ -608,6 +619,8 @@ lime/digest/
   main.py              # poll → events → digest → heartbeat
   matrix.py            # /messages, /joined_members, /send
   model.py             # apfel subprocess, schema output, token counting
+  cloud.py             # OpenRouter client for the final digest
+  audit_portals.py     # find the live portal among duplicate rooms
   chunk.py             # formatting, token-aware chunks, tree reduce
   state.py             # SQLite
   deliver.py           # Matrix digest render + Discord DM alerts
@@ -621,6 +634,25 @@ lime/secrets/imessage-digest.age
 lists `apfel`.
 
 ### Operating it
+
+**The service is paused.** `[service] paused = true` makes each five-minute run
+write the heartbeat and exit; it does not poll Matrix, call a model, or send to
+Discord. Resume after the bridge migration settles:
+
+```sh
+cd ~/nixos-homelab/lime/digest
+# 1. list every portal with the configured names; the newest is marked "likely live"
+nix run nixpkgs#python3 -- audit_portals.py \
+  --config config.toml --secrets /run/agenix/imessage-digest
+# 2. update the [[rooms]] IDs in config.toml
+# 3. set [service] paused = false
+# 4. sudo darwin-rebuild switch --flake ~/nixos-homelab#lime
+# 5. inspect a dry digest before the next scheduled slot
+nix run nixpkgs#python3 -- main.py --once --dry-run --digest \
+  --secrets /run/agenix/imessage-digest
+```
+
+Normal commands:
 
 ```sh
 # one dry pass: poll, scan alerts (printed), do not send anything
@@ -638,13 +670,17 @@ tail -f ~/Library/Logs/imessage-digest.err.log
 cat "$HOME/Library/Application Support/imessage-digest/textfile/imessage_digest.prom"
 ```
 
+The dry-run `--digest` above uses the real OpenRouter key, so it exercises the
+cloud path without posting or advancing the digest cursor.
+
 `--events` ignores debounce/quiet/age for alert debugging; `--skip-poll` uses
 only stored messages. A dry run does not mark alerts processed or advance the
 digest cursor; the poll cursor still advances, but messages stay in SQLite for
 the next real run. The service holds `run.lock`, so a manual run cannot overlap
 a launchd run.
 
-Re-encrypt the secret after rotating the Matrix device or Discord token:
+Re-encrypt the secret after rotating the Matrix device, the Discord token, or
+the OpenRouter key:
 
 ```sh
 cd /etc/nixos/lime/secrets
@@ -653,10 +689,15 @@ agenix -e imessage-digest.age -i ~/.ssh/general
 
 ### Verified
 
-- Dry runs polled 18 messages from BLUNT WRAPS and 108 from Blunt Wraps 2.0.
-- Grounding rejected an ungrounded event and self-authored Costco/Minecraft
-  offers; stale overnight messages were excluded from alerts but kept in the
-  digest.
+- Dry runs polled 18 messages from BLUNT WRAPS and 108 from the old Blunt Wraps
+  2.0 duplicate. After the portal audit, the live `!rDOM…` room has 92 messages
+  in the current window.
+- The first digest exposed a stale duplicate-portal selection for Blunt Wraps
+  2.0; the live portal is now pinned in `config.toml`.
+- Grounding rejected an ungrounded event, self-authored Costco/Minecraft offers,
+  and stale overnight alerts.
+- A cloud smoke test extracted “Alice asked Rui to send the login” without
+  reversing Rui's offer of an extra account.
 - The first real digest posted both rooms to `#imessage-digest`; the test DM
   reached the Hermes bot's DM channel with Takeko.
 
@@ -673,7 +714,7 @@ agenix -e imessage-digest.age -i ~/.ssh/general
 - **Duplicate portals after a bridge migration.** The 2026-11-01 profile
   rebuild left ~1,853 portal rows with several rows per chat name. The digest
   config pins the live portal IDs; a name-based lookup is not safe. Re-audit
-  after any bridge rebuild. See *Room discovery*.
+  after any bridge rebuild with `audit_portals.py`. See *Room discovery*.
 - **Bridge wsproxy after the migration (2026-11-01 12:10+).** The bridge's
   appservice websocket cannot reopen `mautrix-wsproxy.local`:
   `dial tcp 10.0.10.72:443: connect: no route to host`, while `curl` from lime
@@ -683,9 +724,12 @@ agenix -e imessage-digest.age -i ~/.ssh/general
   Matrix→iMessage and read receipts may not. Fix by exposing the wsproxy on a
   public vhost and changing `websocket_proxy`, or by granting the binary Local
   Network access, then restarting the bridge.
-- The 8k on-device model is usable but terse. Digest item times are restored by
-  matching each item back to a transcript message; heavily paraphrased items can
-  be left without a time.
+- **Cloud privacy.** The final digest goes to OpenRouter; one transcript per
+  scheduled digest leaves lime. Event detection and large-window chunk notes
+  remain on-device. If that trade is unacceptable, switch
+  `[synthesis] provider` off and accept the weaker on-device summary.
+- The on-device model is still used for alerts and can misread roles. Grounding,
+  confidence, daily caps and quiet hours reduce alert noise.
 - “Requests for Rui” is heuristic: self-authored items and asks aimed at another
   named member are dropped, but a group ask can still slip through.
 - Matrix posts are plain text (Markdown headings show literally in some
@@ -699,16 +743,18 @@ agenix -e imessage-digest.age -i ~/.ssh/general
 
 ### Next
 
-1. Small Grafana dashboard for the digest metrics (the stale > 2 h rule is
+1. Re-audit the live portals once the bridge migration settles, then set
+   `[service] paused = false` and resume.
+2. Small Grafana dashboard for the digest metrics (the stale > 2 h rule is
    provisioned as `homelab-imessage-digest-stale`).
-2. Send HTML (`org.matrix.custom.html`) so headings render, or drop Markdown.
-3. Improve large-window chunk notes and request targeting; consider reply
+3. Send HTML (`org.matrix.custom.html`) so headings render, or drop Markdown.
+4. Improve large-window chunk notes and request targeting; consider reply
    relations to identify what was aimed at Rui.
-4. Optional: historical export from `chat.db`, image/voice-note summaries,
-   calendar holds.
+5. Optional: historical export from `chat.db`, image/voice-note summaries,
+   calendar holds, and a bridge wsproxy fix.
 
 Phases 0–3 are done; phase 4 is done except log rotation and a dashboard; phase
-5 is not started.
+5 is not started. The service is paused pending the bridge portal audit.
 
 ## Decisions (resolved 2026-11-01)
 
@@ -720,10 +766,11 @@ Phases 0–3 are done; phase 4 is done except log rotation and a dashboard; phas
 | Digest cadence | 08:00 and 18:00 America/Toronto, 6 h catch-up |
 | Live path | 5-minute one-shot launchd job with a lock (`v1`); `/sync` daemon remains `v2` |
 | Historical backfill | None; first run looks back 24 h |
-| Inference | On-device only (`apfel`); cloud synthesis is not configured |
+| Inference | On-device `apfel` for alerts and notes; OpenRouter for the final digest |
 
 Remaining open questions are implementation polish, not design choices: request
-targeting, HTML rendering, large-window note quality, and log rotation.
+targeting, HTML rendering, large-window note quality, log rotation, and the
+bridge portal/wsproxy cleanup.
 
 ## References
 

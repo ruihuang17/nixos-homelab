@@ -32,6 +32,7 @@ from chunk import (
     format_ts,
     reduce_notes,
 )
+from cloud import CloudModel
 from deliver import Discord, deliver_digest, format_alert, render_digest
 from matrix import Matrix, MatrixError
 from model import Model, ModelError
@@ -159,6 +160,7 @@ class DigestService:
     def __init__(self, config: dict, secrets: dict[str, str], dry_run: bool = False):
         self.config = config
         self.dry_run = dry_run
+        self.paused = bool(config.get("service", {}).get("paused", False))
 
         matrix_cfg = config.get("matrix", {})
         self.tz = ZoneInfo(config.get("digest", {}).get("timezone", "America/Toronto"))
@@ -191,6 +193,26 @@ class DigestService:
         self.chunk_tokens = int(model_cfg.get("chunk_tokens", 4200))
         self.note_tokens = int(model_cfg.get("note_tokens", 1400))
         self.event_chunk_tokens = int(model_cfg.get("event_chunk_tokens", 2200))
+        self.digest_schema_text = (here / "schemas" / "digest.json").read_text()
+
+        synthesis_cfg = config.get("synthesis", {})
+        self.synthesis: CloudModel | None = None
+        if synthesis_cfg.get("provider") == "openrouter":
+            openrouter_key = secrets.get("OPENROUTER_API_KEY", "")
+            if not openrouter_key:
+                raise RuntimeError("OPENROUTER_API_KEY missing from secrets file")
+            self.synthesis = CloudModel(
+                api_base=synthesis_cfg.get(
+                    "api_base", "https://openrouter.ai/api/v1"
+                ),
+                api_key=openrouter_key,
+                model=synthesis_cfg["model"],
+                timeout_seconds=int(synthesis_cfg.get("timeout_seconds", 120)),
+                max_tokens=int(synthesis_cfg.get("max_tokens", 1800)),
+                max_input_tokens=int(synthesis_cfg.get("max_input_tokens", 60000)),
+                http_referer=synthesis_cfg.get("http_referer", ""),
+                title=synthesis_cfg.get("title", ""),
+            )
 
         discord_cfg = config.get("discord", {})
         self.discord: Discord | None = None
@@ -543,6 +565,23 @@ class DigestService:
             if not force:
                 self.state.set(f"digest_slot:{room_id}", slot_key)
 
+    def _synthesise(self, prompt: str) -> dict:
+        system = self.model.prompt("digest")
+        if self.synthesis is not None:
+            log.info("digest synthesis via %s", self.synthesis.model)
+            return self.synthesis.generate_json(
+                system=system,
+                prompt=prompt,
+                schema_text=self.digest_schema_text,
+                max_tokens=self.synthesis.max_tokens,
+            )
+        return self.model.generate_json(
+            system=system,
+            prompt=prompt,
+            schema=self.model.schema("digest"),
+            max_tokens=1800,
+        )
+
     def build_and_send_digest(self, room: dict, now_ms: int) -> None:
         digest_cfg = self.config.get("digest", {})
         room_id = room["id"]
@@ -555,23 +594,30 @@ class DigestService:
         messages = self.state.messages_since(room_id, since)
         if not messages:
             log.info("%s: no messages for this digest", label)
-            self.state.set_last_digest(room_id, now_ms)
+            if not self.dry_run:
+                self.state.set_last_digest(room_id, now_ms)
             return
 
         lines = format_lines(messages, self.tz)
         transcript_text = "\n".join(lines)
         self.model.calibrate(transcript_text)
+        transcript_tokens = self.model.estimate_tokens(transcript_text)
+        cloud_direct = (
+            self.synthesis is not None
+            and transcript_tokens <= self.synthesis.max_input_tokens
+        )
 
-        if self.model.estimate_tokens(transcript_text) <= self.chunk_tokens:
-            # Small transcripts go straight to the digest model: it sees the
-            # original speaker/timestamp prefixes and cannot lose them in a
-            # chunk-note round trip.
+        if cloud_direct or transcript_tokens <= self.chunk_tokens:
+            # Send the raw transcript: the cloud model sees the original
+            # speaker/timestamp prefixes, and the on-device model can handle
+            # small windows without a chunk-note round trip.
             source_label = "Transcript"
             source_text = transcript_text
             log.info(
-                "%s: direct transcript (%d est. tokens)",
+                "%s: %s transcript (%d est. tokens)",
                 label,
-                self.model.estimate_tokens(transcript_text),
+                "cloud" if cloud_direct else "direct",
+                transcript_tokens,
             )
         else:
             chunks = chunk_lines(
@@ -619,12 +665,7 @@ class DigestService:
         )
         body = render_digest(
             annotate_digest(
-                self.model.generate_json(
-                    system=self.model.prompt("digest"),
-                    prompt=prompt,
-                    schema=self.model.schema("digest"),
-                    max_tokens=1800,
-                ),
+                self._synthesise(prompt),
                 messages,
                 self.matrix.joined_members(room_id),
                 self.matrix.user_id,
@@ -681,6 +722,9 @@ class DigestService:
             "# HELP imessage_digest_rooms_with_pending Rooms with unprocessed messages.",
             "# TYPE imessage_digest_rooms_with_pending gauge",
             f"imessage_digest_rooms_with_pending {self.pending_count()}",
+            "# HELP imessage_digest_paused Whether the service is paused by config.",
+            "# TYPE imessage_digest_paused gauge",
+            f"imessage_digest_paused {1 if self.paused else 0}",
         ]
         temporary = prom_path.with_suffix(".tmp")
         temporary.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -689,8 +733,12 @@ class DigestService:
     # -- top level ---------------------------------------------------------
 
     def run(self, *, force_digest: bool, skip_poll: bool, force_events: bool) -> None:
-        self.matrix.whoami()
         now_ms = int(time.time() * 1000)
+        if self.paused:
+            log.info("service paused (service.paused=true); heartbeat only")
+            self.write_heartbeat(True, now_ms)
+            return
+        self.matrix.whoami()
         if not skip_poll:
             self.poll(now_ms)
         self.scan_events(now_ms, force=force_events)

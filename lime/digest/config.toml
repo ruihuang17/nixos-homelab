@@ -1,7 +1,15 @@
 # iMessage digest service - non-secret configuration.
 #
-# Secrets live in /run/agenix/imessage-digest (MATRIX_TOKEN, DISCORD_BOT_TOKEN).
-# The macOS launchd agent and agenix wiring are in lime/digest/default.nix.
+# Secrets live in /run/agenix/imessage-digest (MATRIX_TOKEN,
+# DISCORD_BOT_TOKEN, OPENROUTER_API_KEY). The macOS launchd agent and agenix
+# wiring are in lime/digest/default.nix.
+
+[service]
+# Paused on 2026-11-01 while the bridge finishes its post-profile-migration
+# portal import (1,853 portals, several duplicates per chat). The agent still
+# runs every 5 minutes but only writes the heartbeat; it makes no Matrix,
+# model, or Discord calls. Set to false after re-auditing the live rooms.
+paused = true
 
 [matrix]
 # The launchd Aqua agent is subject to macOS Local Network Privacy: the
@@ -40,6 +48,20 @@ note_tokens = 1400
 event_chunk_tokens = 2200
 # Grounding: reject a quote unless it is this close to the transcript.
 max_messages_per_call = 120
+
+[synthesis]
+# Cloud synthesis for the final digest only. Event detection and chunk notes
+# stay on-device. One transcript per digest leaves lime.
+provider = "openrouter"
+api_base = "https://openrouter.ai/api/v1"
+model = "deepseek/deepseek-v4.1-flash-1017"
+max_tokens = 1800
+timeout_seconds = 120
+# Send the whole transcript to the cloud model when it fits; above this, fall
+# back to on-device chunk notes before the cloud final call.
+max_input_tokens = 60000
+http_referer = "https://estrogenuinely.ca"
+title = "iMessage Digest"
 
 [digest]
 enabled = true

@@ -8,15 +8,17 @@ for the host table, [[NFS]] for the media mount and [[Media Stack]] for Jellyfin
 | Thing | Managed by | Notes |
 | ----- | ---------- | ----- |
 | mautrix-imessage | launchd user agent `fi.mau.mautrix-imessage` | `platform: mac`; binary `~/mautrix-imessage/mautrix-imessage` |
-| iMessage digest | launchd user agent `ca.estrogenuinely.imessage-digest` | polls two portal rooms, on-device `apfel`, posts to `#imessage-digest`, DMs alerts; see [[iMessage Digest]] |
+| iMessage digest | launchd user agent `ca.estrogenuinely.imessage-digest` | polls two portal rooms, `apfel` alerts + OpenRouter digest; paused pending the bridge portal audit; see [[iMessage Digest]] |
 | Jellyfin | launchd user agent `com.jellyfin.server` (`open -a Jellyfin`) | Homebrew cask, `*:8096` |
 | node_exporter | launchd user agent `sh.brew.node_exporter` | `:9100`, scraped by satsuma as `instance="lime"`; also serves the digest heartbeat |
 | autofs | `/etc/auto_master` + `/etc/auto_nas` | NFSv3 to satsuma, see [[NFS]] |
 
 The [[iMessage Digest]] service runs on the same five-minute launchd cadence as
 node_exporter. It reads the mautrix portal rooms through the Matrix API (no new
-TCC grant), runs Apple's on-device model via Homebrew `apfel`, and writes a
-textfile metric for the stale-run alert.
+TCC grant), uses Apple's on-device model via Homebrew `apfel` for event alerts
+and an OpenRouter model for the final digest, and writes a textfile metric for
+the stale-run alert. It is currently paused (`[service] paused = true`) until
+the post-migration portal duplicates are re-audited.
 
 Auto-login is enabled so all three come back after a reboot without anyone at
 the machine. That only works because **FileVault is off** — turning FileVault on
