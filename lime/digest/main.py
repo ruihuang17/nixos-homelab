@@ -336,7 +336,8 @@ class DigestService:
                 continue
 
             sent = self.send_alerts(room, events, now_ms, quiet)
-            self.state.mark_processed([str(row["event_id"]) for row in pending])
+            if not self.dry_run:
+                self.state.mark_processed([str(row["event_id"]) for row in pending])
             log.info(
                 "%s: scanned %d message(s), %d candidate event(s), %d alert(s)",
                 room.get("label"),
@@ -480,12 +481,13 @@ class DigestService:
             else:
                 log.warning("Discord disabled; alert not delivered:\n%s", text)
 
-            self.state.record_alert(
-                item["dedupe"],
-                room["id"],
-                now_ms,
-                str(event.get("summary", "")),
-            )
+            if not self.dry_run:
+                self.state.record_alert(
+                    item["dedupe"],
+                    room["id"],
+                    now_ms,
+                    str(event.get("summary", "")),
+                )
             sent += 1
         return sent
 
@@ -646,8 +648,9 @@ class DigestService:
                 tz=self.tz,
             )
 
-        self.state.set_last_digest(room_id, max(now_ms, window_end + 1))
-        self.state.record_digest(room_id, now_ms, "", body)
+        if not self.dry_run:
+            self.state.set_last_digest(room_id, max(now_ms, window_end + 1))
+            self.state.record_digest(room_id, now_ms, "", body)
         log.info("%s: digest delivered (%d chars)", label, len(body))
 
     # -- heartbeat ---------------------------------------------------------

@@ -639,8 +639,10 @@ cat "$HOME/Library/Application Support/imessage-digest/textfile/imessage_digest.
 ```
 
 `--events` ignores debounce/quiet/age for alert debugging; `--skip-poll` uses
-only stored messages. The service holds `run.lock`, so a manual run cannot
-overlap a launchd run.
+only stored messages. A dry run does not mark alerts processed or advance the
+digest cursor; the poll cursor still advances, but messages stay in SQLite for
+the next real run. The service holds `run.lock`, so a manual run cannot overlap
+a launchd run.
 
 Re-encrypt the secret after rotating the Matrix device or Discord token:
 
@@ -672,6 +674,15 @@ agenix -e imessage-digest.age -i ~/.ssh/general
   rebuild left ~1,853 portal rows with several rows per chat name. The digest
   config pins the live portal IDs; a name-based lookup is not safe. Re-audit
   after any bridge rebuild. See *Room discovery*.
+- **Bridge wsproxy after the migration (2026-11-01 12:10+).** The bridge's
+  appservice websocket cannot reopen `mautrix-wsproxy.local`:
+  `dial tcp 10.0.10.72:443: connect: no route to host`, while `curl` from lime
+  reaches the same URL. This is the Local Network Privacy restriction again.
+  Inbound iMessage→Matrix still works (the bridge posts through
+  `matrix.estrogenuinely.ca`), so the digest source is unaffected, but
+  Matrix→iMessage and read receipts may not. Fix by exposing the wsproxy on a
+  public vhost and changing `websocket_proxy`, or by granting the binary Local
+  Network access, then restarting the bridge.
 - The 8k on-device model is usable but terse. Digest item times are restored by
   matching each item back to a transcript message; heavily paraphrased items can
   be left without a time.
