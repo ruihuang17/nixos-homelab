@@ -68,6 +68,13 @@ the vhost.
 
 ## Rollout plan
 
+> **Historical.** This is the plan as written before the rollout. Two things
+> changed afterwards: the service was switched from a dedicated `opencode`
+> user with a sandbox to `root` with no sandbox, and the unit was made
+> restart-invariant. Both are recorded, with verification results, in
+> [Implementation record](#implementation-record). Read that first if you are
+> re-deploying; follow this only for the parts the revisions do not override.
+
 ### 0. Preflight (done)
 
 - `opencode` 2.1.1 is already in `common.nix`; no new package.

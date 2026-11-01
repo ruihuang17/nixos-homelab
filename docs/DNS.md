@@ -64,6 +64,7 @@ Verified records (2026-10-30):
 | `immich` | CNAME | `satsuma` | service alias |
 | `jellyfin` | CNAME | `satsuma` | service alias |
 | `mautrix-wsproxy` | CNAME | `satsuma` | service alias |
+| `opencode` | CNAME | `satsuma` | OpenCode web UI (nginx, LAN/Tailnet only); added 2026-10-31 |
 | `paperless` | CNAME | `satsuma` | service alias |
 | `dns` | CNAME | `satsuma` | web UI alias (nginx) |
 
