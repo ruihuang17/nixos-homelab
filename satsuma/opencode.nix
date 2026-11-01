@@ -52,6 +52,16 @@ in
 
   systemd.services.opencode = {
     description = "OpenCode server (shared, always-on)";
+
+    # nixos-rebuild must never restart this unit: the agent's shells live in
+    # its cgroup, so a restart would kill an in-flight rebuild mid-activation
+    # and drop the session that started it. Changes to this unit therefore
+    # need an explicit `systemctl restart opencode`.
+    unitConfig = {
+      X-StopIfChanged = false;
+      X-RestartIfChanged = false;
+    };
+
     wantedBy = [ "multi-user.target" ];
     wants = [ "network-online.target" ];
     after = [ "network-online.target" ];
@@ -59,15 +69,13 @@ in
     environment = {
       HOME = "/var/lib/opencode";
       OPENCODE_LOG_LEVEL = "info";
+      # Point at /run/current-system rather than the store paths of this
+      # generation. The unit text then stays byte-identical across rebuilds,
+      # and agent shells always see the *current* system profile
+      # (nixos-rebuild, systemctl, nix, git, nixd) even though the process is
+      # never restarted by a switch.
+      PATH = lib.mkForce "/run/current-system/sw/bin:/run/wrappers/bin:/nix/var/nix/profiles/default/bin";
     };
-
-    # The full system profile, so agent shells get nixos-rebuild, systemctl,
-    # nix, git and the rest without per-tool packaging. Also includes the
-    # nixd LSP used by the configured languageserver.
-    path = [
-      config.system.path
-      config.security.wrapperDir
-    ];
 
     serviceConfig = {
       Type = "simple";
@@ -95,6 +103,29 @@ in
 
   # sudo opencode-pair -> one-time login URL for a browser or the mobile app.
   environment.systemPackages = [
+    # Detached switch. systemd-run puts the rebuild in its own cgroup
+    # (system.slice/<unit>), so it survives this service being restarted and
+    # is never killed halfway through activation. Use it from inside an agent
+    # session, or when the rebuild may restart opencode itself.
+    (pkgs.writeShellScriptBin "oc-rebuild" ''
+      set -euo pipefail
+      if [ "$(id -u)" -ne 0 ]; then
+        echo "run as root: sudo oc-rebuild [extra nixos-rebuild args]" >&2
+        exit 1
+      fi
+      unit="oc-rebuild-$(date +%Y%m%d-%H%M%S)"
+      # Transient units inherit systemd's own minimal PATH, not the caller's,
+      # so nix/git/nixos-rebuild must be put on it explicitly.
+      /run/current-system/sw/bin/systemd-run --unit="$unit" --collect --no-block \
+        --property=Type=oneshot \
+        --property=WorkingDirectory=/etc/nixos \
+        --setenv=PATH=/run/current-system/sw/bin:/run/wrappers/bin \
+        --setenv=HOME=/root \
+        /run/current-system/sw/bin/nixos-rebuild switch --flake /etc/nixos#satsuma "$@"
+      echo "rebuild queued as $unit.service"
+      echo "follow with: journalctl -u $unit -f"
+    '')
+
     (pkgs.writeShellScriptBin "opencode-pair" ''
       set -euo pipefail
       if [ "$(id -u)" -ne 0 ]; then

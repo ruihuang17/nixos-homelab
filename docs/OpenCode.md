@@ -192,10 +192,54 @@ not writable until an ACL/group is added.
 | Status / health | `systemctl status opencode`, `journalctl -u opencode -f` |
 | Restart | `sudo systemctl restart opencode` |
 | Change password | re-encrypt the agenix file, `nixos-rebuild switch`, restart |
-| Upgrade | normal `nixos-rebuild switch` / auto-upgrade at 04:00 |
+| Upgrade | normal `nixos-rebuild switch` / auto-upgrade at 04:00 — the unit is restart-invariant, see below |
+| Rebuild from inside a session | `sudo oc-rebuild` (detached in its own cgroup) |
+| Apply changes to this unit | `sudo systemctl restart opencode` (deliberately kills the session) |
 | Pair a new client | `sudo opencode-pair` |
 | Backups | automatic: `/var/lib/opencode` is under restic's `/var` path |
 | Logs | journal, plus `/var/lib/opencode/.local/share/opencode/log/` |
+
+### 6a. Rebuilding without killing the session
+
+`nixos-rebuild switch` used to restart `opencode.service` whenever the unit
+text changed (which is most rebuilds, since `ExecStart` and the old `path`
+embedded per-generation store paths). Because agent shells live in the
+service's cgroup, a restart killed the switch mid-activation and took the
+session with it.
+
+Two changes remove that hazard for normal rebuilds:
+
+1. **Restart-invariant unit.** `unitConfig.X-StopIfChanged = false` and
+   `X-RestartIfChanged = false` tell `switch-to-configuration` to leave the
+   running process alone even when the unit file changes, and the unit's
+   `PATH` now points at `/run/current-system/sw/bin` instead of store paths,
+   so agent shells follow the new generation without a restart.
+   Verified: a rebuild that changed both `Description` and the unit `.drv`
+   kept the same `MainPID`.
+
+   Trade-off: edits to `satsuma/opencode.nix` no longer take effect on their
+   own. Apply them with `sudo systemctl restart opencode`, knowing that this
+   does end the session.
+
+2. **`oc-rebuild`** for anything that must restart the service, or for
+   rebuilds started from inside a session:
+
+   ```sh
+   sudo oc-rebuild          # queues nixos-rebuild switch in its own unit
+   journalctl -u oc-rebuild-<timestamp> -f
+   ```
+
+   It uses `systemd-run`, so the rebuild lives in
+   `system.slice/oc-rebuild-*.service` rather than the agent's cgroup and
+   cannot be killed by an opencode restart. Transient units inherit systemd's
+   minimal `PATH`, so the helper passes `PATH` and `HOME` explicitly.
+
+What does **not** work: `nohup`, `setsid`, `&`, or `disown`. systemd kills the
+whole cgroup, not just the shell process, so the rebuild still dies with the
+unit.
+
+Sessions are not lost either way — they live in the database and survive
+restarts and reboots. Only an in-flight turn is aborted.
 
 ### 7. Rollback
 
@@ -218,10 +262,11 @@ not writable until an ACL/group is added.
    safety net: the previous system is always one
    `nixos-rebuild --rollback switch` (or a boot-menu entry) away. Keep
    `/etc/nixos` committed so the config is recoverable.
-3. **Self-rebuild interrupts the session.** `nixos-rebuild switch` from inside
-   an agent session restarts `opencode.service` and kills that session
-   mid-flight. Prefer `switch-to-configuration test`, or run the switch from a
-   separate SSH session.
+3. **Self-rebuild interrupts the session — mitigated.** Resolved for normal
+   rebuilds by the restart-invariant unit, and by `oc-rebuild` for the rest.
+   See [6a](#6a-rebuilding-without-killing-the-session). Remaining edge cases:
+   a reboot (obviously), and deliberately restarting the unit to apply its own
+   config changes.
 4. **DNS name.** Resolved: the CNAME to `satsuma` exists in Technitium.
    Keep it when editing the `local.estrogenuinely.ca` zone; the wildcard cert
    covers the name.
@@ -330,6 +375,23 @@ is the root-enabled generation.
 Known consequences, accepted: the password is now root on the host; prompt
 injection equals host compromise; and `nixos-rebuild switch` run from inside a
 session restarts the service and kills that session.
+
+Revision 2026-10-31 23:27 — no self-restart:
+
+- `unitConfig.X-StopIfChanged = false`, `X-RestartIfChanged = false`.
+- Unit `PATH` is now a literal `/run/current-system/sw/bin:/run/wrappers/bin:…`
+  (`lib.mkForce`, since NixOS sets a default `PATH` for services) instead of
+  per-generation store paths, so the unit text is stable and agent shells
+  still track the current generation.
+- New `oc-rebuild` helper: `systemd-run`-wrapped `nixos-rebuild switch`, in
+  its own cgroup, with explicit `PATH`/`HOME` for the transient unit.
+
+Verified: a rebuild that changed the unit's `Description` (new
+`unit-opencode.service.drv`) left `MainPID` unchanged; an actual generation
+switch (`2j4pvl5l…`) also left it unchanged; `oc-rebuild` completed with
+exit 0, switched the system, and kept the same PID. A transient unit was
+separately confirmed to survive `systemctl restart opencode`
+(`/system.slice/detach-test.service` stayed active).
 
 Access:
 
