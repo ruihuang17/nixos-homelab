@@ -78,7 +78,7 @@
   # user. Keep both or neither.
   users.knownUsers = [ "rhuang" ];
   users.users.rhuang = {
-    uid = 1000;
+    uid = 502;
     gid = 20;
     shell = pkgs.fish;
   };
