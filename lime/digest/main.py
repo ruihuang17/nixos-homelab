@@ -28,7 +28,6 @@ from zoneinfo import ZoneInfo
 
 from chunk import (
     chunk_lines,
-    format_line,
     format_lines,
     format_ts,
     reduce_notes,
