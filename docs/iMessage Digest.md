@@ -393,20 +393,51 @@ policy, Homebrew now resolving `packages.arm64_golden_gate`. `sudo
 darwin-rebuild switch --flake ~/nixos-homelab#lime` completes and the Homebrew
 bundle adopts cleanly.
 
-Two post-upgrade gotchas:
+**Recovery sequence that worked:**
 
-- **The first boot lands on the login window, not auto-login.** macOS marks
-  `AccountInfo.FirstLogins.rhuang = 1`; `autoLoginUser` is still set and the
-  Secure Token is enabled, but a manual login is required once to finish the
-  upgrade. Until that login, `Finder`/`Dock` are not running and the LaunchAgents
-  are loaded but `job state = uninitialized` (`runs = 0`).
-- **Services can be restarted without logging in** with
-  `launchctl kickstart -k gui/1000/<label>` for
-  `fi.mau.mautrix-imessage`, `sh.brew.node_exporter`, and
-  `com.jellyfin.server`. After a kickstart, Jellyfin and node_exporter return
-  `200`, and the bridge reopens `chat.db` and resumes backfill. This is a
-  recovery step, not a substitute for the login: the agents will not come back
-  after the next reboot until the first login completes.
+1. Auto-login was wedged after the upgrade: `autoLoginUser` was still set, but
+   the login never completed, so `Installer Progress` sat at **55% of the
+   “loginwindow Boot” phase** (overall 65%) behind a full-screen shield.
+   `softwareupdate -i` was not involved any more; the OS was already 27.2.
+2. `sudo sysadminctl -autologin off` removed the wedged auto-login. The next
+   boot let `Installer Progress` reach 100% and exit; the login window appeared.
+3. The first manual login launched **Setup Assistant** (the “Liquid Glass”
+   setup), which hung. `killall "Setup Assistant"` logged the session out.
+4. Clearing `AccountInfo.FirstLogins.rhuang` (PlistBuddy) stopped Setup Assistant
+   from relaunching. The next login produced a normal desktop: `Finder`, `Dock`,
+   all three LaunchAgents, Jellyfin `200`, node_exporter `200`, and `chat.db`
+   open.
+5. `temp` (uid 501, admin, volume owner) was deleted with
+   `sudo sysadminctl -deleteUser temp`; its home is backed up at
+   `/hdd/backup/lime-pre-macos27-20261031/temp-home.tar.gz`. Only `rhuang`
+   remains a volume owner (`diskutil apfs listCryptoUsers /`).
+
+**Auto-login is currently OFF** because `sysadminctl -autologin off` removes
+`/etc/kcpassword`. Re-enable it with the volume-owner password:
+
+```sh
+read -s -p "macOS password: " PW
+sudo sysadminctl -autologin set -userName rhuang -password "$PW"
+unset PW
+sudo sysadminctl -autologin status
+```
+
+### Post-login cosmetics (2026-11-01)
+
+- **Black desktop:** the wallpaper store pointed at
+  `/System/Library/Desktop Pictures/.wallpapers/Sequoia Sunrise/Sequoia Sunrise.mov`,
+  which macOS 27 no longer ships. Point
+  `com.apple.wallpaper SystemWallpaperURL` at the existing
+  `Sonoma Horizon.heic` and restart `WallpaperAgent`, or pick a wallpaper in
+  System Settings. macOS 27 ships `.madesktop` bundles under
+  `/System/Library/Desktop Pictures`.
+- **Desktop widgets:** `chronod`, `NotificationCenter`, and the widget
+  extensions are running, and `StandardHideWidgets = 0`. If the layout is empty,
+  re-add widgets from the desktop's “Edit Widgets”; the upgrade does not restore
+  a custom layout.
+- **Stale `temp` login tile:** the account is gone (`id temp` fails,
+  `diskutil apfs listCryptoUsers /` has only `rhuang`), but the running
+  `loginwindow` cached the old user list. A logout/reboot clears the tile.
 
 The bridge's FDA grant survived the upgrade (`lsof` shows `chat.db`), and
 `/run/agenix/imessage-config` is recreated at boot. The node_exporter `thermal`
