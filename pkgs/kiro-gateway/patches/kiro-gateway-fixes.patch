@@ -1,0 +1,1543 @@
+diff --git a/.env.example b/.env.example
+index 1a57c79..183fdd4 100644
+--- a/.env.example
++++ b/.env.example
+@@ -194,6 +194,14 @@ PROXY_API_KEY="my-super-secret-password-123"
+ # Default: 300 seconds (5 minutes) - generous timeout to avoid premature disconnects.
+ # STREAMING_READ_TIMEOUT="300"
+ 
++# Keepalive interval for streaming responses to the client (in seconds).
++# Tool calls are buffered until Kiro finishes the response, so a large tool input can
++# leave the client without data for minutes and trip its idle-stream watchdog
++# (e.g. Claude Code). While the stream is silent, a keepalive is sent every N seconds:
++# an Anthropic `ping` event or an SSE comment line for OpenAI.
++# Default: 10 seconds. Set to 0 to disable.
++# STREAM_KEEPALIVE_INTERVAL="10"
++
+ # ===========================================
+ # FAKE REASONING (Extended Thinking via Tag Injection)
+ # ===========================================
+@@ -281,6 +289,22 @@ PROXY_API_KEY="my-super-secret-password-123"
+ # Default: true (ENABLED by default for better out-of-the-box experience)
+ # TRUNCATION_RECOVERY=true
+ 
++# ===========================================
++# BILLING
++# ===========================================
++
++# Expose the credits billed by Kiro as "usage.credits_used" on the OpenAI endpoint.
++# Credits are ALWAYS written to the log regardless of this setting:
++#   [Credit] req=<id> model=<model> credits=<float> calls=<n>
++# This flag only controls whether they are also added to the response payload,
++# which is a non-standard field for OpenAI clients.
++#
++# Credits are NOT dollars. Never rename this field to "cost" - downstream proxies
++# such as LiteLLM treat "cost" as a real charge and would mis-bill.
++#
++# Default: false
++# EXPOSE_CREDITS_USED=false
++
+ # ===========================================
+ # LOGGING
+ # ===========================================
+diff --git a/kiro/account_manager.py b/kiro/account_manager.py
+index ec133d9..f6b3148 100644
+--- a/kiro/account_manager.py
++++ b/kiro/account_manager.py
+@@ -64,35 +64,6 @@ from kiro.account_errors import ErrorType
+ from kiro.http_client import KiroHttpClient
+ 
+ 
+-def _is_runtime_endpoint(auth_manager: KiroAuthManager) -> bool:
+-    """
+-    Check if auth manager uses runtime endpoint that doesn't provide /ListAvailableModels.
+-    
+-    Runtime endpoint pattern: https://runtime.{region}.kiro.dev
+-    Old endpoint pattern: https://q.{region}.amazonaws.com
+-    
+-    Runtime endpoint does not provide /ListAvailableModels API (AWS limitation).
+-    
+-    Args:
+-        auth_manager: KiroAuthManager instance
+-    
+-    Returns:
+-        True if using runtime endpoint, False otherwise
+-    
+-    Examples:
+-        >>> auth_manager.api_host = "https://runtime.us-east-1.kiro.dev"
+-        >>> _is_runtime_endpoint(auth_manager)
+-        True
+-        >>> auth_manager.api_host = "https://runtime.eu-central-1.kiro.dev"
+-        >>> _is_runtime_endpoint(auth_manager)
+-        True
+-        >>> auth_manager.api_host = "https://q.us-east-1.amazonaws.com"
+-        >>> _is_runtime_endpoint(auth_manager)
+-        False
+-    """
+-    return "://runtime." in auth_manager.api_host
+-
+-
+ def _format_duration(seconds: float) -> str:
+     """
+     Format duration in human-readable format.
+@@ -497,48 +468,42 @@ class AccountManager:
+             # Get token to verify credentials
+             token = await auth_manager.get_access_token()
+             
+-            # Determine if we should fetch models or use static list
+-            if _is_runtime_endpoint(auth_manager):
+-                # New runtime endpoint does not provide /ListAvailableModels (AWS limitation)
+-                # Use static list without attempting request
+-                logger.debug(f"Account {account_id}: Using static model list for runtime.kiro.dev endpoint")
++            # Fetch the account's real model list. ListAvailableModels lives on
++            # models_host, not on the runtime host used for generation, so this
++            # works for every endpoint. Fall back to the static list on failure.
++            params = {"origin": "AI_EDITOR"}
++            if auth_manager.auth_type == AuthType.KIRO_DESKTOP and auth_manager.profile_arn:
++                params["profileArn"] = auth_manager.profile_arn
++
++            list_models_url = f"{auth_manager.models_host}/ListAvailableModels"
++
++            # Use KiroHttpClient for retry logic (3 attempts with exponential backoff)
++            http_client = KiroHttpClient(auth_manager, shared_client=None)
++
++            try:
++                response = await http_client.request_with_retry(
++                    method="GET",
++                    url=list_models_url,
++                    json_data=None,
++                    params=params,
++                    stream=False
++                )
++
++                if response.status_code == 200:
++                    data = response.json()
++                    models_list = data.get("models", [])
++                else:
++                    # Shouldn't happen (retry handles non-200), but keep for safety
++                    raise Exception(f"HTTP {response.status_code}")
++
++            except Exception as e:
++                # All retries exhausted - use fallback
++                logger.error(f"Failed to fetch models for {account_id} after retries: {e}")
++                logger.warning("Using pre-configured fallback models. Models will be refreshed on next TTL cycle when network recovers.")
+                 models_list = FALLBACK_MODELS
+-            else:
+-                # Old endpoint - attempt to fetch dynamic model list
+-                # Fetch models list with retry + fallback
+-                params = {"origin": "AI_EDITOR"}
+-                if auth_manager.auth_type == AuthType.KIRO_DESKTOP and auth_manager.profile_arn:
+-                    params["profileArn"] = auth_manager.profile_arn
+-                
+-                list_models_url = f"{auth_manager.q_host}/ListAvailableModels"
+-                
+-                # Use KiroHttpClient for retry logic (3 attempts with exponential backoff)
+-                http_client = KiroHttpClient(auth_manager, shared_client=None)
+-                
+-                try:
+-                    response = await http_client.request_with_retry(
+-                        method="GET",
+-                        url=list_models_url,
+-                        json_data=None,
+-                        params=params,
+-                        stream=False
+-                    )
+-                    
+-                    if response.status_code == 200:
+-                        data = response.json()
+-                        models_list = data.get("models", [])
+-                    else:
+-                        # Shouldn't happen (retry handles non-200), but keep for safety
+-                        raise Exception(f"HTTP {response.status_code}")
+-                
+-                except Exception as e:
+-                    # All retries exhausted - use fallback
+-                    logger.error(f"Failed to fetch models for {account_id} after retries: {e}")
+-                    logger.warning("Using pre-configured fallback models. Models will be refreshed on next TTL cycle when network recovers.")
+-                    models_list = FALLBACK_MODELS
+-                
+-                finally:
+-                    await http_client.close()
++
++            finally:
++                await http_client.close()
+             
+             # Create model cache and update
+             model_cache = ModelInfoCache()
+@@ -589,17 +554,7 @@ class AccountManager:
+         if not account or not account.auth_manager:
+             return
+         
+-        # Check if using runtime endpoint (no dynamic model list available)
+-        if _is_runtime_endpoint(account.auth_manager):
+-            # Runtime endpoint does not provide /ListAvailableModels
+-            # Use static list and update cache timestamp
+-            logger.debug(f"Account {account_id}: Skipping model refresh for runtime.kiro.dev endpoint (using static list)")
+-            await account.model_cache.update(FALLBACK_MODELS)
+-            account.models_cached_at = time.time()
+-            self._dirty = True
+-            return
+-        
+-        # Old endpoint - attempt to fetch dynamic model list
++        # Fetch the account's real model list from models_host
+         # Use KiroHttpClient for retry logic
+         http_client = KiroHttpClient(account.auth_manager, shared_client=None)
+         
+@@ -608,7 +563,7 @@ class AccountManager:
+             if account.auth_manager.auth_type == AuthType.KIRO_DESKTOP and account.auth_manager.profile_arn:
+                 params["profileArn"] = account.auth_manager.profile_arn
+             
+-            list_models_url = f"{account.auth_manager.q_host}/ListAvailableModels"
++            list_models_url = f"{account.auth_manager.models_host}/ListAvailableModels"
+             
+             response = await http_client.request_with_retry(
+                 method="GET",
+diff --git a/kiro/auth.py b/kiro/auth.py
+index 61ffe02..41698f7 100644
+--- a/kiro/auth.py
++++ b/kiro/auth.py
+@@ -46,6 +46,7 @@ from kiro.config import (
+     get_kiro_refresh_url,
+     get_kiro_api_host,
+     get_kiro_q_host,
++    get_kiro_models_host,
+     get_aws_sso_oidc_url,
+ )
+ from kiro.utils import get_machine_fingerprint
+@@ -64,6 +65,17 @@ SQLITE_REGISTRATION_KEYS = [
+     "codewhisperer:odic:device-registration",
+ ]
+ 
++# Profile ARN region: arn:aws:codewhisperer:REGION:account:profile/id
++_API_REGION_FROM_ARN = re.compile(r"^[a-z]+-[a-z]+-\d+$")
++
++
++def _api_region_from_profile_arn(arn: str) -> Optional[str]:
++    """Return the API region encoded in a CodeWhisperer profile ARN, if valid."""
++    parts = arn.split(":")
++    if len(parts) >= 4 and parts[3] and _API_REGION_FROM_ARN.match(parts[3]):
++        return parts[3]
++    return None
++
+ 
+ class AuthType(Enum):
+     """
+@@ -98,6 +110,7 @@ class KiroAuthManager:
+         region: AWS region
+         api_host: API host for the current region
+         q_host: Q API host for the current region
++        models_host: ListAvailableModels host for the current region
+         fingerprint: Unique machine fingerprint
+         auth_type: Type of authentication (KIRO_DESKTOP or AWS_SSO_OIDC)
+     
+@@ -140,7 +153,7 @@ class KiroAuthManager:
+             sqlite_db: Path to kiro-cli SQLite database (optional)
+                        Default location: ~/.local/share/kiro-cli/data.sqlite3
+             api_region: Q API region override (optional, per-account)
+-                       If not specified, uses auto-detection or falls back to region
++                       If not specified, uses a verified profile ARN or falls back to region
+         """
+         self._refresh_token = refresh_token
+         self._profile_arn = profile_arn
+@@ -188,9 +201,11 @@ class KiroAuthManager:
+         # Determine final API region with priority hierarchy:
+         # 1. Explicit api_region parameter (per-account) - HIGHEST
+         # 2. KIRO_API_REGION env var (global override)
+-        # 3. Auto-detected from credentials (SQLite ARN or JSON region)
+-        # 4. SSO region (fallback)
+-        # 5. Default region parameter (us-east-1)
++        # 3. Auto-detected from a verified profile ARN
++        # 4. Default region parameter (us-east-1)
++        #
++        # JSON/SQLite `region` is the auth/SSO region used for OIDC refresh.
++        # It is not a verified API region and must not drive api_host (issue #81).
+         api_region_override = os.getenv("KIRO_API_REGION")
+         
+         if api_region:
+@@ -202,13 +217,9 @@ class KiroAuthManager:
+             final_api_region = api_region_override
+             logger.info(f"API region: {final_api_region} (from KIRO_API_REGION env var)")
+         elif self._detected_api_region:
+-            # Auto-detected from credentials (SQLite profile ARN or JSON region field)
++            # Auto-detected from a verified profile ARN
+             final_api_region = self._detected_api_region
+             logger.info(f"API region: {final_api_region} (auto-detected from credentials)")
+-        elif self._sso_region:
+-            # Fallback to SSO region
+-            final_api_region = self._sso_region
+-            logger.info(f"API region: {final_api_region} (using SSO region as fallback)")
+         else:
+             # Final fallback to default region
+             final_api_region = region
+@@ -221,14 +232,16 @@ class KiroAuthManager:
+         self._refresh_url = get_kiro_refresh_url(sso_region_for_oidc)
+         self._api_host = get_kiro_api_host(final_api_region)
+         self._q_host = get_kiro_q_host(final_api_region)
+-        
++        self._models_host = get_kiro_models_host(final_api_region)
++
+         # Log initialized endpoints for diagnostics (helps with DNS issues like #58, #132, #133)
+         logger.info(
+             f"Auth manager initialized: "
+             f"sso_region={sso_region_for_oidc}, "
+             f"api_region={final_api_region}, "
+             f"api_host={self._api_host}, "
+-            f"q_host={self._q_host}"
++            f"q_host={self._q_host}, "
++            f"models_host={self._models_host}"
+         )
+     
+     def _detect_auth_type(self) -> None:
+@@ -355,15 +368,12 @@ class KiroAuthManager:
+                             self._profile_arn = arn
+                             logger.debug(f"Profile ARN from state table: {self._profile_arn}")
+                         # ARN format: arn:aws:codewhisperer:REGION:account:profile/id
+-                        # Extract region from 4th component (index 3)
+-                        parts = arn.split(":")
+-                        if len(parts) >= 4 and parts[3]:
+-                            # Validate region format (e.g., us-east-1, eu-central-1)
+-                            if re.match(r'^[a-z]+-[a-z]+-\d+$', parts[3]):
+-                                self._detected_api_region = parts[3]
+-                                logger.info(f"API region auto-detected from profile ARN: {parts[3]}")
+-                            else:
+-                                logger.debug(f"Invalid region format in ARN: {parts[3]}")
++                        detected = _api_region_from_profile_arn(arn)
++                        if detected:
++                            self._detected_api_region = detected
++                            logger.info(f"API region auto-detected from profile ARN: {detected}")
++                        else:
++                            logger.debug(f"Invalid region format in ARN: {arn}")
+             except sqlite3.Error as e:
+                 logger.debug(f"Failed to read state table from SQLite: {e}")
+             except json.JSONDecodeError as e:
+@@ -420,12 +430,15 @@ class KiroAuthManager:
+                 self._access_token = data['accessToken']
+             if 'profileArn' in data:
+                 self._profile_arn = data['profileArn']
++                detected = _api_region_from_profile_arn(data['profileArn'])
++                if detected:
++                    self._detected_api_region = detected
++                    logger.info(f"API region auto-detected from profile ARN: {detected}")
+             if 'region' in data:
+-                # Store as SSO region for OIDC token refresh
++                # JSON `region` is the auth/SSO region for OIDC refresh, not the API host
++                # (issue #81). API region comes from profileArn, KIRO_API_REGION, or default.
+                 self._sso_region = data['region']
+-                # Also use as detected API region (can be overridden by KIRO_API_REGION env var)
+-                self._detected_api_region = data['region']
+-                logger.debug(f"Region from JSON credentials: {data['region']}")
++                logger.debug(f"SSO region from JSON credentials: {data['region']}")
+             
+             # Load clientIdHash and device registration for Enterprise Kiro IDE
+             if 'clientIdHash' in data:
+@@ -965,7 +978,12 @@ class KiroAuthManager:
+     def q_host(self) -> str:
+         """Q API host for the current region."""
+         return self._q_host
+-    
++
++    @property
++    def models_host(self) -> str:
++        """ListAvailableModels host for the current region."""
++        return self._models_host
++
+     @property
+     def fingerprint(self) -> str:
+         """Unique machine fingerprint."""
+diff --git a/kiro/config.py b/kiro/config.py
+index e0f3a52..31db219 100644
+--- a/kiro/config.py
++++ b/kiro/config.py
+@@ -181,9 +181,18 @@ AWS_SSO_OIDC_URL_TEMPLATE: str = "https://oidc.{region}.amazonaws.com/token"
+ # Fixed in issue #58 - codewhisperer.{region}.amazonaws.com doesn't exist for non-us-east-1 regions
+ KIRO_API_HOST_TEMPLATE: str = "https://runtime.{region}.kiro.dev"
+ 
+-# Host for Q API (ListAvailableModels)
++# Host for Q API (MCP tools)
+ KIRO_Q_HOST_TEMPLATE: str = "https://runtime.{region}.kiro.dev"
+ 
++# Host for ListAvailableModels
++# runtime.{region}.kiro.dev does not implement ListAvailableModels (it answers
++# UnknownOperationException), while q.{region}.amazonaws.com still serves it and
++# returns the models the account is actually entitled to, including models
++# enabled or disabled by organization admins. Fetching from here keeps
++# /v1/models in sync with what generateAssistantResponse accepts.
++# If the request fails, FALLBACK_MODELS is used instead.
++KIRO_MODELS_HOST_TEMPLATE: str = "https://q.{region}.amazonaws.com"
++
+ # ==================================================================================================
+ # Token Settings
+ # ==================================================================================================
+@@ -332,6 +341,18 @@ TOOL_DESCRIPTION_MAX_LENGTH: int = int(os.getenv("TOOL_DESCRIPTION_MAX_LENGTH",
+ # Default: true (enabled)
+ TRUNCATION_RECOVERY: bool = os.getenv("TRUNCATION_RECOVERY", "true").lower() in ("true", "1", "yes")
+ 
++# ==================================================================================================
++# Billing Settings
++# ==================================================================================================
++
++# Expose the credits billed by Kiro as `usage.credits_used` on the OpenAI endpoint.
++# Credits are always written to the log as `[Credit] req=... credits=... calls=...`;
++# this flag only controls whether they are also added to the response payload.
++# Off by default because it adds a non-standard field to the OpenAI response contract.
++# Note: credits are NOT dollars - do not rename this field to `cost`, downstream
++# proxies (e.g. LiteLLM) treat `cost` as a real charge and would mis-bill.
++EXPOSE_CREDITS_USED: bool = os.getenv("EXPOSE_CREDITS_USED", "false").lower() in ("true", "1", "yes")
++
+ # ==================================================================================================
+ # Logging Settings
+ # ==================================================================================================
+@@ -365,6 +386,15 @@ STREAMING_READ_TIMEOUT: float = float(os.getenv("STREAMING_READ_TIMEOUT", "300")
+ # Default: 3 attempts
+ FIRST_TOKEN_MAX_RETRIES: int = int(os.getenv("FIRST_TOKEN_MAX_RETRIES", "3"))
+ 
++# Keepalive interval for streaming responses to the client (in seconds).
++# Tool calls are buffered until Kiro finishes the whole response, so a large tool input
++# (e.g. writing a big file) can leave the client without a single byte for minutes.
++# Clients with an idle-stream watchdog (e.g. Claude Code) then abort the request.
++# While the stream is silent for this long, a keepalive is sent: an Anthropic `ping`
++# event or an SSE comment line for OpenAI. Clients ignore both.
++# Default: 10 seconds. Set to 0 to disable.
++STREAM_KEEPALIVE_INTERVAL: float = float(os.getenv("STREAM_KEEPALIVE_INTERVAL", "10"))
++
+ # ==================================================================================================
+ # Debug Settings
+ # ==================================================================================================
+@@ -579,3 +609,8 @@ def get_kiro_q_host(region: str) -> str:
+     """Return Q API host for the specified region."""
+     return KIRO_Q_HOST_TEMPLATE.format(region=region)
+ 
++
++def get_kiro_models_host(region: str) -> str:
++    """Return ListAvailableModels host for the specified region."""
++    return KIRO_MODELS_HOST_TEMPLATE.format(region=region)
++
+diff --git a/kiro/converters_anthropic.py b/kiro/converters_anthropic.py
+index ea297dc..495294d 100644
+--- a/kiro/converters_anthropic.py
++++ b/kiro/converters_anthropic.py
+@@ -113,6 +113,50 @@ def extract_system_prompt(system: Any) -> str:
+     return str(system)
+ 
+ 
++def extract_inline_system_messages(messages: List[AnthropicMessage]) -> str:
++    """
++    Hoists ``role="system"`` turns out of the conversation history.
++
++    The Anthropic specification keeps the system prompt in a dedicated
++    ``system`` field, but Claude Code also injects context as ``role="system"``
++    entries inside ``messages``. The OpenAI adapter has always collapsed such
++    turns into the system prompt (see ``convert_openai_messages_to_unified``),
++    so the Anthropic adapter mirrors that behavior.
++
++    Args:
++        messages: List of Anthropic messages
++
++    Returns:
++        Inline system text joined in conversation order. Empty string when the
++        request carries no inline system turn.
++    """
++    parts = []
++
++    for msg in messages:
++        if msg.role != "system":
++            continue
++
++        if isinstance(msg.content, list):
++            # Join blocks with a newline like extract_system_prompt() does;
++            # blind concatenation would glue adjacent words together.
++            blocks = []
++            for block in msg.content:
++                if isinstance(block, dict):
++                    if block.get("type") == "text":
++                        blocks.append(block.get("text", ""))
++                elif getattr(block, "type", None) == "text":
++                    blocks.append(getattr(block, "text", ""))
++            text = "\n".join(blocks)
++        else:
++            text = convert_anthropic_content_to_text(msg.content)
++
++        text = text.strip()
++        if text:
++            parts.append(text)
++
++    return "\n\n".join(parts)
++
++
+ def extract_tool_results_from_anthropic_content(content: Any) -> List[Dict[str, Any]]:
+     """
+     Extracts tool results from Anthropic message content.
+@@ -265,6 +309,7 @@ def convert_anthropic_messages(
+     - Text content (string or list of text blocks)
+     - Tool use blocks (assistant messages)
+     - Tool result blocks (user messages)
++    - Inline system turns (skipped here, hoisted by extract_inline_system_messages)
+ 
+     Args:
+         messages: List of Anthropic messages
+@@ -282,6 +327,12 @@ def convert_anthropic_messages(
+         role = msg.role
+         content = msg.content
+ 
++        # Inline system turns belong to the system prompt, not to the
++        # conversation history. Sending them as history would let Kiro treat
++        # instructions as user content and would also break turn ordering.
++        if role == "system":
++            continue
++
+         # Extract text content
+         text_content = convert_anthropic_content_to_text(content)
+ 
+@@ -448,7 +499,7 @@ def anthropic_to_kiro(
+         Payload dictionary for POST request to Kiro API
+ 
+     Raises:
+-        ValueError: If there are no messages to send
++        ValueError: If there are no user or assistant messages to send
+     """
+     # Convert messages to unified format
+     unified_messages = convert_anthropic_messages(request.messages)
+@@ -460,6 +511,25 @@ def anthropic_to_kiro(
+     # It can be a string or list of content blocks (for prompt caching)
+     system_prompt = extract_system_prompt(request.system)
+ 
++    # Claude Code also injects context as role="system" turns inside messages.
++    # Fold them into the system prompt, mirroring the OpenAI adapter, instead
++    # of letting them leak into Kiro's conversation history as user content.
++    inline_system_prompt = extract_inline_system_messages(request.messages)
++    if inline_system_prompt:
++        system_prompt = (
++            f"{system_prompt}\n\n{inline_system_prompt}"
++            if system_prompt
++            else inline_system_prompt
++        )
++
++    # Inline system turns were hoisted into the system prompt above, so a
++    # request made only of system turns has nothing left to send to Kiro.
++    if not unified_messages:
++        raise ValueError(
++            "No user or assistant messages to send: the request contained only "
++            "system turns"
++        )
++
+     # Get model ID for Kiro API (normalizes + resolves hidden models)
+     # Pass-through principle: we normalize and send to Kiro, Kiro decides if valid
+     model_id = get_model_id_for_kiro(request.model, HIDDEN_MODELS)
+diff --git a/kiro/converters_core.py b/kiro/converters_core.py
+index bd89020..966f7b3 100644
+--- a/kiro/converters_core.py
++++ b/kiro/converters_core.py
+@@ -436,18 +436,110 @@ def inject_thinking_tags(content: str, thinking_config: ThinkingConfig) -> str:
+ # JSON Schema Sanitization
+ # ==================================================================================================
+ 
+-def sanitize_json_schema(schema: Optional[Dict[str, Any]]) -> Dict[str, Any]:
++def _resolve_top_level_composition(schema: Dict[str, Any]) -> Dict[str, Any]:
++    """
++    Resolves top-level oneOf/allOf/anyOf that Bedrock/Kiro API rejects.
++    
++    Bedrock returns TOOL_SCHEMA_INVALID if the top-level input_schema contains
++    oneOf, allOf, or anyOf. This function resolves them:
++    - anyOf/oneOf: pick the first object-type variant (or first variant if none is object)
++    - allOf: merge all variants into a single object schema
++    
++    Only applies to the top level — nested composition keywords are left intact
++    since Bedrock only rejects them at the root of input_schema.
++    
++    Args:
++        schema: Top-level JSON Schema that may contain composition keywords
++    
++    Returns:
++        Resolved schema without top-level composition keywords
++    """
++    composition_keywords = ("oneOf", "allOf", "anyOf")
++    
++    # Check if any composition keyword is present at top level
++    found_keyword = None
++    for kw in composition_keywords:
++        if kw in schema:
++            found_keyword = kw
++            break
++    
++    if not found_keyword:
++        return schema
++    
++    variants = schema[found_keyword]
++    if not isinstance(variants, list) or not variants:
++        # Malformed — strip the keyword and return what's left
++        resolved = {k: v for k, v in schema.items() if k not in composition_keywords}
++        return resolved if resolved else {"type": "object"}
++    
++    if found_keyword == "allOf":
++        # Merge all variants into one object schema
++        merged: Dict[str, Any] = {}
++        merged_properties: Dict[str, Any] = {}
++        merged_required: List[str] = []
++        
++        for variant in variants:
++            if not isinstance(variant, dict):
++                continue
++            for k, v in variant.items():
++                if k == "properties" and isinstance(v, dict):
++                    merged_properties.update(v)
++                elif k == "required" and isinstance(v, list):
++                    merged_required.extend(v)
++                else:
++                    merged[k] = v
++        
++        if merged_properties:
++            merged["properties"] = merged_properties
++        if merged_required:
++            merged["required"] = list(dict.fromkeys(merged_required))
++        
++        # Ensure type is object
++        if "type" not in merged:
++            merged["type"] = "object"
++        
++        # Preserve any top-level fields that aren't the composition keyword
++        for k, v in schema.items():
++            if k not in composition_keywords and k not in merged:
++                merged[k] = v
++        
++        return merged
++    else:
++        # oneOf / anyOf — pick the best variant (prefer object type)
++        best = variants[0] if isinstance(variants[0], dict) else {}
++        for variant in variants:
++            if isinstance(variant, dict) and variant.get("type") == "object":
++                best = variant
++                break
++        
++        # Preserve any top-level fields that aren't the composition keyword
++        resolved = dict(best)
++        for k, v in schema.items():
++            if k not in composition_keywords and k not in resolved:
++                resolved[k] = v
++        
++        return resolved
++
++
++def sanitize_json_schema(
++    schema: Optional[Dict[str, Any]],
++    _top_level: bool = True,
++) -> Dict[str, Any]:
+     """
+     Sanitizes JSON Schema from fields that Kiro API doesn't accept.
+     
+     Kiro API returns 400 "Improperly formed request" error if:
+-    - required is an empty array []
++    - required is not a non-empty array
+     - additionalProperties is present in schema
++    - oneOf, allOf, or anyOf appears at the top level of input_schema
+     
+     This function recursively processes the schema and removes problematic fields.
++    At the top level, composition keywords (oneOf/allOf/anyOf) are resolved into
++    a flat schema since Bedrock rejects them at the root of tool input_schema.
+     
+     Args:
+         schema: JSON Schema to sanitize
++        _top_level: Internal flag — True only for the root call
+     
+     Returns:
+         Sanitized copy of schema
+@@ -455,12 +547,18 @@ def sanitize_json_schema(schema: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+     if not schema:
+         return {}
+     
++    # Resolve top-level composition keywords (oneOf/allOf/anyOf)
++    if _top_level:
++        schema = _resolve_top_level_composition(schema)
++    
+     result = {}
+     
+     for key, value in schema.items():
+-        # Skip empty required arrays
+-        if key == "required" and isinstance(value, list) and len(value) == 0:
+-            continue
++        # Skip invalid or empty required values. Bedrock requires an array
++        # when this field is present, and Kiro rejects empty arrays.
++        if key == "required":
++            if not isinstance(value, list) or len(value) == 0:
++                continue
+         
+         # Skip additionalProperties - Kiro API doesn't support it
+         if key == "additionalProperties":
+@@ -469,15 +567,16 @@ def sanitize_json_schema(schema: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+         # Recursively process nested objects
+         if key == "properties" and isinstance(value, dict):
+             result[key] = {
+-                prop_name: sanitize_json_schema(prop_value) if isinstance(prop_value, dict) else prop_value
++                prop_name: sanitize_json_schema(prop_value, _top_level=False)
++                if isinstance(prop_value, dict) else prop_value
+                 for prop_name, prop_value in value.items()
+             }
+         elif isinstance(value, dict):
+-            result[key] = sanitize_json_schema(value)
++            result[key] = sanitize_json_schema(value, _top_level=False)
+         elif isinstance(value, list):
+             # Process lists (e.g., anyOf, oneOf)
+             result[key] = [
+-                sanitize_json_schema(item) if isinstance(item, dict) else item
++                sanitize_json_schema(item, _top_level=False) if isinstance(item, dict) else item
+                 for item in value
+             ]
+         else:
+@@ -557,46 +656,45 @@ def process_tools_with_long_descriptions(
+     return processed_tools if processed_tools else None, tool_documentation
+ 
+ 
++import hashlib
++
++# Global mapping for tool name truncation (short_name -> original_name)
++_tool_name_map: Dict[str, str] = {}
++
++
++def _shorten_tool_name(name: str) -> str:
++    """Shorten a tool name to fit the 64-char Kiro API limit using a hash suffix."""
++    if len(name) <= 64:
++        return name
++    # Keep first 56 chars + underscore + 7-char hash for uniqueness
++    h = hashlib.md5(name.encode()).hexdigest()[:7]
++    return name[:56] + "_" + h
++
++
++def get_original_tool_name(short_name: str) -> str:
++    """Reverse-map a shortened tool name back to the original."""
++    return _tool_name_map.get(short_name, short_name)
++
++
+ def validate_tool_names(tools: Optional[List[UnifiedTool]]) -> None:
+     """
+-    Validates tool names against Kiro API 64-character limit.
++    Truncates tool names that exceed the Kiro API 64-character limit.
+     
+-    Logs WARNING for each problematic tool and raises ValueError
+-    with complete list of violations.
++    Instead of rejecting requests, long names are shortened with a hash suffix
++    and a reverse mapping is stored so responses can restore original names.
+     
+     Args:
+-        tools: List of tools to validate
+-    
+-    Raises:
+-        ValueError: If any tool name exceeds 64 characters
+-    
+-    Example:
+-        >>> validate_tool_names([UnifiedTool(name="short_name", description="test")])
+-        # No error
+-        >>> validate_tool_names([UnifiedTool(name="a" * 70, description="test")])
+-        # Raises ValueError with detailed message
++        tools: List of tools to validate/fix (mutated in place)
+     """
+     if not tools:
+         return
+     
+-    problematic_tools = []
+     for tool in tools:
+         if len(tool.name) > 64:
+-            problematic_tools.append((tool.name, len(tool.name)))
+-    
+-    if problematic_tools:
+-        # Build detailed error message for client (no logging here - routes will log)
+-        tool_list = "\n".join([
+-            f"  - '{name}' ({length} characters)"
+-            for name, length in problematic_tools
+-        ])
+-        
+-        raise ValueError(
+-            f"Tool name(s) exceed Kiro API limit of 64 characters:\n"
+-            f"{tool_list}\n\n"
+-            f"Solution: Use shorter tool names (max 64 characters).\n"
+-            f"Example: 'get_user_data' instead of 'get_authenticated_user_profile_data_with_extended_information_about_it'"
+-        )
++            short = _shorten_tool_name(tool.name)
++            _tool_name_map[short] = tool.name
++            logger.info(f"Truncated tool name '{tool.name}' -> '{short}'")
++            tool.name = short
+ 
+ 
+ def convert_tools_to_kiro_format(tools: Optional[List[UnifiedTool]]) -> List[Dict[str, Any]]:
+@@ -1089,6 +1187,7 @@ def merge_adjacent_messages(messages: List[UnifiedMessage]) -> List[UnifiedMessa
+     merge_counts = {"user": 0, "assistant": 0}
+     total_tool_calls_merged = 0
+     total_tool_results_merged = 0
++    total_images_merged = 0
+     
+     for msg in messages:
+         if not merged:
+@@ -1123,6 +1222,13 @@ def merge_adjacent_messages(messages: List[UnifiedMessage]) -> List[UnifiedMessa
+                 last.tool_results = list(last.tool_results) + list(msg.tool_results)
+                 total_tool_results_merged += len(msg.tool_results)
+             
++            # Merge images for user messages
++            if msg.role == "user" and msg.images:
++                if last.images is None:
++                    last.images = []
++                last.images = list(last.images) + list(msg.images)
++                total_images_merged += len(msg.images)
++
+             # Count merges by role
+             if msg.role in merge_counts:
+                 merge_counts[msg.role] += 1
+@@ -1143,6 +1249,8 @@ def merge_adjacent_messages(messages: List[UnifiedMessage]) -> List[UnifiedMessa
+             extras.append(f"{total_tool_calls_merged} tool_calls")
+         if total_tool_results_merged > 0:
+             extras.append(f"{total_tool_results_merged} tool_results")
++        if total_images_merged > 0:
++            extras.append(f"{total_images_merged} images")
+         
+         if extras:
+             logger.debug(f"Merged {total_merges} adjacent messages ({merge_summary}), including {', '.join(extras)}")
+@@ -1594,4 +1702,4 @@ def build_kiro_payload(
+                 f"({stats.original_bytes} -> {stats.final_bytes} bytes)"
+             )
+ 
+-    return KiroPayloadResult(payload=payload, tool_documentation=tool_documentation)
+\ No newline at end of file
++    return KiroPayloadResult(payload=payload, tool_documentation=tool_documentation)
+diff --git a/kiro/kiro_errors.py b/kiro/kiro_errors.py
+index 09338b8..193766e 100644
+--- a/kiro/kiro_errors.py
++++ b/kiro/kiro_errors.py
+@@ -110,8 +110,17 @@ def enhance_kiro_error(error_json: Dict[str, Any]) -> KiroErrorInfo:
+         user_message = "Monthly request limit exceeded. Account has reached its monthly quota."
+     
+     elif reason == "INVALID_MODEL_ID":
+-        # Invalid model name or subscription tier insufficient
+-        user_message = "Invalid model ID or insufficient subscription level to use it."
++        # Kiro uses this reason for two different causes: an unknown model name
++        # and a model its organization admins have disabled. The upstream
++        # message names the actual cause ("Your current model is made
++        # unavailable by the admins in your organization..."), which the
++        # generic text below hides, so keep the original when it says
++        # something we do not.
++        generic_message = "Invalid model ID or insufficient subscription level to use it."
++        if original_message and original_message != "Unknown error":
++            user_message = f"{generic_message} Upstream: {original_message}"
++        else:
++            user_message = generic_message
+ 
+     elif original_message == "Improperly formed request." and reason in (None, "UNKNOWN", "null"):
+         # Generic 400 error
+diff --git a/kiro/mcp_tools.py b/kiro/mcp_tools.py
+index c908ec5..0ea294d 100644
+--- a/kiro/mcp_tools.py
++++ b/kiro/mcp_tools.py
+@@ -40,6 +40,7 @@ import httpx
+ from fastapi.responses import JSONResponse, StreamingResponse
+ from loguru import logger
+ 
++from kiro.config import PROFILE_ARN
+ from kiro.tokenizer import count_message_tokens, count_tokens
+ 
+ # Import debug_logger
+@@ -97,6 +98,7 @@ async def call_kiro_mcp_api(
+             "id": "web_search_tooluse_{22random}_{timestamp}_{8random}",
+             "jsonrpc": "2.0",
+             "method": "tools/call",
++            "profileArn": "arn:aws:codewhisperer:...:profile/...",
+             "params": {
+                 "name": "web_search",
+                 "arguments": {"query": "..."}
+@@ -118,6 +120,14 @@ async def call_kiro_mcp_api(
+     
+     CRITICAL: result.content[0].text is a JSON STRING, not a dict!
+     """
++    profile_arn = auth_manager.profile_arn or PROFILE_ARN
++    if not profile_arn:
++        logger.error(
++            "MCP web search requires a profile ARN. Configure PROFILE_ARN or use credentials "
++            "that include profile_arn."
++        )
++        return None, None
++
+     # Generate IDs
+     random_22 = generate_random_id(22)
+     timestamp = int(time.time() * 1000)
+@@ -130,6 +140,7 @@ async def call_kiro_mcp_api(
+         "id": request_id,
+         "jsonrpc": "2.0",
+         "method": "tools/call",
++        "profileArn": profile_arn,
+         "params": {
+             "name": "web_search",
+             "arguments": {"query": query}
+diff --git a/kiro/models_anthropic.py b/kiro/models_anthropic.py
+index c63d60b..e41deaa 100644
+--- a/kiro/models_anthropic.py
++++ b/kiro/models_anthropic.py
+@@ -182,12 +182,19 @@ class AnthropicMessage(BaseModel):
+     """
+     Message in Anthropic format.
+ 
++    ``system`` is accepted inside ``messages`` even though the Anthropic
++    specification only allows ``user`` and ``assistant`` there. Claude Code
++    injects context with ``role="system"`` turns, and the OpenAI surface has
++    always tolerated them, so the two surfaces must behave alike. Such turns
++    are hoisted into the system prompt by the converter instead of being sent
++    to Kiro as conversation history.
++
+     Attributes:
+-        role: Message role (user or assistant)
++        role: Message role (user, assistant, or system)
+         content: Message content (string or list of content blocks)
+     """
+ 
+-    role: Literal["user", "assistant"]
++    role: Literal["user", "assistant", "system"]
+     content: Union[str, List[ContentBlock]]
+ 
+     model_config = {"extra": "allow"}
+@@ -568,3 +575,10 @@ class AnthropicErrorResponse(BaseModel):
+ 
+     type: Literal["error"] = "error"
+     error: AnthropicErrorDetail
++
++
++# Rebuild models that use forward references in Union types.
++# ToolResultContentBlock.content references "ToolReferenceContentBlock" as a string —
++# Pydantic v2 needs an explicit rebuild to resolve it after all classes are defined.
++ToolResultContentBlock.model_rebuild()
++AnthropicMessage.model_rebuild()
+diff --git a/kiro/parsers.py b/kiro/parsers.py
+index 9bd7f43..52a877a 100644
+--- a/kiro/parsers.py
++++ b/kiro/parsers.py
+@@ -220,7 +220,8 @@ class AwsEventStreamParser:
+     - tool_start: Start of tool call (name, toolUseId)
+     - tool_input: Continuation of input for tool call
+     - tool_stop: End of tool call
+-    - usage: Credit consumption information
++    - usage: Cache token usage (dict, sent by some upstream versions)
++    - metering: Credits billed for the request (float, MeteringEvent)
+     - context_usage: Context usage percentage
+     
+     Attributes:
+@@ -245,6 +246,7 @@ class AwsEventStreamParser:
+         ('{"stop":', 'tool_stop'),
+         ('{"followupPrompt":', 'followup'),
+         ('{"usage":', 'usage'),
++        ('{"unit":', 'metering'),
+         ('{"contextUsagePercentage":', 'context_usage'),
+     ]
+     
+@@ -326,11 +328,38 @@ class AwsEventStreamParser:
+             return self._process_tool_stop_event(data)
+         elif event_type == 'usage':
+             return {"type": "usage", "data": data.get('usage', 0)}
++        elif event_type == 'metering':
++            return self._process_metering_event(data)
+         elif event_type == 'context_usage':
+             return {"type": "context_usage", "data": data.get('contextUsagePercentage', 0)}
+         
+         return None
+     
++    def _process_metering_event(self, data: dict) -> Optional[Dict[str, Any]]:
++        """
++        Processes upstream billing event.
++
++        Wire format: {"unit":"credit","unitPlural":"credits","usage":<float>}
++        (the `MeteringEvent` of the AWS CodeWhisperer streaming client).
++
++        Note the pattern matches on `{"unit":` and the unit value is validated
++        here instead: matching on `{"unit":"credit"` would silently break on a
++        single extra space in the upstream JSON.
++        """
++        # Only 'credit' is known. A different unit means upstream changed how it
++        # bills, so warn instead of silently dropping part of the charge.
++        unit = data.get('unit')
++        if unit != 'credit':
++            logger.warning(f"Unknown metering unit from upstream: {unit!r}, event ignored")
++            return None
++
++        usage = data.get('usage')
++        if not isinstance(usage, (int, float)) or isinstance(usage, bool):
++            logger.warning(f"Metering event with non-numeric usage: {usage!r}, event ignored")
++            return None
++
++        return {"type": "metering", "data": float(usage)}
++
+     def _process_content_event(self, data: dict) -> Optional[Dict[str, Any]]:
+         """Processes content event."""
+         content = data.get('content', '')
+@@ -349,49 +378,42 @@ class AwsEventStreamParser:
+     
+     def _process_tool_start_event(self, data: dict) -> Optional[Dict[str, Any]]:
+         """Processes tool call start."""
+-        # Finalize previous tool call if exists
+         if self.current_tool_call:
+             self._finalize_tool_call()
+-        
+-        # input can be string or object
++
+         input_data = data.get('input', '')
+-        if isinstance(input_data, dict):
+-            if input_data:
+-                # Non-empty dict: serialize it
+-                input_str = json.dumps(input_data)
+-            else:
+-                # Empty dict {}: fragments will follow, use empty string
+-                input_str = ''
+-        else:
+-            input_str = str(input_data) if input_data else ''
+-        
++
+         self.current_tool_call = {
+             "id": data.get('toolUseId', generate_tool_call_id()),
+             "type": "function",
+             "function": {
+                 "name": data.get('name', ''),
+-                "arguments": input_str
+-            }
++                "arguments": ''
++            },
++            "_args_dict": input_data if isinstance(input_data, dict) else None
+         }
+-        
++        # If input was a non-dict string, seed the string buffer
++        if not isinstance(input_data, dict):
++            self.current_tool_call['function']['arguments'] = str(input_data) if input_data else ''
++
+         if data.get('stop'):
+             self._finalize_tool_call()
+-        
++
+         return None
+-    
++
+     def _process_tool_input_event(self, data: dict) -> Optional[Dict[str, Any]]:
+         """Processes input continuation for tool call."""
+-        if self.current_tool_call:
+-            # input can be string or object
+-            input_data = data.get('input', '')
+-            if isinstance(input_data, dict):
+-                if input_data:
+-                    input_str = json.dumps(input_data)
+-                else:
+-                    input_str = ''
+-            else:
+-                input_str = str(input_data) if input_data else ''
+-            self.current_tool_call['function']['arguments'] += input_str
++        if not self.current_tool_call:
++            return None
++        input_data = data.get('input', '')
++        if isinstance(input_data, dict) and input_data:
++            if self.current_tool_call['_args_dict'] is None:
++                self.current_tool_call['_args_dict'] = {}
++            self.current_tool_call['_args_dict'].update(input_data)
++        else:
++            input_str = str(input_data) if input_data else ''
++            if input_str:
++                self.current_tool_call['function']['arguments'] += input_str
+         return None
+     
+     def _process_tool_stop_event(self, data: dict) -> Optional[Dict[str, Any]]:
+@@ -404,7 +426,12 @@ class AwsEventStreamParser:
+         """Finalizes current tool call and adds to list."""
+         if not self.current_tool_call:
+             return
+-        
++
++        # Remove internal accumulator — serialize if populated
++        args_dict = self.current_tool_call.pop('_args_dict', None)
++        if args_dict:
++            self.current_tool_call['function']['arguments'] = json.dumps(args_dict)
++
+         # Try to parse and normalize arguments as JSON
+         args = self.current_tool_call['function']['arguments']
+         tool_name = self.current_tool_call['function'].get('name', 'unknown')
+diff --git a/kiro/routes_openai.py b/kiro/routes_openai.py
+index 262cb0e..c8c419b 100644
+--- a/kiro/routes_openai.py
++++ b/kiro/routes_openai.py
+@@ -86,6 +86,32 @@ async def verify_api_key(auth_header: str = Security(api_key_header)) -> bool:
+     return True
+ 
+ 
++def build_sse_error_chunk(exc: Exception) -> str:
++    """
++    Build an SSE data chunk describing a streaming failure.
++    
++    Once StreamingResponse has sent its headers, the HTTP status code can no
++    longer be changed: re-raising makes Starlette abort with "Caught handled
++    exception, but response already started" and the client receives a stream
++    with no error information at all. Reporting the error in-band keeps the
++    reason visible to the client (same approach as /v1/messages).
++    
++    Args:
++        exc: Exception raised while streaming. HTTPException status_code and
++             detail are preserved, any other exception is reported as 500.
++    
++    Returns:
++        SSE chunk in OpenAI error format, ready to be yielded
++    """
++    return "data: " + json.dumps({
++        "error": {
++            "message": str(getattr(exc, "detail", None) or exc),
++            "type": "kiro_api_error",
++            "code": getattr(exc, "status_code", 500),
++        }
++    }) + "\n\n"
++
++
+ # --- Router ---
+ router = APIRouter()
+ 
+@@ -397,11 +423,13 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
+                                 logger.debug("Client disconnected during streaming (GeneratorExit in routes)")
+                             except Exception as e:
+                                 streaming_error = e
++                                # Response headers are already sent: report the error
++                                # in-band instead of raising (see build_sse_error_chunk)
+                                 try:
++                                    yield build_sse_error_chunk(e)
+                                     yield "data: [DONE]\n\n"
+                                 except Exception:
+-                                    pass
+-                                raise
++                                    pass  # Client already disconnected
+                             finally:
+                                 await http_client.close()
+                                 if streaming_error:
+@@ -694,13 +722,13 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
+                     logger.debug("Client disconnected during streaming (GeneratorExit in routes)")
+                 except Exception as e:
+                     streaming_error = e
+-                    # Try to send [DONE] to client before finishing
+-                    # so client doesn't "hang" waiting for data
++                    # Response headers are already sent: report the error
++                    # in-band instead of raising (see build_sse_error_chunk)
+                     try:
++                        yield build_sse_error_chunk(e)
+                         yield "data: [DONE]\n\n"
+                     except Exception:
+                         pass  # Client already disconnected
+-                    raise
+                 finally:
+                     await http_client.close()
+                     # Log access log for streaming (success or error)
+diff --git a/kiro/streaming_anthropic.py b/kiro/streaming_anthropic.py
+index 4fee71e..690e62e 100644
+--- a/kiro/streaming_anthropic.py
++++ b/kiro/streaming_anthropic.py
+@@ -46,10 +46,16 @@ from kiro.streaming_core import (
+     KiroEvent,
+     calculate_tokens_from_context_usage,
+     stream_with_first_token_retry,
++    with_keepalive,
+ )
+ from kiro.tokenizer import count_tokens, estimate_request_tokens
+ from kiro.parsers import parse_bracket_tool_calls, deduplicate_tool_calls
+-from kiro.config import FIRST_TOKEN_TIMEOUT, FIRST_TOKEN_MAX_RETRIES, FAKE_REASONING_HANDLING
++from kiro.config import (
++    FIRST_TOKEN_TIMEOUT,
++    FIRST_TOKEN_MAX_RETRIES,
++    FAKE_REASONING_HANDLING,
++    STREAM_KEEPALIVE_INTERVAL,
++)
+ 
+ if TYPE_CHECKING:
+     from kiro.auth import KiroAuthManager
+@@ -197,7 +203,12 @@ async def stream_kiro_to_anthropic(
+     # Track context usage for token calculation
+     context_usage_percentage: Optional[float] = None
+     upstream_cache_usage: Dict[str, int] = {}
+-    
++
++    # Billing credits. Must accumulate: one downstream request can trigger
++    # several upstream calls (tool use), each emitting its own metering event.
++    credits_used = 0.0
++    upstream_calls = 0
++
+     # Track truncated tool calls for recovery
+     truncated_tools: List[Dict[str, Any]] = []
+     
+@@ -347,6 +358,10 @@ async def stream_kiro_to_anthropic(
+                 tool_name = tool.get("function", {}).get("name", "") or tool.get("name", "")
+                 tool_input = tool.get("function", {}).get("arguments", {}) or tool.get("input", {})
+                 
++                # Reverse-map truncated tool names back to originals
++                from kiro.converters_core import get_original_tool_name
++                tool_name = get_original_tool_name(tool_name)
++                
+                 # ==============================================================================
+                 # WebSearch Support - Path B: MCP Tool Emulation (Streaming Interception)
+                 # ==============================================================================
+@@ -522,7 +537,17 @@ async def stream_kiro_to_anthropic(
+                 context_usage_percentage = event.context_usage_percentage
+             elif event.type == "usage" and event.usage:
+                 upstream_cache_usage.update(_extract_cache_usage_fields(event.usage))
+-        
++            elif event.type == "metering" and event.credits:
++                credits_used += event.credits
++                upstream_calls += 1
++
++        # Credits actually billed upstream. req= is the dedup key for log-based
++        # reconciliation, so keep it in the line.
++        logger.info(
++            f"[Credit] req={message_id} model={model} "
++            f"credits={credits_used:.12f} calls={upstream_calls}"
++        )
++
+         # Track completion signals for truncation detection
+         stream_completed_normally = context_usage_percentage is not None
+         
+@@ -760,7 +785,13 @@ async def collect_anthropic_response(
+     # Collect stream result
+     result = await collect_stream_to_result(response)
+     upstream_cache_usage = _extract_cache_usage_fields(result.usage)
+-    
++
++    # Same line format as the streaming path so both can be parsed alike
++    logger.info(
++        f"[Credit] req={message_id} model={model} "
++        f"credits={result.credits:.12f} calls={result.upstream_calls}"
++    )
++
+     # Build content blocks
+     content_blocks = []
+     
+@@ -873,7 +904,8 @@ async def stream_with_first_token_retry_anthropic(
+     first_token_timeout: float = FIRST_TOKEN_TIMEOUT,
+     request_messages: Optional[list] = None,
+     request_tools: Optional[list] = None,
+-    request_system: Optional[Any] = None
++    request_system: Optional[Any] = None,
++    keepalive_interval: float = STREAM_KEEPALIVE_INTERVAL
+ ) -> AsyncGenerator[str, None]:
+     """
+     Streaming with automatic retry on first token timeout for Anthropic API.
+@@ -896,6 +928,7 @@ async def stream_with_first_token_retry_anthropic(
+         request_messages: Original request messages (for fallback token counting)
+         request_tools: Original request tools (for fallback token counting)
+         request_system: Original system prompt (for fallback token counting)
++        keepalive_interval: Seconds of silence before sending a `ping` event (0 disables)
+     
+     Yields:
+         Strings in Anthropic SSE format
+@@ -937,13 +970,20 @@ async def stream_with_first_token_retry_anthropic(
+         ):
+             yield chunk
+     
+-    async for chunk in stream_with_first_token_retry(
+-        make_request=make_request,
+-        stream_processor=stream_processor,
+-        initial_response=initial_response,
+-        max_retries=max_retries,
+-        first_token_timeout=first_token_timeout,
+-        on_http_error=create_http_error,
+-        on_all_retries_failed=create_timeout_error,
++    # Anthropic's own keepalive: clients skip `ping` events
++    ping_event = format_sse_event("ping", {"type": "ping"})
++    
++    async for chunk in with_keepalive(
++        stream_with_first_token_retry(
++            make_request=make_request,
++            stream_processor=stream_processor,
++            initial_response=initial_response,
++            max_retries=max_retries,
++            first_token_timeout=first_token_timeout,
++            on_http_error=create_http_error,
++            on_all_retries_failed=create_timeout_error,
++        ),
++        ping_event,
++        keepalive_interval,
+     ):
+         yield chunk
+diff --git a/kiro/streaming_core.py b/kiro/streaming_core.py
+index 4294ffa..c5908fd 100644
+--- a/kiro/streaming_core.py
++++ b/kiro/streaming_core.py
+@@ -41,6 +41,7 @@ from kiro.parsers import AwsEventStreamParser, parse_bracket_tool_calls, dedupli
+ from kiro.config import (
+     FIRST_TOKEN_TIMEOUT,
+     FIRST_TOKEN_MAX_RETRIES,
++    STREAM_KEEPALIVE_INTERVAL,
+     FAKE_REASONING_ENABLED,
+     FAKE_REASONING_HANDLING,
+ )
+@@ -68,11 +69,12 @@ class KiroEvent:
+     This format is API-agnostic and can be converted to both OpenAI and Anthropic formats.
+     
+     Attributes:
+-        type: Event type (content, thinking, tool_use, usage, context_usage, error)
++        type: Event type (content, thinking, tool_use, usage, metering, context_usage, error)
+         content: Text content (for content events)
+         thinking_content: Thinking/reasoning content (for thinking events)
+         tool_use: Tool use data (for tool_use events)
+-        usage: Usage/metering data (for usage events)
++        usage: Cache token usage data (for usage events)
++        credits: Credits billed by upstream (for metering events)
+         context_usage_percentage: Context usage percentage (for context_usage events)
+         is_first_thinking_chunk: Whether this is the first thinking chunk
+         is_last_thinking_chunk: Whether this is the last thinking chunk
+@@ -82,6 +84,7 @@ class KiroEvent:
+     thinking_content: Optional[str] = None
+     tool_use: Optional[Dict[str, Any]] = None
+     usage: Optional[Dict[str, Any]] = None
++    credits: Optional[float] = None
+     context_usage_percentage: Optional[float] = None
+     is_first_thinking_chunk: bool = False
+     is_last_thinking_chunk: bool = False
+@@ -96,13 +99,17 @@ class StreamResult:
+         content: Full text content
+         thinking_content: Full thinking/reasoning content
+         tool_calls: List of tool calls
+-        usage: Usage information
++        usage: Cache token usage information
++        credits: Total credits billed by upstream (summed over all metering events)
++        upstream_calls: Number of metering events seen (>1 when tools trigger extra upstream calls)
+         context_usage_percentage: Context usage percentage from Kiro API
+     """
+     content: str = ""
+     thinking_content: str = ""
+     tool_calls: List[Dict[str, Any]] = field(default_factory=list)
+     usage: Optional[Dict[str, Any]] = None
++    credits: float = 0.0
++    upstream_calls: int = 0
+     context_usage_percentage: Optional[float] = None
+ 
+ 
+@@ -277,7 +284,10 @@ async def _process_chunk(
+         
+         elif event["type"] == "usage":
+             yield KiroEvent(type="usage", usage=event["data"])
+-        
++
++        elif event["type"] == "metering":
++            yield KiroEvent(type="metering", credits=event["data"])
++
+         elif event["type"] == "context_usage":
+             yield KiroEvent(type="context_usage", context_usage_percentage=event["data"])
+ 
+@@ -319,6 +329,11 @@ async def collect_stream_to_result(
+             result.tool_calls.append(event.tool_use)
+         elif event.type == "usage" and event.usage:
+             result.usage = event.usage
++        elif event.type == "metering" and event.credits:
++            # Must accumulate: one downstream request can trigger several upstream
++            # calls (tool use), each emitting its own metering event.
++            result.credits += event.credits
++            result.upstream_calls += 1
+         elif event.type == "context_usage" and event.context_usage_percentage is not None:
+             result.context_usage_percentage = event.context_usage_percentage
+     
+@@ -502,4 +517,73 @@ async def stream_with_first_token_retry(
+         raise Exception(
+             f"Model did not respond within {first_token_timeout}s after {max_retries} attempts. "
+             "Please try again."
+-        )
+\ No newline at end of file
++        )
++
++
++# ==================================================================================================
++# Client Keepalive
++# ==================================================================================================
++
++async def with_keepalive(
++    source: AsyncGenerator[str, None],
++    keepalive_chunk: str,
++    interval: float = STREAM_KEEPALIVE_INTERVAL,
++) -> AsyncGenerator[str, None]:
++    """
++    Pass chunks through, inserting a keepalive chunk while the source is silent.
++    
++    Tool calls are only emitted once Kiro has finished the whole response, so a large
++    tool input leaves the client without any bytes for minutes. Clients with an
++    idle-stream watchdog treat that as a dead connection and abort. This wrapper sends
++    keepalive_chunk every `interval` seconds of silence so the connection stays alive.
++    
++    Keepalives start only after the first real chunk, so error responses raised before
++    the stream starts (HTTP errors, first token timeout) are unchanged.
++    
++    Args:
++        source: Async generator of SSE strings
++        keepalive_chunk: SSE string to send during silence (must be ignored by clients)
++        interval: Seconds of silence before each keepalive. 0 or less disables keepalives.
++    
++    Yields:
++        Chunks from source, with keepalive chunks inserted during silence
++    
++    Raises:
++        Any exception raised by source
++    """
++    iterator = source.__aiter__()
++    pending: Optional[asyncio.Future] = None
++    started = False
++    
++    try:
++        while True:
++            if pending is None:
++                pending = asyncio.ensure_future(iterator.__anext__())
++            
++            timeout = interval if (started and interval > 0) else None
++            done, _ = await asyncio.wait({pending}, timeout=timeout)
++            
++            if not done:
++                logger.debug(f"Stream silent for {interval}s, sending keepalive")
++                yield keepalive_chunk
++                continue
++            
++            task, pending = pending, None
++            try:
++                chunk = task.result()
++            except StopAsyncIteration:
++                return
++            
++            started = True
++            yield chunk
++    finally:
++        # Client disconnected or source finished: stop the in-flight read and close the source
++        if pending is not None and not pending.done():
++            pending.cancel()
++            try:
++                await pending
++            except (asyncio.CancelledError, StopAsyncIteration, Exception):
++                pass
++        aclose = getattr(iterator, "aclose", None)
++        if aclose is not None:
++            await aclose()
+diff --git a/kiro/streaming_openai.py b/kiro/streaming_openai.py
+index b617954..961e5c8 100644
+--- a/kiro/streaming_openai.py
++++ b/kiro/streaming_openai.py
+@@ -42,6 +42,8 @@ from kiro.config import (
+     FIRST_TOKEN_TIMEOUT,
+     FIRST_TOKEN_MAX_RETRIES,
+     FAKE_REASONING_HANDLING,
++    STREAM_KEEPALIVE_INTERVAL,
++    EXPOSE_CREDITS_USED,
+ )
+ from kiro.tokenizer import count_tokens, count_message_tokens, count_tools_tokens
+ 
+@@ -52,8 +54,12 @@ from kiro.streaming_core import (
+     KiroEvent,
+     calculate_tokens_from_context_usage,
+     stream_with_first_token_retry as stream_with_first_token_retry_core,
++    with_keepalive,
+ )
+ 
++# SSE comment line: ignored by clients per the SSE spec, but keeps bytes flowing
++OPENAI_KEEPALIVE_COMMENT = ": keepalive\n\n"
++
+ if TYPE_CHECKING:
+     from kiro.auth import KiroAuthManager
+     from kiro.cache import ModelInfoCache
+@@ -119,6 +125,10 @@ async def stream_kiro_to_openai_internal(
+     first_chunk = True
+     
+     metering_data = None
++    # Billing credits. Kept apart from metering_data (the cache-token dict) on
++    # purpose: the two events carry different types and would overwrite each other.
++    credits_used = 0.0
++    upstream_calls = 0
+     context_usage_percentage = None
+     full_content = ""
+     full_thinking_content = ""  # Accumulated thinking content for non-streaming
+@@ -192,6 +202,10 @@ async def stream_kiro_to_openai_internal(
+                 if tool:
+                     tool_name = (tool.get("function") or {}).get("name", "") or tool.get("name", "")
+                 
++                # Reverse-map truncated tool names back to originals
++                from kiro.converters_core import get_original_tool_name
++                tool_name = get_original_tool_name(tool_name)
++                
+                 # ==============================================================================
+                 # WebSearch Support - Path B: MCP Tool Emulation (Streaming Interception)
+                 # ==============================================================================
+@@ -264,12 +278,24 @@ async def stream_kiro_to_openai_internal(
+             
+             elif event.type == "usage" and event.usage:
+                 metering_data = event.usage
+-            
++
++            elif event.type == "metering" and event.credits:
++                # Accumulate - tool calls trigger several upstream calls per request
++                credits_used += event.credits
++                upstream_calls += 1
++
+             elif event.type == "context_usage" and event.context_usage_percentage is not None:
+                 context_usage_percentage = event.context_usage_percentage
+         
++        # Credits actually billed upstream. req= is the dedup key for log-based
++        # reconciliation, so keep it in the line.
++        logger.info(
++            f"[Credit] req={completion_id} model={model} "
++            f"credits={credits_used:.12f} calls={upstream_calls}"
++        )
++
+         # Track completion signals for truncation detection
+-        received_usage = metering_data is not None
++        received_usage = metering_data is not None or upstream_calls > 0
+         received_context_usage = context_usage_percentage is not None
+         stream_completed_normally = received_usage or received_context_usage
+         
+@@ -336,6 +362,10 @@ async def stream_kiro_to_openai_internal(
+                 tool_name = func.get("name") or ""
+                 tool_args = func.get("arguments") or "{}"
+                 
++                # Reverse-map truncated tool names back to originals
++                from kiro.converters_core import get_original_tool_name
++                tool_name = get_original_tool_name(tool_name)
++                
+                 logger.debug(f"Tool call [{idx}] '{tool_name}': id={tc.get('id')}, args_length={len(tool_args)}")
+                 
+                 indexed_tc = {
+@@ -402,8 +432,9 @@ async def stream_kiro_to_openai_internal(
+             }
+         }
+         
+-        if metering_data:
+-            final_chunk["usage"]["credits_used"] = metering_data
++        # Opt-in: adding credits_used changes the response contract for clients
++        if EXPOSE_CREDITS_USED and upstream_calls > 0:
++            final_chunk["usage"]["credits_used"] = credits_used
+         
+         # Log final token values being sent to client
+         logger.debug(
+@@ -492,7 +523,8 @@ async def stream_with_first_token_retry(
+     max_retries: int = FIRST_TOKEN_MAX_RETRIES,
+     first_token_timeout: float = FIRST_TOKEN_TIMEOUT,
+     request_messages: Optional[list] = None,
+-    request_tools: Optional[list] = None
++    request_tools: Optional[list] = None,
++    keepalive_interval: float = STREAM_KEEPALIVE_INTERVAL
+ ) -> AsyncGenerator[str, None]:
+     """
+     Streaming with automatic retry on first token timeout.
+@@ -517,6 +549,7 @@ async def stream_with_first_token_retry(
+         first_token_timeout: First token wait timeout (seconds)
+         request_messages: Original request messages (for fallback token counting)
+         request_tools: Original request tools (for fallback token counting)
++        keepalive_interval: Seconds of silence before sending an SSE comment (0 disables)
+     
+     Yields:
+         Strings in SSE format
+@@ -561,14 +594,18 @@ async def stream_with_first_token_retry(
+         ):
+             yield chunk
+     
+-    async for chunk in stream_with_first_token_retry_core(
+-        make_request=make_request,
+-        stream_processor=stream_processor,
+-        initial_response=initial_response,
+-        max_retries=max_retries,
+-        first_token_timeout=first_token_timeout,
+-        on_http_error=create_http_error,
+-        on_all_retries_failed=create_timeout_error,
++    async for chunk in with_keepalive(
++        stream_with_first_token_retry_core(
++            make_request=make_request,
++            stream_processor=stream_processor,
++            initial_response=initial_response,
++            max_retries=max_retries,
++            first_token_timeout=first_token_timeout,
++            on_http_error=create_http_error,
++            on_all_retries_failed=create_timeout_error,
++        ),
++        OPENAI_KEEPALIVE_COMMENT,
++        keepalive_interval,
+     ):
+         yield chunk
+ 

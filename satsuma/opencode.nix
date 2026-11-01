@@ -30,6 +30,135 @@ let
       '';
     };
   };
+
+  # Kiro model IDs and their context windows, as reported by
+  # `kiro-cli chat --list-models`. OpenCode requires the list explicitly
+  # because the gateway's /v1/models is not in Anthropic's discovery format.
+  kiroModels = [
+    {
+      id = "auto-kiro";
+      name = "Kiro Auto";
+      context = 1000000;
+    }
+    {
+      id = "claude-opus-5.5";
+      name = "Claude Opus 5.5";
+      context = 1000000;
+    }
+    {
+      id = "claude-sonnet-5.5";
+      name = "Claude Sonnet 5.5";
+      context = 1000000;
+    }
+    {
+      id = "claude-haiku-5.5";
+      name = "Claude Haiku 5.5";
+      context = 1000000;
+    }
+    {
+      id = "claude-opus-5";
+      name = "Claude Opus 5";
+      context = 1000000;
+    }
+    {
+      id = "claude-sonnet-5";
+      name = "Claude Sonnet 5";
+      context = 1000000;
+    }
+    {
+      id = "claude-opus-4.8";
+      name = "Claude Opus 4.8";
+      context = 1000000;
+    }
+    {
+      id = "claude-opus-4.7";
+      name = "Claude Opus 4.7";
+      context = 1000000;
+    }
+    {
+      id = "claude-opus-4.6";
+      name = "Claude Opus 4.6";
+      context = 1000000;
+    }
+    {
+      id = "claude-sonnet-4.6";
+      name = "Claude Sonnet 4.6";
+      context = 1000000;
+    }
+    {
+      id = "claude-opus-4.5";
+      name = "Claude Opus 4.5";
+      context = 200000;
+    }
+    {
+      id = "claude-sonnet-4.5";
+      name = "Claude Sonnet 4.5";
+      context = 200000;
+    }
+    {
+      id = "claude-haiku-4.5";
+      name = "Claude Haiku 4.5";
+      context = 200000;
+    }
+    {
+      id = "gpt-5.6-sol";
+      name = "GPT-5.6 Sol";
+      context = 986000;
+    }
+    {
+      id = "gpt-5.6-terra";
+      name = "GPT-5.6 Terra";
+      context = 986000;
+    }
+    {
+      id = "gpt-5.6-luna";
+      name = "GPT-5.6 Luna";
+      context = 986000;
+    }
+    {
+      id = "kimi-k3";
+      name = "Kimi K3";
+      context = 1000000;
+    }
+    {
+      id = "deepseek-3.2";
+      name = "DeepSeek 3.2";
+      context = 164000;
+    }
+    {
+      id = "minimax-m2.5";
+      name = "MiniMax M2.5";
+      context = 196000;
+    }
+    {
+      id = "minimax-m2.1";
+      name = "MiniMax M2.1";
+      context = 196000;
+    }
+    {
+      id = "glm-5";
+      name = "GLM-5";
+      context = 200000;
+    }
+    {
+      id = "qwen3-coder-next";
+      name = "Qwen3 Coder Next";
+      context = 256000;
+    }
+  ];
+
+  kiroProviderModels = builtins.listToAttrs (
+    map (model: {
+      name = model.id;
+      value = {
+        inherit (model) name;
+        limit = {
+          context = model.context;
+          output = 32000;
+        };
+      };
+    }) kiroModels
+  );
 in
 {
   age.secrets.opencode-password = {
@@ -37,6 +166,22 @@ in
     mode = "0400";
     owner = "root";
     group = "root";
+  };
+
+  # Global OpenCode config (lower precedence than the user's
+  # ~/.config/opencode/opencode.jsonc). The Kiro provider is available to every
+  # project; the credential comes from the same agenix file as the gateway.
+  environment.etc."opencode/opencode.json" = lib.mkIf config.services.kiro-gateway.enable {
+    text = builtins.toJSON {
+      "$schema" = "https://opencode.ai/config.json";
+      providers.kiro = {
+        name = "Kiro Gateway";
+        env = [ "KIRO_GATEWAY_API_KEY" ];
+        package = "@opencode/ai/providers/anthropic-compatible";
+        settings.baseURL = "http://127.0.0.1:${toString config.services.kiro-gateway.port}/v1";
+        models = kiroProviderModels;
+      };
+    };
   };
 
   # The service runs as root so the agent can administer the host (nixos-rebuild,
@@ -83,7 +228,10 @@ in
       Group = "root";
       WorkingDirectory = "/var/lib/opencode";
       ExecStart = "${pkgs.opencode}/bin/opencode serve --hostname 127.0.0.1 --port ${toString port}";
-      EnvironmentFile = config.age.secrets.opencode-password.path;
+      EnvironmentFile = [
+        config.age.secrets.opencode-password.path
+      ]
+      ++ lib.optional config.services.kiro-gateway.enable config.age.secrets.kiro-gateway-env.path;
 
       Restart = "always";
       RestartSec = 3;

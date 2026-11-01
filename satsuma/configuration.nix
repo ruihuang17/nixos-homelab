@@ -50,11 +50,15 @@ in
     ./alerting.nix
     ./grove-exporter.nix
     ./hermes.nix
+    ./kiro-gateway.nix
     ./opencode.nix
 
     ./nextcloud
     ./arr-stack
   ];
+
+  # Loopback Kiro API proxy used by the OpenCode provider.
+  services.kiro-gateway.enable = true;
 
   # ZFS/SMART/media/database telemetry for the Grove dashboard.
   services.groveExporter = {

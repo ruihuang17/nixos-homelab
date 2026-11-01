@@ -56,6 +56,10 @@
       };
     in
     {
+      packages = nixpkgs.lib.genAttrs [ "x86_64-linux" ] (system: {
+        kiro-gateway = nixpkgs.legacyPackages.${system}.callPackage ./pkgs/kiro-gateway { };
+      });
+
       devShells = nixpkgs.lib.genAttrs [ "x86_64-linux" "aarch64-darwin" ] (system: {
         default = groveShell nixpkgs.legacyPackages.${system};
         grove = groveShell nixpkgs.legacyPackages.${system};
