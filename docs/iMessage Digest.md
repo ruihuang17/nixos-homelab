@@ -1,17 +1,14 @@
 # iMessage Group Chat Digest
 
-Status: **v1 implemented, currently paused** — 2026-11-01. Scheduled digests,
-grounded event alerts, Matrix + Discord delivery, SQLite state, a Prometheus
-heartbeat and cloud digest synthesis are in place. The service is paused while
-the bridge finishes its post-profile-migration portal import; see *Paused* below
-and *Implementation (2026-11-01)* for what was built.
+Status: **v1 implemented** — 2026-11-01. Scheduled digests, grounded event
+alerts, Matrix + Discord delivery, SQLite state, a Prometheus heartbeat and
+cloud digest synthesis are running on lime.
 
-> **Paused 2026-11-01.** The bridge's profile migration created ~1,853 portal
-> rows with several duplicates per chat. The digest agent still runs every five
-> minutes but only writes the heartbeat (`[service] paused = true`); it makes no
-> Matrix, model or Discord calls. Resume after re-auditing the live portals with
-> `lime/digest/audit_portals.py`. The final digest now uses OpenRouter Claude
-> Haiku 5.5 on a zero-data-retention route; event detection stays on-device.
+> **Resumed 2026-11-01 13:25.** The bridge's profile migration created duplicate
+> portals; the live rooms were re-audited with `lime/digest/audit_portals.py`
+> and remain `!ngLm…` (BLUNT) and `!rDOM…` (Blunt Wraps 2.0). `[service] paused`
+> is false. The final digest uses OpenRouter Claude Haiku 5.5 on a
+> zero-data-retention route; event detection stays on-device.
 
 Goal: summarise a couple of iMessage group chats, deliver scheduled digests, and
 push live alerts for concrete events, using Apple's on-device model where
@@ -584,7 +581,7 @@ Consequences:
 | State | `~/Library/Application Support/imessage-digest/state.sqlite3` |
 | Heartbeat | `…/textfile/imessage_digest.prom`, read by node_exporter |
 | Secret | `lime/secrets/imessage-digest.age` → `/run/agenix/imessage-digest` (Matrix, Discord, OpenRouter) |
-| Paused | `[service] paused = true`; heartbeat only, no network calls |
+| Running | `[service] paused = false`; five-minute poll, alerts and scheduled digests |
 
 ### Flow
 
@@ -635,9 +632,9 @@ lists `apfel`.
 
 ### Operating it
 
-**The service is paused.** `[service] paused = true` makes each five-minute run
-write the heartbeat and exit; it does not poll Matrix, call a model, or send to
-Discord. Resume after the bridge migration settles:
+**The service is running.** To pause it, set `[service] paused = true` and
+rebuild; the agent will only write the heartbeat. After a bridge migration,
+re-audit and resume with:
 
 ```sh
 cd ~/nixos-homelab/lime/digest
@@ -745,8 +742,7 @@ agenix -e imessage-digest.age -i ~/.ssh/general
 
 ### Next
 
-1. Re-audit the live portals once the bridge migration settles, then set
-   `[service] paused = false` and resume.
+1. Watch for bridge portal churn; re-audit the live rooms if a chat goes quiet.
 2. Small Grafana dashboard for the digest metrics (the stale > 2 h rule is
    provisioned as `homelab-imessage-digest-stale`).
 3. Send HTML (`org.matrix.custom.html`) so headings render, or drop Markdown.
@@ -756,7 +752,7 @@ agenix -e imessage-digest.age -i ~/.ssh/general
    calendar holds, and the duplicate portal cleanup.
 
 Phases 0–3 are done; phase 4 is done except log rotation and a dashboard; phase
-5 is not started. The service is paused pending the bridge portal audit.
+5 is not started. The service is running with the audited live portal IDs.
 
 ## Decisions (resolved 2026-11-01)
 

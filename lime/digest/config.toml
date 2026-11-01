@@ -5,11 +5,10 @@
 # wiring are in lime/digest/default.nix.
 
 [service]
-# Paused on 2026-11-01 while the bridge finishes its post-profile-migration
-# portal import (1,853 portals, several duplicates per chat). The agent still
-# runs every 5 minutes but only writes the heartbeat; it makes no Matrix,
-# model, or Discord calls. Set to false after re-auditing the live rooms.
-paused = true
+# Resumed 2026-11-01 after the portal audit. Both configured rooms were still
+# the live portals (BLUNT !ngLm…, Blunt Wraps 2.0 !rDOM…). The bridge portal
+# set is still settling, so re-run audit_portals.py if a room goes quiet.
+paused = false
 
 [matrix]
 # The launchd Aqua agent is subject to macOS Local Network Privacy: the
