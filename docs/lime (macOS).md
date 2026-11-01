@@ -1,7 +1,8 @@
 # lime (macOS)
 
-Mac mini, `10.0.10.73`, Apple M4 / 16 GB / macOS 15.7.7. See [[Setup Overview]]
-for the host table, [[NFS]] for the media mount and [[Media Stack]] for Jellyfin.
+Mac mini, `10.0.10.73`, Apple M4 / 16 GB / macOS 27.2 (26B123). See
+[[Setup Overview]] for the host table, [[NFS]] for the media mount and
+[[Media Stack]] for Jellyfin.
 
 ## What runs
 
@@ -104,6 +105,15 @@ lost. Keep Jellyfin at `/Applications/Jellyfin.app`. Anything whose path changes
 including a relocated `/nix/store` copy, needs a fresh grant from System
 Settings; editing `TCC.db` with `sqlite3` only works while SIP is off.
 
+**Local Network Privacy is separate from FDA.** On macOS 15+ the unsigned
+mautrix binary is silently denied LAN sockets (`EHOSTUNREACH` to
+`10.0.10.72`), while `curl` and Apple-signed `/usr/bin/ssh` are allowed. The
+bridge reaches `mautrix-wsproxy` through the
+`ca.estrogenuinely.wsproxy-tunnel` loopback SSH tunnel: lime
+`127.0.0.1:29331` → satsuma `127.0.0.1:29331`. Do not switch the bridge back
+to `mautrix-wsproxy.local`; it will fail again. The bridge config uses
+`ws://127.0.0.1:29331`.
+
 ## Verifying after a change
 
 ```sh
@@ -113,7 +123,9 @@ lsof -p $(pgrep -f mautrix-imessage/mautrix-imessage) | grep chat.db
 curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8096/health
 curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:9100/metrics
 grep "Received incoming message" ~/mautrix-imessage/logs/mautrix-imessage.log | tail -1
-launchctl list | grep -E 'imessage-digest|fi.mau' 
+launchctl list | grep -E 'imessage-digest|wsproxy-tunnel|fi.mau'
+lsof -nP -iTCP:29331 -sTCP:LISTEN
+grep "Appservice transaction websocket opened" ~/mautrix-imessage/logs/mautrix-imessage.log | tail -1
 cat "$HOME/Library/Application Support/imessage-digest/textfile/imessage_digest.prom"
 ```
 

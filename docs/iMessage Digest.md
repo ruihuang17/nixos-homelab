@@ -7,8 +7,10 @@ cloud digest synthesis are running on lime.
 > **Resumed 2026-11-01 13:25.** The bridge's profile migration created duplicate
 > portals; the live rooms were re-audited with `lime/digest/audit_portals.py`
 > and remain `!ngLm…` (BLUNT) and `!rDOM…` (Blunt Wraps 2.0). `[service] paused`
-> is false. The final digest uses OpenRouter Claude Haiku 5.5 on a
-> zero-data-retention route; event detection stays on-device.
+> is false. The first live run polled 3 new Blunt Wraps 2.0 messages, sent 0
+> alerts, and updated the heartbeat; the next scheduled digest is 18:00. The
+> final digest uses OpenRouter Claude Haiku 5.5 on a zero-data-retention route;
+> event detection stays on-device.
 
 Goal: summarise a couple of iMessage group chats, deliver scheduled digests, and
 push live alerts for concrete events, using Apple's on-device model where
@@ -71,12 +73,13 @@ Selected on 2026-11-01:
 | BLUNT WRAPS 🌯 | `!ngLmKbjUJtXXLFjtZc:estrogenuinely.ca` (live; guid `any;+;chat123…`) |
 | Blunt Wraps 2.0 | `!rDOMDGOdIIFzTKbtzm:estrogenuinely.ca` (live; guid `any;+;77cbc…`) |
 
-**Duplicate portals (2026-11-01 profile migration).** The bridge now has
-~1,853 portal rows, with several rows per chat name (`iMessage;+;chat860…`,
-`any;+;chat860…`, `RCS;+;chat598…`, `any;+;77cbc…`). The live portal is the one
-with the newest `origin_server_ts` and ghost traffic; the older rows stopped
-when the profile was rebuilt. The table above was audited at 12:05 on
-2026-11-01. Re-audit after any bridge migration:
+**Duplicate portals (2026-11-01 profile migration).** The bridge created
+~1,853 portal rows; after cleanup it was ~1,357 at 13:25, with several rows per
+chat name (`iMessage;+;chat860…`, `any;+;chat860…`, `RCS;+;chat598…`,
+`any;+;77cbc…`). The live portal is the one with the newest
+`origin_server_ts` and ghost traffic; the older rows stopped when the profile
+was rebuilt. The table above was audited at 13:25 on 2026-11-01. Re-audit after
+any bridge migration:
 
 ```sh
 sqlite3 ~/mautrix-imessage/mautrix-imessage.db \
@@ -695,6 +698,9 @@ agenix -e imessage-digest.age -i ~/.ssh/general
   and stale overnight alerts.
 - A cloud smoke test extracted “Alice asked Rui to send the login” without
   reversing Rui's offer of an extra account.
+- The first live run after resuming (13:25) polled 3 new Blunt Wraps 2.0
+  messages, found 0 events, sent 0 alerts, and wrote `paused 0` /
+  `last_run_success 1`.
 - The first real digest posted both rooms to `#imessage-digest`; the test DM
   reached the Hermes bot's DM channel with Takeko.
 
@@ -709,9 +715,10 @@ agenix -e imessage-digest.age -i ~/.ssh/general
   the Matrix transport with `/usr/bin/curl` rather than re-enabling the LAN
   hostname.
 - **Duplicate portals after a bridge migration.** The 2026-11-01 profile
-  rebuild left ~1,853 portal rows with several rows per chat name. The digest
-  config pins the live portal IDs; a name-based lookup is not safe. Re-audit
-  after any bridge rebuild with `audit_portals.py`. See *Room discovery*.
+  rebuild initially left ~1,853 portal rows (down to ~1,357 at 13:25) with
+  several rows per chat name. The digest config pins the live portal IDs; a
+  name-based lookup is not safe. Re-audit after any bridge rebuild with
+  `audit_portals.py`. See *Room discovery*.
 - **Bridge wsproxy (fixed 2026-11-01).** The unsigned bridge cannot open the
   LAN socket under macOS Local Network Privacy, while Apple-signed
   `/usr/bin/ssh` can. `lime/agents.nix` now runs
