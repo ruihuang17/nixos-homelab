@@ -84,6 +84,17 @@
     shell = pkgs.fish;
   };
 
+  # NFS media access is granted by GID 3000, not by UID: satsuma exports
+  # /hdd/mediaSrv as root:media (GID 3000) mode 770. macos sends numeric
+  # AUTH_SYS IDs over NFSv3, so rhuang must be in the local storage group.
+  # Without this Jellyfin gets EACCES and playback stops at 0 ms.
+  users.knownGroups = [ "storage" ];
+  users.groups.storage = {
+    gid = 3000;
+    description = "Storage Access Group";
+    members = [ "rhuang" ];
+  };
+
   environment.systemPackages = with pkgs; [
     git
     vim
