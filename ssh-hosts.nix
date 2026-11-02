@@ -6,8 +6,6 @@ let
   hosts = {
     orange.hostName = "10.0.10.23";
     pomelo.hostName = "10.0.10.40";
-    celosia.hostName = "10.0.10.42";
-    hibiscus.hostName = "10.0.10.43";
     satsuma = {
       hostName = "10.0.10.72";
       user = "root";
