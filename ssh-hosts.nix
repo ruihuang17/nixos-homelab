@@ -18,7 +18,10 @@ let
       port = 22222;
       user = "root";
     };
-    mail.hostName = "100.91.236.114";
+    mail = {
+      hostName = "100.91.236.114";
+      user = "root";
+    };
   };
 
   hostBlock =
