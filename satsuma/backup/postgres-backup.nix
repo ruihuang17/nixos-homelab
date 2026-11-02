@@ -36,6 +36,7 @@ in
         IdentityFile /etc/ssh/ssh_host_ed25519_key
         IdentitiesOnly yes
         BatchMode yes
+        ControlMaster no
   '';
 
   services.restic.backups.postgres-vps = {

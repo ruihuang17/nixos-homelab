@@ -16,6 +16,7 @@
     ./agents.nix
     ./digest/default.nix
     ./homebrew.nix
+    ../ssh-hosts.nix
   ];
 
   # nix-darwin's own state marker (unrelated to system.stateVersion on NixOS).

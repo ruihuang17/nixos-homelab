@@ -7,6 +7,8 @@
 }:
 
 {
+  imports = [ ./ssh-hosts.nix ];
+
   nixpkgs.config.allowUnfree = true;
 
   users.users.rhuang = {
