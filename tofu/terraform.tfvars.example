@@ -1,0 +1,2 @@
+project_id       = "<public cloud project id>"
+vps_service_name = "vps-xxxxxxxx.vps.ovh.ca"
