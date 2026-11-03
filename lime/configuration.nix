@@ -17,7 +17,11 @@
     ./digest/default.nix
     ./homebrew.nix
     ../ssh-hosts.nix
+    ../dots-darwin.nix
+    ../starship.nix
   ];
+
+  dots.users = [ "rhuang" ];
 
   # nix-darwin's own state marker (unrelated to system.stateVersion on NixOS).
   system.stateVersion = 7;
@@ -82,6 +86,7 @@
   users.users.rhuang = {
     uid = 502;
     gid = 20;
+    home = "/Users/rhuang";
     shell = pkgs.fish;
   };
 
