@@ -2,3 +2,10 @@ results
 
 # Obsidian editor workspace (local vault settings, not part of the repo)
 docs/.obsidian/
+
+# OpenTofu
+tofu/.terraform/
+tofu/*.tfstate*
+tofu/terraform.tfvars
+tofu/backend.tf
+result

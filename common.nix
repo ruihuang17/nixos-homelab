@@ -7,7 +7,17 @@
 }:
 
 {
-  imports = [ ./ssh-hosts.nix ];
+  imports = [
+    ./ssh-hosts.nix
+    ./dots-nixos.nix
+    ./starship.nix
+  ];
+
+  dots.users = [
+    "root"
+    "rhuang"
+    "lena"
+  ];
 
   nixpkgs.config.allowUnfree = true;
 
@@ -25,6 +35,7 @@
   };
 
   users.users.root = {
+    shell = pkgs.fish;
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq4XsRorOLo7URBB1krIzhJi/ODqjUtD345D/DUrEkH"
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICw7CHZkiNoG7StuF3NBnCHRWvsujJdX4ZTDIhz6YonH"
@@ -33,10 +44,12 @@
   security.sudo.wheelNeedsPassword = false;
 
   environment.systemPackages = with pkgs; [
+    kitty.terminfo # so SSH from kitty (TERM=xterm-kitty) works
     kiro-cli
     vim
     git
     nixfmt
+    gh
     ethtool
     dig
     sourceHighlight
@@ -81,6 +94,14 @@
       script = ''
         ${pkgs.ethtool}/bin/ethtool -K "$IFACE" rx-udp-gro-forwarding on rx-gro-list off
       '';
+    };
+  };
+
+  programs.git = {
+    enable = true;
+    config.user = {
+      name = "Rui Huang";
+      email = "rui@ruihuang.io";
     };
   };
 
