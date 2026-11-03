@@ -30,6 +30,23 @@ The only manual conflict was in `kiro/streaming_openai.py` between #288 and
 keeps both the keepalive interval and the credits setting. Tests from the PRs
 are not applied, so no test-only changes are shipped.
 
+## Local fix: transient model-capacity 429s
+
+Kiro periodically returns `429 INSUFFICIENT_MODEL_CAPACITY` when a model is
+temporarily at capacity. The account manager treated every 429 as an account
+failure, applied exponential cooldown (1m, 2m, 4m, ... up to a day), and soon
+returned `503 No available accounts for this model` even though both accounts
+were healthy and merely rate-limited.
+
+`patches/account-capacity-429.patch`:
+
+- does not increment the circuit-breaker failure count for a 429 whose reason
+  is `INSUFFICIENT_MODEL_CAPACITY`, so the next request can retry immediately;
+- returns the last real upstream error (for example the 429) instead of a
+  generic 503 when at least one account was actually tried.
+
+The existing in-request exponential backoff (1s, 2s, 4s) still applies.
+
 ## Refreshing the patch
 
 ```sh

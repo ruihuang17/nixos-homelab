@@ -1,0 +1,71 @@
+--- a/kiro/account_manager.py	2026-11-02 20:59:05.093302043 -0500
++++ b/kiro/account_manager.py	2026-11-02 20:59:05.148305518 -0500
+@@ -795,6 +795,22 @@
+                     f"status={status_code}, reason={reason}"
+                 )
+                 return
++
++            # INSUFFICIENT_MODEL_CAPACITY is a transient upstream capacity
++            # limit, not a broken account. Counting it would open the circuit
++            # breaker and make the gateway return "No available accounts" while
++            # every account is merely waiting out a rate limit. The in-request
++            # retry already backs off; keep the account available and let the
++            # caller see the real 429 if the limit persists.
++            if status_code == 429 and reason == "INSUFFICIENT_MODEL_CAPACITY":
++                account.stats.total_requests += 1
++                account.stats.failed_requests += 1
++                self._dirty = True
++                logger.warning(
++                    f"Model '{model}' capacity limited on account {account_id}: "
++                    f"status={status_code}, reason={reason} (not cooling down)"
++                )
++                return
+             
+             # Update failure count (only for RECOVERABLE)
+             if error_type == ErrorType.RECOVERABLE:
+--- a/kiro/routes_anthropic.py	2026-11-02 20:59:05.099302422 -0500
++++ b/kiro/routes_anthropic.py	2026-11-02 20:59:05.149305581 -0500
+@@ -349,10 +349,22 @@
+                         }
+                     )
+                 else:
+-                    # Multiple accounts - generic error with context
++                    # If an account was actually tried, surface its real error
++                    # (for example a 429) instead of hiding it behind a generic
++                    # 503. Only use the generic response when every account was
++                    # skipped by the circuit breaker before any request.
++                    if last_error_status and last_error_message:
++                        return JSONResponse(
++                            status_code=last_error_status,
++                            content={
++                                "type": "error",
++                                "error": {
++                                    "type": "api_error",
++                                    "message": last_error_message
++                                }
++                            }
++                        )
+                     detail = "No available accounts for this model."
+-                    if last_error_message:
+-                        detail += f" Error from last account: {last_error_message}"
+                     return JSONResponse(
+                         status_code=503,
+                         content={
+--- a/kiro/routes_openai.py	2026-11-02 20:59:05.105302801 -0500
++++ b/kiro/routes_openai.py	2026-11-02 20:59:05.149305581 -0500
+@@ -331,10 +331,12 @@
+                         detail=last_error_message or "Account unavailable"
+                     )
+                 else:
+-                    # Multiple accounts - generic error with context
++                    # Surface a real upstream error when an account was tried;
++                    # use the generic 503 only when all accounts were skipped
++                    # by the circuit breaker before any request.
++                    if last_error_status and last_error_message:
++                        raise HTTPException(status_code=last_error_status, detail=last_error_message)
+                     detail = "No available accounts for this model."
+-                    if last_error_message:
+-                        detail += f" Error from last account: {last_error_message}"
+                     raise HTTPException(status_code=503, detail=detail)
+             
+             # Mark account as tried in current failover loop

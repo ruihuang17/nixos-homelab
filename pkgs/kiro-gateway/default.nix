@@ -49,7 +49,13 @@ stdenv.mkDerivation {
 
   # Community fixes cherry-picked from open pull requests against upstream,
   # plus the stream keepalive needed by OpenCode's idle watchdog.
-  patches = [ ./patches/kiro-gateway-fixes.patch ];
+  patches = [
+    ./patches/kiro-gateway-fixes.patch
+    # Do not trip the account circuit breaker on Kiro's transient
+    # INSUFFICIENT_MODEL_CAPACITY 429, and return the real upstream status
+    # instead of a generic "No available accounts" 503.
+    ./patches/account-capacity-429.patch
+  ];
 
   nativeBuildInputs = [ makeWrapper ];
 
