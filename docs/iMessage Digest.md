@@ -211,11 +211,12 @@ Ask for a schema-constrained object rather than free text:
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["kind","summary","when","needs_action","quote","confidence"],
+        "required": ["kind","summary","when","confirmed","needs_action","quote","confidence"],
         "properties": {
           "kind": { "type": "string", "enum": ["plan","deadline","money","travel","health","conflict","request","other"] },
           "summary": { "type": "string" },
           "when": { "type": "string" },
+          "confirmed": { "type": "boolean" },
           "needs_action": { "type": "boolean" },
           "quote": { "type": "string" },
           "confidence": { "type": "number" }
@@ -230,7 +231,9 @@ Enforce in code:
 
 - **Grounding:** the `quote` must be an actual substring of the transcript
   (normalised whitespace/case). This kills most hallucinations.
-- **Confidence:** only alert at ≥ 0.7.
+- **Confirmation:** `confirmed` must be `true`; bare suggestions and proposals
+  still awaiting agreement are rejected.
+- **Confidence:** only alert at ≥ 0.9.
 - **Dedupe:** hash `room + normalised(summary) + when`; suppress repeats for
   7 days.
 - **Rate limit:** max 3 alerts/room/day; quiet hours 23:00–07:00 except
@@ -256,7 +259,7 @@ the closest thing to a hook, and it hands us Matrix events.
 
 | Trigger | Mechanism | Latency | Complexity | Use |
 | ------- | --------- | ------- | ---------- | --- |
-| launchd calendar | `StartCalendarInterval` | exact | low | digests at 08:00 / 18:00 |
+| launchd calendar | `StartCalendarInterval` | exact | low | digest at 18:00 |
 | launchd interval | `StartInterval = 300` | ≤ 5 min | low | **v1: all event alerts** |
 | launchd daemon | `KeepAlive` + Matrix `/sync?timeout=30000` | seconds | medium | v2 if 5 min is too slow |
 | launchd `WatchPaths` | watch `~/Library/Messages/chat.db-wal` | seconds | medium | local hook; needs FDA |
@@ -595,13 +598,14 @@ Consequences:
    than 120 min (first run / long sleep), chunk to ~2,200 tokens, ask for the
    event schema, and enforce:
    - `quote` is a normalised substring of a real message body (grounding);
-   - confidence ≥ 0.70;
+   - `confirmed` is `true` (bare suggestions and unconfirmed proposals are rejected);
+   - confidence ≥ 0.90;
    - `needs_action` is ignored unless `kind` is request/deadline/money;
    - messages authored by Rui are never "requests for Rui";
    - dedupe `room + summary + when` for 7 days;
    - ≤ 3 alerts per room per local day;
-   - quiet 23:00–07:00 unless a `needs_action` request is ≥ 0.90.
-3. Digest pass at 08:00 and 18:00 local (catch-up up to 6 h): send the raw
+   - quiet 23:00–07:00 unless a `needs_action` request is ≥ 0.95.
+3. Digest pass at 18:00 local (catch-up up to 6 h): send the raw
    transcript (up to 60k tokens) to OpenRouter Claude Haiku 5.5. Above that,
    take on-device chunk notes and tree-reduce them first. The model returns a
    schema-constrained object; code renders the sections, removes cross-section
@@ -731,11 +735,11 @@ agenix -e imessage-digest.age -i ~/.ssh/general
   zero-data-retention route (`data_collection = "deny"`, `zdr = true`); one
   transcript per scheduled digest leaves lime. Event detection and large-window
   chunk notes remain on-device. At ~4k input + ~1.3k output tokens, a digest
-  costs roughly $0.001; two per day is about $0.06/month. If that trade is
+  costs roughly $0.001; one per day is about $0.03/month. If that trade is
   unacceptable, switch `[synthesis] provider` off and accept the weaker
   on-device summary.
 - The on-device model is still used for alerts and can misread roles. Grounding,
-  confidence, daily caps and quiet hours reduce alert noise.
+  confirmation, confidence, daily caps and quiet hours reduce alert noise.
 - “Requests for Rui” is heuristic: self-authored items and asks aimed at another
   named member are dropped, but a group ask can still slip through.
 - Matrix posts are plain text (Markdown headings show literally in some
@@ -766,9 +770,9 @@ Phases 0–3 are done; phase 4 is done except log rotation and a dashboard; phas
 | Question | Answer |
 | -------- | ------ |
 | Group chats | BLUNT WRAPS 🌯 and Blunt Wraps 2.0 |
-| What is an “event” | Plans/deadlines, money, travel, health, conflict, and requests aimed at Rui; schema + grounding + confidence gate |
+| What is an “event” | Confirmed plans/deadlines, money, travel, health, conflict, and requests aimed at Rui; bare proposals must be confirmed; schema + grounding + confidence gate |
 | Alert channel | Discord DM to Takeko |
-| Digest cadence | 08:00 and 18:00 America/Toronto, 6 h catch-up |
+| Digest cadence | 18:00 America/Toronto, 6 h catch-up |
 | Live path | 5-minute one-shot launchd job with a lock (`v1`); `/sync` daemon remains `v2` |
 | Historical backfill | None; first run looks back 24 h |
 | Inference | On-device `apfel` for alerts and notes; OpenRouter for the final digest |

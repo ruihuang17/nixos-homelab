@@ -394,8 +394,10 @@ class DigestService:
                     prompt=(
                         f"Chat: {label}\n"
                         f"Today: {now.strftime('%Y-%m-%d %H:%M')} ({self.tz})\n"
-                        "Extract up to 3 concrete events from this transcript. "
-                        "Copy `quote` verbatim from one message.\n\n"
+                        "Extract up to 3 confirmed events or confirmed propositions "
+                        "from this transcript. Omit bare suggestions and anything "
+                        "still awaiting agreement. Copy `quote` verbatim from one "
+                        "message.\n\n"
                         f"{chunk}"
                     ),
                     schema=schema,
@@ -420,7 +422,10 @@ class DigestService:
         confidence = float(event.get("confidence", 0))
         if not quote or not summary:
             return None
-        if confidence < float(self.config.get("alerts", {}).get("min_confidence", 0.7)):
+        if event.get("confirmed") is not True:
+            log.debug("rejecting unconfirmed event: %s", summary)
+            return None
+        if confidence < float(self.config.get("alerts", {}).get("min_confidence", 0.9)):
             log.debug("rejecting low-confidence event: %s", summary)
             return None
 
@@ -467,7 +472,7 @@ class DigestService:
     ) -> int:
         alerts_cfg = self.config.get("alerts", {})
         max_per_day = int(alerts_cfg.get("max_per_room_per_day", 3))
-        override = float(alerts_cfg.get("quiet_override_confidence", 0.9))
+        override = float(alerts_cfg.get("quiet_override_confidence", 0.95))
         day_start = day_start_ms(datetime.fromtimestamp(now_ms / 1000, self.tz), self.tz)
         sent = 0
 
@@ -524,7 +529,7 @@ class DigestService:
             return
 
         now_dt = datetime.fromtimestamp(now_ms / 1000, self.tz)
-        slot_dt = latest_slot(now_dt, digest_cfg.get("times", ["08:00", "18:00"]))
+        slot_dt = latest_slot(now_dt, digest_cfg.get("times", ["18:00"]))
         if slot_dt is None:
             return
         slot_key = slot_dt.strftime("%Y-%m-%dT%H:%M")

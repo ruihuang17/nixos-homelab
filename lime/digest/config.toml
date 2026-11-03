@@ -74,7 +74,8 @@ title = "iMessage Digest"
 enabled = true
 # Local time (America/Toronto).
 timezone = "America/Toronto"
-times = ["08:00", "18:00"]
+# One daily digest at 18:00. The evening slot captures the whole day's chat.
+times = ["18:00"]
 # Catch up a missed slot (Mac asleep / launchd unloaded) for up to this long.
 catchup_minutes = 360
 # First run: pull this much history so there is something to digest.
@@ -86,15 +87,18 @@ note_target_tokens = 3000
 
 [alerts]
 enabled = true
-min_confidence = 0.70
+# Only confirmed events/propositions alert. The prompt and schema require
+# confirmed=true; keep the confidence gate high to reject tentative plans the
+# small model still tries to surface.
+min_confidence = 0.90
 # Suppress an identical room+summary+when for this many days.
 dedupe_days = 7
 # Max alerts per room per local day (all kinds).
 max_per_room_per_day = 3
 quiet_start = "23:00"
 quiet_end = "07:00"
-# A high-confidence action request pierces quiet hours.
-quiet_override_confidence = 0.90
+# A very high-confidence action request pierces quiet hours.
+quiet_override_confidence = 0.95
 # Wait this long after the last message before scanning a burst.
 debounce_seconds = 90
 # Do not alert on messages older than this (first run, or after a long sleep).

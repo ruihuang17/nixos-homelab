@@ -10,7 +10,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["kind", "summary", "when", "needs_action", "quote", "confidence"],
+        "required": ["kind", "summary", "when", "confirmed", "needs_action", "quote", "confidence"],
         "properties": {
           "kind": {
             "type": "string",
@@ -18,9 +18,10 @@
           },
           "summary": { "type": "string" },
           "when": { "type": "string" },
+          "confirmed": { "type": "boolean" },
           "needs_action": { "type": "boolean" },
           "quote": { "type": "string" },
-          "confidence": { "type": "number" }
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
         }
       }
     }
