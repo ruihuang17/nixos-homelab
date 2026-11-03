@@ -55,7 +55,7 @@ in
     ./monitoring/monitoring.nix
     ./monitoring/monitoring-overview.nix
     ./monitoring/alerting.nix
-    ./monitoring/grove-exporter.nix
+    "${inputs.grove}/monitoring/grove-exporter.nix"
 
     ./ai/hermes.nix
     ./ai/kiro-gateway.nix
@@ -81,6 +81,7 @@ in
     qbittorrent.enable = true;
     unifi = {
       enable = true;
+      url = "https://10.0.10.1";
       user = "grove";
       passwordFile = config.age.secrets.unifi-grove-password.path;
     };

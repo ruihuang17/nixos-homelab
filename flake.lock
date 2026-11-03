@@ -41,6 +41,22 @@
         "type": "github"
       }
     },
+    "grove": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1793676164,
+        "narHash": "sha256-Ds/dSm3vpBnerLMoSrMnrV1ys4de+MLjAWjHpkBoIoA=",
+        "owner": "ruihuang17",
+        "repo": "grove",
+        "rev": "ff8e7e4205ba04b5dfc53926e45ad451423210a5",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ruihuang17",
+        "repo": "grove",
+        "type": "github"
+      }
+    },
     "hermes-agent": {
       "inputs": {
         "flake-parts": "flake-parts",
@@ -213,6 +229,7 @@
     "root": {
       "inputs": {
         "agenix": "agenix",
+        "grove": "grove",
         "hermes-agent": "hermes-agent",
         "nix-darwin": "nix-darwin",
         "nixpkgs": "nixpkgs_2"

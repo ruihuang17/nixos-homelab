@@ -207,6 +207,11 @@ in
   systemd.tmpfiles.rules = [
     "d /srv/opencode 2770 root opencode-workspace -"
     "d /srv/opencode/workspace 2770 root opencode-workspace -"
+    # The service runs as root with HOME=/var/lib/opencode (Matrix credentials
+    # live there). Share root's gh login and SSH keys so git and gh work in the
+    # agent's shells. Plain `L` never replaces an existing path.
+    "L /var/lib/opencode/.config/gh - - - - /root/.config/gh"
+    "L /var/lib/opencode/.ssh - - - - /root/.ssh"
   ];
 
   systemd.services.opencode = {

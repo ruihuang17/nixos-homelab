@@ -6,6 +6,12 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     hermes-agent.url = "github:NousResearch/hermes-agent";
+    # Grove dashboard and Prometheus exporter. Only its NixOS module and the
+    # exporter script are used here, so it is taken as a plain source tree.
+    grove = {
+      url = "github:ruihuang17/grove";
+      flake = false;
+    };
     # macOS host (lime). `master` corresponds to nixpkgs-unstable; nix-darwin
     # refuses to evaluate against a mismatched release branch.
     nix-darwin = {
@@ -46,7 +52,7 @@
           '';
         };
 
-      # Tail module shared by every NixOS host (satsuma, mail).
+      # Tail module shared by every NixOS host (satsuma, mail, pomelo).
       nixosBase = {
         nixpkgs.config.allowUnfree = true;
         nix.settings.experimental-features = [
@@ -96,6 +102,15 @@
           ./lena.nix
           ./common.nix
           agenix.nixosModules.default
+          nixosBase
+        ];
+      };
+
+      nixosConfigurations.pomelo = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = { inherit inputs; };
+        modules = [
+          ./pomelo/configuration.nix
           nixosBase
         ];
       };
