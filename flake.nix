@@ -52,9 +52,25 @@
           '';
         };
 
+      # opencode 2.1.1 ends its generated fish completion file with a stray
+      # "c" and no trailing newline, so fish tries to run `c` while sourcing
+      # it. Drop that byte; keep the check so this becomes a no-op once
+      # upstream fixes the generator.
+      opencodeCompletionFix = _final: prev: {
+        opencode = prev.opencode.overrideAttrs (old: {
+          postInstall = (old.postInstall or "") + ''
+            completion="$out/share/fish/vendor_completions.d/opencode.fish"
+            if [ -f "$completion" ] && [ "$(tail -c 1 "$completion")" = c ]; then
+              truncate -s -1 "$completion"
+            fi
+          '';
+        });
+      };
+
       # Tail module shared by every NixOS host (satsuma, mail, pomelo).
       nixosBase = {
         nixpkgs.config.allowUnfree = true;
+        nixpkgs.overlays = [ opencodeCompletionFix ];
         nix.settings.experimental-features = [
           "nix-command"
           "flakes"
