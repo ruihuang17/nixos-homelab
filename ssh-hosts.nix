@@ -5,7 +5,10 @@
 let
   hosts = {
     orange.hostName = "10.0.10.23";
-    pomelo.hostName = "10.0.10.40";
+    pomelo = {
+      hostName = "10.0.10.40";
+      user = "rhuang";
+    };
     satsuma = {
       hostName = "10.0.10.72";
       user = "root";
