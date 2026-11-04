@@ -29,14 +29,14 @@ Reference the secrets' mount path in your config:
 The bridge tokens are never stored in plaintext. Each is decrypted to
 `/run/agenix/<name>` at activation/boot:
 
-| Secret (`hosts/satsuma/secrets/`) | Mount | Consumer |
+| Secret (`satsuma/secrets/`) | Mount | Consumer |
 | --- | --- | --- |
 | `imessage-appservice.age` | `/run/agenix/imessage-appservice` | Synapse `app_service_config_files` |
 | `sms-appservice.age` | `/run/agenix/sms-appservice` | Synapse `app_service_config_files` |
 | `mautrix-wsproxy-config.age` | `/run/agenix/mautrix-wsproxy-config` | `mautrix-wsproxy -config` |
 
 On **lime** (nix-darwin, `agenix.darwinModules.default`) the mautrix-imessage
-config is `hosts/lime/secrets/imessage-config.age` → `/run/agenix/imessage-config`
+config is `lime/secrets/imessage-config.age` → `/run/agenix/imessage-config`
 (RAM disk, `rhuang:staff 0400`); see `docs/lime (macOS).md` for the edit/re-encrypt
 workflow.
 

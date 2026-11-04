@@ -3,7 +3,7 @@
 Documented 2026-10-20.
 
 satsuma runs the kernel NFS server (`services.nfs.server.enable = true` in
-`hosts/satsuma/hardware-configuration.nix`) and exports three ZFS datasets with the
+`satsuma/hardware-configuration.nix`) and exports three ZFS datasets with the
 ZFS `sharenfs` property. `/etc/exports` is empty; ZFS generates the exports and
 registers them with `exportfs`.
 
@@ -140,5 +140,5 @@ systemctl status nfs-server
   `zfs share -a`, which only exports datasets that are already mounted. Because
   `/hdd/backup` is a separate fstab-generated mount unit, a switch that restarts
   both units at once could run `zfs share -a` first and rewrite
-  `/etc/exports.d/zfs.exports` as empty. `hosts/satsuma/configuration.nix` now orders
+  `/etc/exports.d/zfs.exports` as empty. `satsuma/configuration.nix` now orders
   `zfs-share.service` after `hdd-backup.mount` to prevent this.

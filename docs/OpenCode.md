@@ -77,7 +77,7 @@ the vhost.
 
 ### 0. Preflight (done)
 
-- `opencode` 2.1.1 is already in `modules/nixos/base.nix` (and the fish-completion fix is in `overlays/default.nix`); no new package.
+- `opencode` 2.1.1 is already in `common.nix`; no new package.
 - Port 4096 is free; nginx owns 80/443.
 - `/var/lib/opencode` does not exist yet; root's old store is at
   `/root/.local/share/opencode` (72 MB, includes `auth.json` with the
@@ -88,10 +88,10 @@ the vhost.
 ### 1. Secret
 
 Generate a 48-hex-character password, encrypt it to the `satsuma` and `rhuang`
-age recipients, and register it in `hosts/satsuma/secrets/secrets.nix`:
+age recipients, and register it in `satsuma/secrets/secrets.nix`:
 
 ```bash
-cd /etc/nixos/hosts/satsuma/secrets
+cd /etc/nixos/satsuma/secrets
 printf 'OPENCODE_PASSWORD=%s\n' "$(openssl rand -hex 24)" > /tmp/oc-pw
 nix shell nixpkgs#age -c age \
   -r 'ssh-ed25519 AAAA…satsuma' \
@@ -105,7 +105,7 @@ directly.
 
 ### 2. NixOS module
 
-Add `hosts/satsuma/ai/opencode.nix`:
+Add `satsuma/ai/opencode.nix`:
 
 - `age.secrets.opencode-password`, mode `0400`, owner `opencode`.
 - `users.users.opencode`: system user, home `/var/lib/opencode`, group `users`,
@@ -122,7 +122,7 @@ Add `hosts/satsuma/ai/opencode.nix`:
 - `opencode-pair` helper: reads the secret as root, calls `POST /api/pair`,
   prints a one-time link with the external hostname.
 
-Import it from `hosts/satsuma/configuration.nix` and `git add` the new files (the
+Import it from `satsuma/configuration.nix` and `git add` the new files (the
 flake ignores untracked files).
 
 ### 3. Deploy
@@ -224,7 +224,7 @@ Two changes remove that hazard for normal rebuilds:
    Verified: a rebuild that changed both `Description` and the unit `.drv`
    kept the same `MainPID`.
 
-   Trade-off: edits to `hosts/satsuma/ai/opencode.nix` no longer take effect on their
+   Trade-off: edits to `satsuma/ai/opencode.nix` no longer take effect on their
    own. Apply them with `sudo systemctl restart opencode`, knowing that this
    does end the session.
 
@@ -294,10 +294,10 @@ Rolled out 2026-10-31 16:05 EDT.
 
 Changed files (staged, not committed):
 
-- `hosts/satsuma/ai/opencode.nix` (new)
-- `hosts/satsuma/configuration.nix` (import)
-- `hosts/satsuma/secrets/opencode-password.age` (new)
-- `hosts/satsuma/secrets/secrets.nix` (recipients)
+- `satsuma/ai/opencode.nix` (new)
+- `satsuma/configuration.nix` (import)
+- `satsuma/secrets/opencode-password.age` (new)
+- `satsuma/secrets/secrets.nix` (recipients)
 - `docs/OpenCode.md` (this file)
 
 State:
@@ -426,7 +426,7 @@ that gives the agent a Matrix seat as `@rhuang:estrogenuinely.ca`.
 ### OpenCode wiring
 
 The system-wide config at `/etc/opencode/opencode.json` (rendered from
-`hosts/satsuma/ai/opencode.nix`) adds:
+`satsuma/ai/opencode.nix`) adds:
 
 ```json
 {

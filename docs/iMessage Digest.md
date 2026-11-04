@@ -5,7 +5,7 @@ alerts, Matrix + Discord delivery, SQLite state, a Prometheus heartbeat and
 cloud digest synthesis are running on lime.
 
 > **Resumed 2026-11-01 13:25.** The bridge's profile migration created duplicate
-> portals; the live rooms were re-audited with `hosts/lime/digest/audit_portals.py`
+> portals; the live rooms were re-audited with `lime/digest/audit_portals.py`
 > and remain `!ngLm…` (BLUNT) and `!rDOM…` (Blunt Wraps 2.0). `[service] paused`
 > is false. The first live run polled 3 new Blunt Wraps 2.0 messages, sent 0
 > alerts, and updated the heartbeat; the next scheduled digest is 18:00. The
@@ -31,7 +31,7 @@ See [[SMS Matrix Bridge]] for the bridge, [[lime (macOS)]] for the host, and
 | Delivery | Matrix `#imessage-digest` for digests; Discord DM for alerts | Digest is archived; Discord DM actually pushes to Takeko |
 | Host | lime (service), satsuma (Synapse) | Model must run on the Mac; Matrix is already there |
 | State | SQLite on lime | Cursors, dedupe, chunk notes, digest history |
-| Secrets | agenix (`hosts/lime/secrets/imessage-digest.age`) | Matrix token, Hermes Discord bot token, OpenRouter key |
+| Secrets | agenix (`lime/secrets/imessage-digest.age`) | Matrix token, Hermes Discord bot token, OpenRouter key |
 
 ## What we are not doing
 
@@ -92,7 +92,7 @@ Do not select a portal by name alone — that is how the first digest ended up
 reading the stale `RCS;+;chat598…` duplicate.
 
 The service reads with a dedicated `@rhuang` device token (`iMessage Digest`),
-stored in `hosts/lime/secrets/imessage-digest.age`. The digest room is
+stored in `lime/secrets/imessage-digest.age`. The digest room is
 `!m6_R299IGBbrqGIlKwEd-jGJZ1W-eYVXd-BOstrIyo0` (alias
 `#imessage-digest:estrogenuinely.ca`); note that rooms created on this Synapse
 return their ID **without** the `:server` suffix.
@@ -318,7 +318,7 @@ Recommended: **digests → Matrix; event alerts → HA push (or Discord DM).**
 ### Layout
 
 ```
-hosts/lime/digest/
+lime/digest/
   default.nix          # nix-darwin: launchd agent + agenix secret
   main.py              # scheduler + one-shot loop
   matrix.py            # /messages, /send
@@ -329,11 +329,11 @@ hosts/lime/digest/
   prompts/{chunk,digest,event}.md
   schemas/event.json
   config.yaml
-hosts/lime/secrets/imessage-digest.age
+lime/secrets/imessage-digest.age
 ```
 
 No pip dependencies: Python stdlib (`urllib`, `sqlite3`, `json`, `subprocess`)
-is enough; `apfel` comes from Homebrew. Add `apfel` to `hosts/lime/homebrew.nix`.
+is enough; `apfel` comes from Homebrew. Add `apfel` to `lime/homebrew.nix`.
 
 Heartbeat: write
 `imessage_digest_last_success_timestamp_seconds` to a `.prom` file, point
@@ -578,7 +578,7 @@ Consequences:
 | Piece | Detail |
 | ----- | ------ |
 | launchd agent | `ca.estrogenuinely.imessage-digest`, `StartInterval = 300`, `RunAtLoad` |
-| Entry point | `hosts/lime/digest/main.py --once`, Python 3.14 from nixpkgs (stdlib only) |
+| Entry point | `lime/digest/main.py --once`, Python 3.14 from nixpkgs (stdlib only) |
 | Source | Matrix `/rooms/{id}/messages` on `https://matrix.estrogenuinely.ca` |
 | Alerts / notes | `/opt/homebrew/bin/apfel` (Apple Foundation Models, 8,192 tokens) |
 | Digest synthesis | OpenRouter `anthropic/claude-haiku-5.5` on a ZDR route (one transcript per digest) |
@@ -586,7 +586,7 @@ Consequences:
 | Alerts | Discord DM to Takeko (`454892601175441418`) via the Hermes bot |
 | State | `~/Library/Application Support/imessage-digest/state.sqlite3` |
 | Heartbeat | `…/textfile/imessage_digest.prom`, read by node_exporter |
-| Secret | `hosts/lime/secrets/imessage-digest.age` → `/run/agenix/imessage-digest` (Matrix, Discord, OpenRouter) |
+| Secret | `lime/secrets/imessage-digest.age` → `/run/agenix/imessage-digest` (Matrix, Discord, OpenRouter) |
 | Running | `[service] paused = false`; five-minute poll, alerts and scheduled digests |
 
 ### Flow
@@ -617,7 +617,7 @@ Consequences:
 ### Files
 
 ```
-hosts/lime/digest/
+lime/digest/
   default.nix          # launchd agent, agenix secret, state dir
   config.toml          # rooms, schedule, thresholds, paths
   main.py              # poll → events → digest → heartbeat
@@ -630,11 +630,11 @@ hosts/lime/digest/
   deliver.py           # Matrix digest render + Discord DM alerts
   prompts/{chunk,digest,event,reduce}.md
   schemas/{event,digest}.json
-hosts/lime/secrets/imessage-digest.age
+lime/secrets/imessage-digest.age
 ```
 
-`hosts/lime/agents.nix` now starts node_exporter with
-`--collector.textfile.directory=…/imessage-digest/textfile`; `hosts/lime/homebrew.nix`
+`lime/agents.nix` now starts node_exporter with
+`--collector.textfile.directory=…/imessage-digest/textfile`; `lime/homebrew.nix`
 lists `apfel`.
 
 ### Operating it
@@ -687,7 +687,7 @@ Re-encrypt the secret after rotating the Matrix device, the Discord token, or
 the OpenRouter key:
 
 ```sh
-cd /etc/nixos/hosts/lime/secrets
+cd /etc/nixos/lime/secrets
 agenix -e imessage-digest.age -i ~/.ssh/general
 ```
 
@@ -725,7 +725,7 @@ agenix -e imessage-digest.age -i ~/.ssh/general
   `audit_portals.py`. See *Room discovery*.
 - **Bridge wsproxy (fixed 2026-11-01).** The unsigned bridge cannot open the
   LAN socket under macOS Local Network Privacy, while Apple-signed
-  `/usr/bin/ssh` can. `hosts/lime/agents.nix` now runs
+  `/usr/bin/ssh` can. `lime/agents.nix` now runs
   `ssh -N -L 127.0.0.1:29331:127.0.0.1:29331 rhuang@10.0.10.72` as
   `ca.estrogenuinely.wsproxy-tunnel`, and the bridge's `websocket_proxy` is
   `ws://127.0.0.1:29331`. The wsproxy logs `imessage connected to websocket`;
@@ -813,7 +813,7 @@ A fresh `rhuang` profile was created and verified:
 - Jellyfin and node_exporter are running under UID 502 and return `200`.
 - mautrix-imessage was migrated (binary, DB, 107 portals) and has Full Disk
   Access. Double puppeting is enabled: Synapse 1.163 loads the small legacy
-  provider in `hosts/satsuma/shared_secret_auth_legacy.py` using the iMessage
+  provider in `satsuma/shared_secret_auth_legacy.py` using the iMessage
   appservice token; the bridge logs "Successfully automatically enabled custom
   puppet", its `@rhuang` login returns 200, and own messages bridge. The bridge
   `login_shared_secret` is persisted in the agenix `imessage-config.age`.

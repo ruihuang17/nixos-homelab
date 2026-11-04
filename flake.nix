@@ -29,21 +29,6 @@
       ...
     }:
     let
-      lib = import ./lib {
-        inherit
-          inputs
-          nixpkgs
-          agenix
-          nix-darwin
-          ;
-      };
-
-      # Packages built by this flake also come from the local overlay, so the
-      # `packages` output and the hosts agree on what `pkgs.matrix-mcp` is.
-      pkgsFor = system: nixpkgs.legacyPackages.${system}.appendOverlays [ (import ./overlays) ];
-
-      systems = [ "x86_64-linux" ];
-
       groveShell =
         pkgs:
         pkgs.mkShell {
@@ -66,23 +51,44 @@
             echo "  npm run qa    run the Playwright checks"
           '';
         };
+
+      # opencode 2.1.1 ends its generated fish completion file with a stray
+      # "c" and no trailing newline, so fish tries to run `c` while sourcing
+      # it. Drop that byte; keep the check so this becomes a no-op once
+      # upstream fixes the generator.
+      opencodeCompletionFix = _final: prev: {
+        opencode = prev.opencode.overrideAttrs (old: {
+          postInstall = (old.postInstall or "") + ''
+            completion="$out/share/fish/vendor_completions.d/opencode.fish"
+            if [ -f "$completion" ] && [ "$(tail -c 1 "$completion")" = c ]; then
+              truncate -s -1 "$completion"
+            fi
+          '';
+        });
+      };
+
+      # Tail module shared by every NixOS host (satsuma, mail, pomelo).
+      nixosBase = {
+        nixpkgs.config.allowUnfree = true;
+        nixpkgs.overlays = [ opencodeCompletionFix ];
+        nix.settings.experimental-features = [
+          "nix-command"
+          "flakes"
+        ];
+      };
     in
     {
-      # Reusable in other flakes: services.kiro-gateway.
-      nixosModules.kiro-gateway = ./modules/nixos/services/kiro-gateway.nix;
-
-      packages = nixpkgs.lib.genAttrs systems (
+      packages = nixpkgs.lib.genAttrs [ "x86_64-linux" ] (
         system:
         let
-          pkgs = pkgsFor system;
+          pkgs = nixpkgs.legacyPackages.${system};
+          mindroom-nio = pkgs.callPackage ./pkgs/mindroom-nio { };
         in
         {
-          inherit (pkgs) mindroom-nio matrix-mcp kiro-gateway;
+          inherit mindroom-nio;
+          matrix-mcp = pkgs.callPackage ./pkgs/matrix-mcp { inherit mindroom-nio; };
+          kiro-gateway = pkgs.callPackage ./pkgs/kiro-gateway { };
         }
-      );
-
-      formatter = nixpkgs.lib.genAttrs [ "x86_64-linux" "aarch64-darwin" ] (
-        system: nixpkgs.legacyPackages.${system}.nixfmt
       );
 
       devShells = nixpkgs.lib.genAttrs [ "x86_64-linux" "aarch64-darwin" ] (system: {
@@ -90,31 +96,48 @@
         grove = groveShell nixpkgs.legacyPackages.${system};
       });
 
-      # `nix flake check` builds every host's toplevel, so an evaluation error
-      # is caught here instead of at 04:00 by system.autoUpgrade.
-      checks = {
-        x86_64-linux = {
-          satsuma = self.nixosConfigurations.satsuma.config.system.build.toplevel;
-          mail = self.nixosConfigurations.mail.config.system.build.toplevel;
-          pomelo = self.nixosConfigurations.pomelo.config.system.build.toplevel;
-        };
-        aarch64-darwin = {
-          lime = self.darwinConfigurations.lime.system;
-        };
+      nixosConfigurations.satsuma = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = { inherit inputs; };
+        modules = [
+          ./satsuma/configuration.nix
+          ./server-common.nix
+          ./lena.nix
+          ./common.nix
+          agenix.nixosModules.default
+          nixosBase
+        ];
       };
 
-      nixosConfigurations.satsuma = lib.mkNixos [
-        ./hosts/satsuma/configuration.nix
-        ./modules/nixos/server.nix
-      ];
+      nixosConfigurations.mail = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = { inherit inputs; };
+        modules = [
+          ./vps/configuration.nix
+          ./server-common.nix
+          ./lena.nix
+          ./common.nix
+          agenix.nixosModules.default
+          nixosBase
+        ];
+      };
 
-      nixosConfigurations.mail = lib.mkNixos [
-        ./hosts/mail/configuration.nix
-        ./modules/nixos/server.nix
-      ];
+      nixosConfigurations.pomelo = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = { inherit inputs; };
+        modules = [
+          ./pomelo/configuration.nix
+          nixosBase
+        ];
+      };
 
-      nixosConfigurations.pomelo = lib.mkNixos [ ./hosts/pomelo/configuration.nix ];
-
-      darwinConfigurations.lime = lib.mkDarwin [ ./hosts/lime/configuration.nix ];
+      darwinConfigurations.lime = nix-darwin.lib.darwinSystem {
+        system = "aarch64-darwin";
+        specialArgs = { inherit inputs; };
+        modules = [
+          ./lime/configuration.nix
+          agenix.darwinModules.default
+        ];
+      };
     };
 }

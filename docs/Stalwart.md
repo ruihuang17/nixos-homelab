@@ -43,7 +43,7 @@ Thunderbird ──IMAP/SMTP──▶ Stalwart (vps)  ──LDAPS over Tailscale�
 - kanidm LDAPS (3636) listens on `0.0.0.0` but the firewall only allows it on `tailscale0`.
 - Stalwart does two LDAP things: a service-account bind (`dn=token` + read-only API token)
   for lookups, and a **bind as the user** with the typed password to verify it.
-- **The VPS dead-man's-switch does not use Stalwart.** `hosts/mail/satsuma-watcher.nix`
+- **The VPS dead-man's-switch does not use Stalwart.** `vps/satsuma-watcher.nix`
   sends alert mail directly to SES with the `ses_smtp_user`/`ses_smtp_pass`
   credentials, because Stalwart auth depends on kanidm on satsuma. Pointing it
   at `mail.estrogenuinely.ca:587` creates a circular dependency: when satsuma is
@@ -74,13 +74,13 @@ Thunderbird ──IMAP/SMTP──▶ Stalwart (vps)  ──LDAPS over Tailscale�
 
 | File | Change |
 |------|--------|
-| `hosts/mail/stalwart.nix` | **new** — Stalwart, LDAP directory, ACME, fallback admin, SES relay, firewall |
-| `hosts/mail/configuration.nix` | imports `./stalwart.nix`; static OVH IPv6 |
-| `hosts/mail/secrets/*.age` | `cloudflare_api`, `kanidm_ldap_token`, `stalwart_admin`, `ses_smtp_user`, `ses_smtp_pass` |
-| `hosts/mail/secrets/secrets.nix` | recipients: `[ vps-host rhuang ]` |
-| `modules/nixos/server.nix` | Tailscale lives here now (shared by satsuma and mail) |
-| `hosts/satsuma/core/kanidm.nix` | LDAPS bind `0.0.0.0:3636`, firewalled to `tailscale0` |
-| `hosts/satsuma/core/tailscale.nix` | now a no-op (config moved to `modules/nixos/server.nix`) |
+| `vps/stalwart.nix` | **new** — Stalwart, LDAP directory, ACME, fallback admin, SES relay, firewall |
+| `vps/configuration.nix` | imports `./stalwart.nix`; static OVH IPv6 |
+| `vps/secrets/*.age` | `cloudflare_api`, `kanidm_ldap_token`, `stalwart_admin`, `ses_smtp_user`, `ses_smtp_pass` |
+| `vps/secrets/secrets.nix` | recipients: `[ vps-host rhuang ]` |
+| `common.nix` | Tailscale moved here (shared by all hosts) |
+| `satsuma/core/kanidm.nix` | LDAPS bind `0.0.0.0:3636`, firewalled to `tailscale0` |
+| `satsuma/core/tailscale.nix` | now a no-op (config moved to `common.nix`) |
 | `flake.nix` | vps output renamed to `mail` |
 
 ## kanidm setup (on satsuma)
@@ -104,7 +104,7 @@ kanidm system domain set-ldap-allow-unix-password-bind true -D admin            
   `lena` → `lena@estrogenuinely.ca`, `lenazhu2007@gmail.com`.
 - kanidm CLI sessions expire (~1h). Non-interactive use needs a fresh `kanidm login` first.
 
-## Stalwart config (`hosts/mail/stalwart.nix`)
+## Stalwart config (`vps/stalwart.nix`)
 
 - `services.stalwart` (nixpkgs module), package 0.15.5, `stateVersion = "26.05"` (RocksDB).
 - Secrets: agenix → systemd `LoadCredential` → referenced as
@@ -310,8 +310,8 @@ route = "'ses'"        # expression: quoted literal = send everything via SES
   does not restart it, and it keeps the old value until then (same for the LDAP token and SES creds).
 - **Cloudflare token printed in chat.** A debug command on the vps secret only redacted
   `NAME=value` lines and the file had no `=`, so the token went into a transcript. Rotate
-  it in Cloudflare (done 2026-10-11), then re-encrypt for `hosts/mail/secrets/cloudflare_api.age` **and**
-  `hosts/satsuma/secrets/cloudflare_api.age` (same token, env-file format).
+  it in Cloudflare (done 2026-10-11), then re-encrypt for `vps/secrets/cloudflare_api.age` **and**
+  `satsuma/secrets/cloudflare_api.age` (same token, env-file format).
   `agenix -e` run on the vps leaves the change uncommitted in the vps checkout, and a
   `git reset --hard origin/...` deploy would erase it. Commit/push first, or copy the `.age`
   to satsuma.
@@ -322,7 +322,7 @@ route = "'ses'"        # expression: quoted literal = send everything via SES
   public names still resolve, but `tailscale set --accept-dns=false` flips it to OVH's
   resolver (I restored it; kanidm's tailnet name needs it).
 - OVH VPS: outbound 25 blocked, 587 open.
-- Don't also set `services.tailscale` per host (it lives in `modules/nixos/server.nix`).
+- Don't also set `services.tailscale` per host (it lives in `common.nix`).
 
 ## webadmin package issue (nixpkgs pin)
 
