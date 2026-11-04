@@ -2,24 +2,26 @@
 
 Drafted 2026-11-03. Applies to the `/etc/nixos` flake (satsuma, mail, pomelo, lime).
 
-> **Status: phases 0–6 implemented, not committed.** The working tree is
-> uncommitted on purpose: the 04:00 `system.autoUpgrade` hook pushes whatever is
-> committed to `origin/main`. Review, then commit per phase.
+> **Status: reverted, under review.** A first attempt implemented phases 0–6 as
+> committed in `1ca857f` and was reverted in `f1f4ff1` because the shape of the
+> result was rejected. The tree is back to the pre-refactor state; every host's
+> toplevel derivation matches `scripts/drvpaths.baseline` again. Nothing has been
+> rebuilt or switched.
 >
-> What actually changed beyond the plan:
-> - Phase 1 also moved `dots/` to `modules/shared/dots/` (the starship config
->   lived there).
-> - Phase 2 made agenix decrypt from the store instead of `/etc/nixos/...`.
->   `age.secrets.*.path` is unchanged; only the `agenixInstall` activation text
->   differs, which is why satsuma's drvPath legitimately changes in phase 2.
->   Every other host's drvPath is byte-identical from phase 0 to phase 6.
-> - Phase 3 disables password SSH auth on `mail` (base default) and gives
->   pomelo the shared CLI packages (+`kiro-cli`, `tmux`, `vim`, ...). Both were
->   reviewed as the intended consequence of "one base for every NixOS host".
-> - `time.timeZone` stays per host: `mail` runs UTC and its backup timers are
->   relative, so a silent timezone change was not worth it.
-> - Phase 5 added the overlay and `checks`; `nix flake check --no-build` passes.
-> - `scripts/drvpaths.baseline` is the pre-refactor snapshot.
+> What that attempt actually did, for the record:
+> - Moved hosts to `hosts/` and shared modules to `modules/{shared,nixos,darwin}`,
+>   plus `dots/` to `modules/shared/dots/`.
+> - Split `common.nix` into `base.nix` (all NixOS hosts) and `server.nix`
+>   (satsuma + mail). This disabled password SSH auth on `mail` and added the
+>   shared CLI packages to pomelo.
+> - Replaced hardcoded IPs with `inventory.nix` + a `homelab` module argument.
+> - Made satsuma's agenix paths relative (decrypt from the store), which changed
+>   its `agenixInstall` activation text but not `age.secrets.*.path`.
+> - Added `overlays/`, `lib/mkNixos|mkDarwin`, `nixosModules.kiro-gateway` and
+>   `checks`.
+> - DrvPaths were byte-identical for all four hosts across every phase except
+>   the agenix change above, so the mechanics were proven; the design is what
+>   needs another pass.
 
 The goal is to remove duplication, make the host entry points read as host
 config only, and give the shared pieces (users, inventory, packages) one home.
