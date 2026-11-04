@@ -15,7 +15,7 @@
     ../starship.nix
   ];
 
-  system.stateVersion = "26.11";
+  system.stateVersion = "26.05"; # the release this machine was first installed with
 
   networking.hostName = "pomelo";
   time.timeZone = "America/Toronto";
@@ -31,7 +31,7 @@
     timeout = 5;
     systemd-boot = {
       enable = true;
-      configurationLimit = 5; # the ESP is only 600 MB
+      configurationLimit = 10;
     };
     efi.canTouchEfiVariables = true;
   };
@@ -163,7 +163,6 @@
 
   services.chrony.enable = true;
   services.irqbalance.enable = true;
-  services.thermald.enable = true;
   services.smartd = {
     enable = true;
     autodetect = true;
@@ -240,6 +239,7 @@
     nmap
     tcpdump
     proxychains-ng
+    ethtool
 
     # Documents
     libreoffice-qt
