@@ -2,7 +2,7 @@
 
 Drafted 2026-11-03, reshaped 2026-11-03 after a first attempt was reverted
 (`1ca857f`, reverted in `f1f4ff1`). Applies to the `/etc/nixos` flake
-(satsuma, mail, pomelo, lime).
+(satsuma, bergamot, pomelo, lime).
 
 > **Status: planned, not started.** The tree is at the pre-refactor state and
 > every host's toplevel matches `scripts/drvpaths.baseline`.
@@ -16,14 +16,14 @@ Drafted 2026-11-03, reshaped 2026-11-03 after a first attempt was reverted
 
 ## Shape
 
-- **No file moves.** `satsuma/`, `vps/`, `pomelo/`, `lime/` and the root-level
-  shared files stay where they are.
+- **One directory rename.** `vps/` becomes `bergamot/` (phase 3). `satsuma/`,
+  `pomelo/`, `lime/` and the root-level shared files stay where they are.
 - **Explicit imports.** If two hosts want the same settings, both list the same
   file in their own `imports`. No module arguments, no `mkIf`-switched role
   modules, no `_module.args`, no option re-exports.
 - **Shared files are config, not framework.** A shared file is imported for its
   side effects; hosts override a value only when they must (e.g. `mkForce` for
-  mail's sshd firewall).
+  bergamot's sshd firewall).
 - **No flake abstraction.** `flake.nix` keeps its three `nixosSystem` blocks
   plus darwin; no overlay, no `mkNixos`, no `nixosModules`, no `checks`.
   `scripts/drvpaths.sh` replaces `checks` for verification.
@@ -72,7 +72,7 @@ Drafted 2026-11-03, reshaped 2026-11-03 after a first attempt was reverted
 │                      dotfile tmpfiles
 ├── common-darwin.nix NEW  lime: nix settings, starship, dotfile activation
 │                      script, nerd font
-├── server.nix    NEW  satsuma + mail only: Lena, root keys, subnet-router
+├── server.nix    NEW  satsuma + bergamot only: Lena, root keys, subnet-router
 │                      Tailscale, sshd openFirewall, node_exporter
 ├── dots/starship/starship.toml
 ├── pkgs/
@@ -81,7 +81,7 @@ Drafted 2026-11-03, reshaped 2026-11-03 after a first attempt was reverted
 ├── satsuma/            unchanged subtrees, plus
 │   ├── system/{kernel,power,storage,auto-upgrade}.nix
 │   └── monitoring/grove.nix
-├── vps/                unchanged
+├── bergamot/           renamed from vps/ (networking.hostName stays "mail")
 ├── pomelo/             plus nfs.nix (the three NFS mounts)
 └── lime/               configuration.nix only sets host identity + secrets
 ```
@@ -96,7 +96,7 @@ Per-host imports:
 | Host | Shared files |
 | --- | --- |
 | satsuma | `common-nixos.nix`, `server.nix` |
-| mail (`vps/`) | `common-nixos.nix`, `server.nix` |
+| bergamot (host `mail`) | `common-nixos.nix`, `server.nix` |
 | pomelo | `common-nixos.nix` |
 | lime | `common-darwin.nix` (which imports `homelab.nix`) |
 
@@ -119,9 +119,35 @@ Lena's uids/keys, the domain, the storage GID and the starship file path into
 `homelab.nix`; keep generating the ssh alias block from it. Replace the
 hardcoded addresses in `nginx.nix`, `monitoring.nix`,
 `monitoring-overview.nix`, `hermes.nix`, lime's `auto_nas`, `pomelo/nfs.nix`
-(phase 6) and the grove gateway URL. DrvPaths must not change.
+(phase 7) and the grove gateway URL. DrvPaths must not change.
 
-**Phase 3 — `common-nixos.nix` and `common-darwin.nix`.** Rename `common.nix`
+**Phase 3 — rename `vps/` to `bergamot/`.** The repo name for the OVH VPS
+becomes `bergamot`, after the other citrus hosts. `networking.hostName` stays
+`"mail"` because the provider's reverse DNS fixes it, with a comment saying so;
+`mail.estrogenuinely.ca`, the Stalwart config and the Tailscale device name do
+not change. Steps:
+
+- `git mv vps bergamot`, and update the path in `flake.nix`.
+- `nixosConfigurations.mail` becomes `nixosConfigurations.bergamot`.
+- The alias in `homelab.nix` becomes `bergamot`, and the generated ssh config
+  follows. `satsuma/backup/postgres-backup.nix` (`knownHosts.mail`, `Host mail`)
+  and the three `host = "mail"` entries in `monitoring-overview.nix` read the
+  alias from `homelab.nix`.
+- `labels.instance = "mail"` in `monitoring.nix` becomes `bergamot`. This starts
+  a new Prometheus series, so the old `instance="mail"` history is no longer
+  continuous. Decision: rename it, since the history is not worth a stale name.
+- `scripts/drvpaths.sh`, `scripts/drvpaths.baseline` (labels only) and
+  `scripts/deploy.sh` (host list; map `bergamot` to hostname `mail` for the
+  "am I deploying myself" check).
+- `README.md` and the docs that call the host `mail`.
+
+Expected diff: the ssh config on every host (new alias), satsuma's Prometheus
+config and the postgres-backup ssh stanza. The bergamot toplevel changes only
+through the ssh alias. Gotcha: running `nixos-rebuild --flake .` on the VPS
+itself would look for `#mail`, so use `--flake .#bergamot` there. Deploying from
+satsuma is unaffected.
+
+**Phase 4 — `common-nixos.nix` and `common-darwin.nix`.** Rename `common.nix`
 to `common-nixos.nix`, remove Lena, root's keys, Tailscale and `openFirewall`,
 move the CLI package list, git identity, tmux and the starship bits in, and emit
 the dotfile tmpfiles rules directly from `homelab.dots` (drop the `dots`
@@ -132,27 +158,27 @@ imports `common-nixos.nix` and drops its duplicate user/sudo/fish/nix-ld blocks;
 lime imports `common-darwin.nix` and drops its inline copies. DrvPaths must not
 change.
 
-**Phase 4 — `server.nix`.** `server-common.nix` + `lena.nix` + root's keys +
+**Phase 5 — `server.nix`.** `server-common.nix` + `lena.nix` + root's keys +
 the Tailscale subnet-router block + `openFirewall = true`. Delete both old
-files. satsuma and mail add it to their module lists in `flake.nix`. mail keeps
+files. satsuma and bergamot add it to their module lists in `flake.nix`. bergamot keeps
 its `mkForce false`. DrvPaths must not change.
 
-**Phase 5 — satsuma split.** `system/{kernel,power,storage,auto-upgrade}.nix`,
+**Phase 6 — satsuma split.** `system/{kernel,power,storage,auto-upgrade}.nix`,
 `monitoring/grove.nix`, and delete `satsuma/core/tailscale.nix`. DrvPaths must
 not change.
 
-**Phase 6 — pomelo.** Move the three NFS mounts from
+**Phase 7 — pomelo.** Move the three NFS mounts from
 `hardware-configuration.nix` to `pomelo/nfs.nix`, using `homelab.nix`. Then
 `pomelo/configuration.nix` drops the duplicated rhuang/sudo/fish/ssh block and
 the storage GID comes from `homelab.nix`.
 
-**Phase 7 — dedupe and docs.** `allowUnfree` and `experimental-features` once
+**Phase 8 — dedupe and docs.** `allowUnfree` and `experimental-features` once
 per platform (`common-nixos.nix`, `common-darwin.nix`); remove the duplicate
 `allowUnfree` from `nixosBase`, `satsuma/configuration.nix` and lime's config.
 Update `docs/*.md` and the layout section of `README.md` for the new file
 names.
 
-**Phase 8 — kiro-gateway fork.** Independent of phases 1–7; it can land before
+**Phase 9 — kiro-gateway fork.** Independent of phases 1–8; it can land before
 or after them. Upstream (`jwadow/kiro-gateway`) is unmaintained and the package
 carries 14 unmerged PRs as one combined diff plus a local 429 fix, which is hard
 to review and refresh.
@@ -187,11 +213,14 @@ OpenCode request through the gateway. Refreshing later is
 
 ## Verification
 
-- `scripts/drvpaths.sh` before/after each phase. Phases 1 and 3–6 must match
-  the previous phase byte for byte; phase 2 must match the baseline.
+- `scripts/drvpaths.sh` before/after each phase. Phases 2 and 4–7 must leave
+  every drvPath unchanged. Phase 1 changes only satsuma's activation text;
+  phase 3 changes the ssh alias block and the satsuma monitoring/backup config
+  (listed in phase 3).
 - `nvd diff` between the old and new toplevel per host for the phases that
-  legitimately change something (1: activation text only).
-- `scripts/deploy.sh --build all` builds satsuma, mail and pomelo;
+  legitimately change something (1: activation text only; 3: the renamed
+  alias and Prometheus label only).
+- `scripts/deploy.sh --build all` builds satsuma, bergamot and pomelo;
   `darwin-rebuild build` on lime (it cannot be built from satsuma).
 - `nixfmt --check` on the changed files (the flake defines no `formatter`, so
   `nix fmt` is not available).
@@ -200,12 +229,12 @@ OpenCode request through the gateway. Refreshing later is
 
 - **pomelo** gains the shared CLI set (`kiro-cli`, `tmux`, `vim`, `nixfmt`,
   `tree`, `smartmontools`, `source-highlight`, `kitty.terminfo`, `agenix`).
-- **mail** loses password and keyboard-interactive SSH auth; key auth unchanged.
-- `time.timeZone` stays per host: mail runs UTC and its timers are relative.
+- **bergamot** loses password and keyboard-interactive SSH auth; key auth unchanged.
+- `time.timeZone` stays per host: bergamot runs UTC and its timers are relative.
 
 ## Out of scope
 
 flake-parts, Home Manager, deploy-rs/colmena, overlays, `checks`, renaming
-`vps/`, and any change to `tofu/`. Package derivations are untouched except
-`kiro-gateway` (phase 8). `scripts/deploy.sh` is plain `nixos-rebuild` and is
+and any change to `tofu/`, including the `ovh_vps.mail` data source name. Package derivations are untouched except
+`kiro-gateway` (phase 9). `scripts/deploy.sh` is plain `nixos-rebuild` and is
 not part of the refactor.
