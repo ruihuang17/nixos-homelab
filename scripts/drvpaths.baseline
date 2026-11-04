@@ -1,0 +1,4 @@
+nixosConfigurations.satsuma.config.system.build.toplevel /nix/store/a0a6k5fv73188ldqwxcgz5afcyk8g032-nixos-system-satsuma-26.11.20261024.674a202.drv
+nixosConfigurations.mail.config.system.build.toplevel /nix/store/1h0cnk4k1f9312lv3jiimm6f9yl1grsp-nixos-system-mail-26.11.20261024.674a202.drv
+nixosConfigurations.pomelo.config.system.build.toplevel /nix/store/dh81j1y03q441qzws0l1lvhq8pqi1fvz-nixos-system-pomelo-26.11.20261024.674a202.drv
+darwinConfigurations.lime.system /nix/store/58yavdzajwnc4gqml36qqpc3f4mkxych-darwin-system-26.11.ff0e21a.drv
