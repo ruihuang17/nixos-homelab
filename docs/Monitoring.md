@@ -28,7 +28,7 @@ Prometheus scrapes every 30 s and keeps 90 days of history. All six targets
 - Prometheus UI: <https://prometheus.local.estrogenuinely.ca> 
 - Grafana login: click **Sign in with Kanidm** (OIDC, see below). The local
   `admin` user remains as a break-glass login; its password is stored encrypted
-  with agenix at `satsuma/secrets/grafana_admin_pass.age` 
+  with agenix at `hosts/satsuma/secrets/grafana_admin_pass.age` 
 - The pre-provisioned dashboard is **Node Exporter Full** (Grafana dashboard
   1860). Pick a host from the `instance` dropdown (satsuma / orange / lime /
   homeassistant / mail).
@@ -38,7 +38,7 @@ Prometheus scrapes every 30 s and keeps 90 days of history. All six targets
 Everything on satsuma is declared in the NixOS flake at `/etc/nixos` (see
 [[Setup Overview]] → satsuma).
 
-### satsuma — `satsuma/monitoring/monitoring.nix`
+### satsuma — `hosts/satsuma/monitoring/monitoring.nix`
 
 - `services.prometheus` on `127.0.0.1:9090`, 90 day retention, 30 s scrape
   interval. One `node` job with a static target per host (each tagged with an
@@ -49,7 +49,7 @@ Everything on satsuma is declared in the NixOS flake at `/etc/nixos` (see
     store. (`secret_key` is mandatory on current nixpkgs — Grafana no longer
     ships a default.)
   - The Prometheus datasource is provisioned with a fixed `uid = "prometheus"`.
-  - The dashboard is provisioned from `satsuma/monitoring/grafana-dashboards/`. The JSON was
+  - The dashboard is provisioned from `hosts/satsuma/monitoring/grafana-dashboards/`. The JSON was
     downloaded from grafana.com (1860), its `${DS_PROMETHEUS}` placeholders were
     rewritten to the `prometheus` datasource uid, and the `__inputs`/`__requires`
     blocks were stripped so it imports without prompting.
@@ -64,9 +64,9 @@ Same pattern as Nextcloud and Matrix (see [[Setup Overview]] → Identity).
   matching). Scope map: `homelab_user` → `openid profile email groups`. Created
   with `kanidm system oauth2 create grafana ...`; the Kanidm side is not in the
   flake, only in Kanidm's database.
-- Grafana side is `auth.generic_oauth` in `satsuma/monitoring/monitoring.nix`. PKCE is on
+- Grafana side is `auth.generic_oauth` in `hosts/satsuma/monitoring/monitoring.nix`. PKCE is on
   (Kanidm requires it). The client secret is the agenix file
-  `satsuma/secrets/grafana_oidc_secret.age`, read through `$__file{}`.
+  `hosts/satsuma/secrets/grafana_oidc_secret.age`, read through `$__file{}`.
 - Roles come from the `groups` claim: members of `homelab_admin` get Grafana
   **Admin**, any other `homelab_user` gets **Viewer**
   (`role_attribute_strict = true`, so a login with no matching role is refused).
@@ -79,7 +79,7 @@ Same pattern as Nextcloud and Matrix (see [[Setup Overview]] → Identity).
   been tested yet, so check that `rhuang` lands as Admin and a non-admin
   `homelab_user` as Viewer.
 
-### Service probes — `satsuma/monitoring/monitoring-overview.nix`
+### Service probes — `hosts/satsuma/monitoring/monitoring-overview.nix`
 
 A service catalog at the top of `monitoring-overview.nix` drives the blackbox
 probes and the recording rules. Adding a service means adding one entry to
@@ -118,7 +118,7 @@ Things to know:
 - **orange's node_exporter runs with `--collector.systemd`** (edited in its unit
   file) so failed units on orange are counted too.
 
-### nginx — `satsuma/core/nginx.nix`
+### nginx — `hosts/satsuma/core/nginx.nix`
 
 Two internal vhosts were added, both using the `estrogenuinely.ca` wildcard
 cert:
@@ -127,7 +127,7 @@ cert:
   Grafana Live needs them).
 - `prometheus.local.estrogenuinely.ca` → `http://127.0.0.1:9090`.
 
-### Shared server module — `server-common.nix` (flake root)
+### Shared server module — `modules/nixos/node-exporter.nix`
 
 A new module, imported by **satsuma** and **mail**,
 that provisions node_exporter consistently. It defines the option group
@@ -143,7 +143,7 @@ that provisions node_exporter consistently. It defines the option group
 The exporter runs the `systemd` and `processes` collectors in addition to the
 defaults. satsuma uses the loopback default (Prometheus scrapes it locally).
 
-### mail / VPS — `vps/configuration.nix`
+### mail / VPS — `hosts/mail/configuration.nix`
 
 mail is public-facing, so its exporter is tailnet-only:
 
@@ -202,10 +202,11 @@ The three non-NixOS hosts don't use the flake, so they were set up by hand.
   `curl -s http://127.0.0.1:9090/api/v1/query?query=up` on satsuma, or the
   Prometheus UI → *Status → Targets*.
 - Add a new host: install node_exporter on it (systemd/brew/docker as above, or
-  for a NixOS server just import `server-common.nix`), then add a target entry to
-  the `node` job in `satsuma/monitoring/monitoring.nix` and `nixos-rebuild switch`.
+  for a NixOS server just import `modules/nixos/node-exporter.nix`, which
+  `modules/nixos/server.nix` already does), then add a target entry to
+  the `node` job in `hosts/satsuma/monitoring/monitoring.nix` and `nixos-rebuild switch`.
 - Rotate the Grafana admin password: re-encrypt
-  `satsuma/secrets/grafana_admin_pass.age` with agenix and rebuild.
+  `hosts/satsuma/secrets/grafana_admin_pass.age` with agenix and rebuild.
 
 ## Alerting
 
@@ -230,7 +231,7 @@ contact point; the watcher puts both in `To:`.
 The Matrix room is `#homelab-alerts` (`!k9Y9GnXSOfor4J0h6PqDJWBfSyCw889EYbcbbXyUAVs`),
 posted to by the bot `@homelab-alertbot:estrogenuinely.ca`. rhuang is invited.
 
-### satsuma — `satsuma/monitoring/monitoring.nix`
+### satsuma — `hosts/satsuma/monitoring/monitoring.nix`
 
 - `services.grafana.settings.smtp`: host `mail.estrogenuinely.ca:587`, user
   `homelab-svc`, from `alerts@estrogenuinely.ca`, `MandatoryStartTLS`. Password
@@ -269,7 +270,7 @@ posted to by the bot `@homelab-alertbot:estrogenuinely.ca`. rhuang is invited.
       Matrix device token was revoked, or the model failed. See
       [[iMessage Digest]] → *Operating it*.
 
-### satsuma — `satsuma/monitoring/alerting.nix`
+### satsuma — `hosts/satsuma/monitoring/alerting.nix`
 
 Runs `matrix-alertmanager-receiver` (metio, in nixpkgs) on `127.0.0.1:9686`. It
 takes Grafana's webhook (Alertmanager-format) payloads and posts to the Matrix
@@ -283,7 +284,7 @@ The bot was registered with `register_new_matrix_user` using a temporary
 `synapse_registration_secret`) so future service bots can be provisioned the
 same way. See [[SMS Matrix Bridge]] for the Synapse setup.
 
-### mail / VPS — `vps/satsuma-watcher.nix`
+### mail / VPS — `hosts/mail/satsuma-watcher.nix`
 
 The one thing Grafana can't do: tell you satsuma is down (Grafana, Synapse and
 Postfix all run on satsuma). A systemd timer on the **mail** VPS runs every 2

@@ -111,7 +111,7 @@ register `protonmail.com` / `gmail.com` as *local* domains — the exact bug cal
 out in [[Stalwart]] → Gotchas.
 
 Instead, `email = emailprimary` stays as-is for everyone, and a **scoped
-exception** in `vps/stalwart.nix` authorizes just `homelab-svc` for just the three
+exception** in `hosts/mail/stalwart.nix` authorizes just `homelab-svc` for just the three
 service addresses:
 
 ```nix
@@ -139,14 +139,14 @@ session.auth.must-match-sender = [
 
 | File | Change |
 | ---- | ------ |
-| `satsuma/core/mail.nix` | Relay → `[mail.estrogenuinely.ca]:587`; dropped the sender-rewrite `mapFiles`/`smtp_generic_maps`; `myorigin = estrogenuinely.ca`, `myhostname = satsuma.estrogenuinely.ca` |
-| `satsuma/hardware-configuration.nix` | smartd `sender = alerts@…`, `recipient = rui@estrogenuinely.ca` |
-| `satsuma/apps/nextcloud/nextcloud.nix` | SMTP → Stalwart, `mail_smtpname = homelab-svc`, From `nextcloud@…`, `mail_smtpsecure = ""` (STARTTLS) |
-| `satsuma/apps/vaultwarden.nix` | SMTP → Stalwart, `SMTP_USERNAME = homelab-svc`, `SMTP_FROM = vaultwarden@…` |
-| `vps/stalwart.nix` | Scoped `session.auth.must-match-sender` exception |
-| `satsuma/secrets/postfix_sasl.age` | `[mail.estrogenuinely.ca]:587 homelab-svc:<pw>` (Postfix texthash) |
-| `satsuma/secrets/mail_pass.age` | Nextcloud `mail_smtppassword` = `homelab-svc` pw (plain) |
-| `satsuma/secrets/vaultwarden_token.age` | `SMTP_PASSWORD=<homelab-svc pw>` (env file) |
+| `hosts/satsuma/core/mail.nix` | Relay → `[mail.estrogenuinely.ca]:587`; dropped the sender-rewrite `mapFiles`/`smtp_generic_maps`; `myorigin = estrogenuinely.ca`, `myhostname = satsuma.estrogenuinely.ca` |
+| `hosts/satsuma/hardware-configuration.nix` | smartd `sender = alerts@…`, `recipient = rui@estrogenuinely.ca` |
+| `hosts/satsuma/apps/nextcloud/nextcloud.nix` | SMTP → Stalwart, `mail_smtpname = homelab-svc`, From `nextcloud@…`, `mail_smtpsecure = ""` (STARTTLS) |
+| `hosts/satsuma/apps/vaultwarden.nix` | SMTP → Stalwart, `SMTP_USERNAME = homelab-svc`, `SMTP_FROM = vaultwarden@…` |
+| `hosts/mail/stalwart.nix` | Scoped `session.auth.must-match-sender` exception |
+| `hosts/satsuma/secrets/postfix_sasl.age` | `[mail.estrogenuinely.ca]:587 homelab-svc:<pw>` (Postfix texthash) |
+| `hosts/satsuma/secrets/mail_pass.age` | Nextcloud `mail_smtppassword` = `homelab-svc` pw (plain) |
+| `hosts/satsuma/secrets/vaultwarden_token.age` | `SMTP_PASSWORD=<homelab-svc pw>` (env file) |
 
 Commits `c709aac` (switch) and `7b3dc38` (Nextcloud `mail_smtpsecure` fix) on
 `main`. Deploy flow is the usual one (see [[Stalwart]] → Git / NixOS / deploying):
@@ -171,7 +171,7 @@ nixos-rebuild switch`.
   (same as every other local expression key).
 - **Grafana's SMTP no longer depends on DNS.** satsuma pins
   `15.235.101.89 mail.estrogenuinely.ca` in `/etc/hosts`
-  (`satsuma/monitoring/monitoring.nix`). Without it, the 2026-10-30 DNSSEC/clock outage
+  (`hosts/satsuma/monitoring/monitoring.nix`). Without it, the 2026-10-30 DNSSEC/clock outage
   made the SMTP hostname unresolvable, so alert mail could not leave satsuma.
 - **The VPS watcher is independent.** It sends to SES directly with
   `LoadCredential`-injected `ses_smtp_user`/`ses_smtp_pass`; do not point it back

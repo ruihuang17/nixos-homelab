@@ -27,7 +27,7 @@ backed up.
 | Thing | Value |
 | ----- | ----- |
 | Hosts | `satsuma` `10.0.10.72` (all but Jellyfin), `lime` `10.0.10.73` (Jellyfin) |
-| Modules | `satsuma/media/arr-stack/{default,arr-stack,qbittorrent,jellyfin}.nix` |
+| Modules | `hosts/satsuma/media/arr-stack/{default,arr-stack,qbittorrent,jellyfin}.nix` |
 | Data | ZFS dataset `hdd/mediaSrv` → `/hdd/mediaSrv` (~3.8 TB used, ~13.8 TB free) |
 | Shared group | `media`, GID **3000** — the numeric GID is what crosses NFS (neither pomelo nor lime defines a `media` group) |
 | Databases | PostgreSQL: `sonarr-main`/`-log`, `radarr-main`/`-log`, `prowlarr-main`/`-log` |
@@ -249,7 +249,7 @@ nc -vz <exit-ip> <forwarded-port>
 
 ### Changing the PIA region
 
-Set `piaRegion` in `satsuma/media/arr-stack/qbittorrent.nix`, rebuild, then
+Set `piaRegion` in `hosts/satsuma/media/arr-stack/qbittorrent.nix`, rebuild, then
 `systemctl restart pia-vpn` (and start qBittorrent/forwarder if the watchdog
 has not already). Pick a region whose `port_forward` is `true` in
 <https://serverlist.piaservers.net/vpninfo/servers/v6> **and** whose gateway
