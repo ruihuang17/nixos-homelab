@@ -16,7 +16,7 @@ satsuma
  └─ postgresql ──pg_dump (zstd)──► /var/backup/postgresql
                                       │  restic (encrypted, dedup)
                                       ▼  SFTP over Tailscale (100.91.236.114)
-                                  mail VPS: backup@mail:/var/lib/satsuma-backup/postgres
+                                  mail VPS: backup@bergamot-backup:/var/lib/satsuma-backup/postgres
 ```
 
 ---
@@ -99,7 +99,7 @@ matrix-synapse. Postgres 17, data dir `/var/lib/psql`.
   Files are overwritten each night; history lives in restic.
 - `services.restic.backups.postgres-vps` (`restic-backups-postgres-vps.service`): backs up
   `/var/backup/postgresql` at 03:20 to
-  `sftp:backup@mail:/var/lib/satsuma-backup/postgres`.
+  `sftp:backup@bergamot-backup:/var/lib/satsuma-backup/postgres`.
   Retention: 14 daily, 8 weekly, 12 monthly.
 - Restic encrypts client-side; the VPS never sees the password.
 - Repo password: agenix secret `satsuma/secrets/restic_postgres_password.age`
@@ -127,7 +127,7 @@ ls -la /var/backup/postgresql
 
 # list snapshots / verify repo (restic is not on PATH; use nix shell)
 nix shell nixpkgs#restic -c env RESTIC_PASSWORD_FILE=/run/agenix/restic_postgres_password \
-  restic -r sftp:backup@mail:/var/lib/satsuma-backup/postgres snapshots
+  restic -r sftp:backup@bergamot-backup:/var/lib/satsuma-backup/postgres snapshots
 ```
 
 ### Run manually
@@ -141,7 +141,7 @@ systemctl start restic-backups-postgres-vps.service
 
 ```bash
 export RESTIC_PASSWORD_FILE=/run/agenix/restic_postgres_password   # on satsuma
-export RESTIC_REPOSITORY=sftp:backup@mail:/var/lib/satsuma-backup/postgres
+export RESTIC_REPOSITORY=sftp:backup@bergamot-backup:/var/lib/satsuma-backup/postgres
 nix shell nixpkgs#restic -c restic restore latest --target /tmp/pgrestore
 # then, per database (stop the owning service first, recreate empty DB if needed):
 zstd -dc /tmp/pgrestore/var/backup/postgresql/<db>.sql.zstd | sudo -u postgres psql <db>

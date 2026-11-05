@@ -57,8 +57,10 @@ in
     builtins.concatStringsSep "\n" (map (n: sshHostBlock n hosts.${n}) hostNames)
     + "\n"
     + ''
-      # Connection sharing: reuse one connection per host for 1 hour after the last session.
+      # Every homelab machine uses the same key; on satsuma root has its own
+      # copy at /root/.ssh/general, on lime and pomelo rhuang has ~/.ssh/general.
       Host ${builtins.concatStringsSep " " hostNames}
+          IdentityFile ~/.ssh/general
           ControlMaster auto
           ControlPath ~/.ssh/cm-%C
           ControlPersist 1h
