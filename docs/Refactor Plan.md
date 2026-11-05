@@ -4,8 +4,27 @@ Drafted 2026-11-03, reshaped 2026-11-03 after a first attempt was reverted
 (`1ca857f`, reverted in `f1f4ff1`). Applies to the `/etc/nixos` flake
 (satsuma, bergamot, pomelo, lime).
 
-> **Status: planned, not started.** The tree is at the pre-refactor state and
-> every host's toplevel matches `scripts/drvpaths.baseline`.
+> **Status: implemented 2026-11-04.** All nine phases landed. Root shared files
+> went from 8 to 4 (`homelab.nix`, `common-nixos.nix`, `common-darwin.nix`,
+> `server.nix`), `vps/` is now `bergamot/`, and kiro-gateway builds from our
+> fork. `scripts/drvpaths.baseline` records the final state.
+>
+> Deviations from the plan as written:
+>
+> - Phase 4 changed satsuma's, bergamot's and lime's drvPaths after all: the
+>   package list moved into `common-nixos.nix`, which reorders
+>   `environment.systemPackages` and `systemd.tmpfiles.rules`. Every evaluated
+>   option (users, groups, sshd, tailscale, node exporter, firewall, nix
+>   settings, programs, package set, tmpfiles set, systemd unit names) is
+>   identical; only the order inside those two lists moved.
+> - Phase 9 uses three commits on the fork (the combined PR set, the 429 fix,
+>   the fork README) rather than one commit per PR, because the combined patch
+>   already carries the #288/#280 conflict resolution. The fork README maps
+>   each commit to its PRs.
+> - Phase 9 did not add an `envSecretFile` option: the module already declares
+>   the secret, so the sync-creds script now reads
+>   `config.age.secrets.kiro-gateway-env.path` directly. Same effect, no new
+>   option.
 >
 > The first attempt moved hosts into `hosts/` and shared files into
 > `modules/{shared,nixos,darwin}`, and added flake helpers (`overlays/`,
