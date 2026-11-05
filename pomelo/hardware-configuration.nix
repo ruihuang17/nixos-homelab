@@ -13,15 +13,6 @@ let
     "compress=zstd:1"
     "discard=async"
   ];
-  nfsOptions = [
-    "noatime"
-    "hard"
-    "_netdev"
-    "nofail"
-    "x-systemd.automount"
-    "x-systemd.idle-timeout=10min"
-    "x-systemd.mount-timeout=30s"
-  ];
 in
 {
   imports = [
@@ -71,24 +62,6 @@ in
       "fmask=0077"
       "dmask=0077"
     ];
-  };
-
-  fileSystems."/home/rhuang/NAS/backup" = {
-    device = "10.0.10.72:/hdd/backup";
-    fsType = "nfs4";
-    options = nfsOptions;
-  };
-
-  fileSystems."/home/rhuang/NAS/data" = {
-    device = "10.0.10.72:/hdd/data";
-    fsType = "nfs4";
-    options = nfsOptions;
-  };
-
-  fileSystems."/home/rhuang/NAS/media" = {
-    device = "10.0.10.72:/hdd/mediaSrv";
-    fsType = "nfs4";
-    options = nfsOptions;
   };
 
   zramSwap.enable = true;
