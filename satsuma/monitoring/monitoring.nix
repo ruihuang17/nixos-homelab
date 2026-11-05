@@ -142,7 +142,7 @@ in
 
   ##########################################################################
   # node_exporter for satsuma itself is provided by the shared
-  # server-common.nix module (imported from the flake), listening on
+  # server.nix module (imported from the flake), listening on
   # 127.0.0.1:9100 by default.
   ##########################################################################
 

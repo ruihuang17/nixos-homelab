@@ -10,7 +10,7 @@
   services.logrotate.checkConfig = false;
 
   # SSH is reachable only over Tailscale on this public-facing VPS.
-  # common.nix sets openFirewall = true, so override it here to stop
+  # server.nix sets openFirewall = true, so override it here to stop
   # opening port 22 on the public interface, and allow it on tailscale0.
   services.openssh.openFirewall = lib.mkForce false;
 
