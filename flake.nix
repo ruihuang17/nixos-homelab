@@ -68,13 +68,10 @@
       };
 
       # Tail module shared by every NixOS host (satsuma, mail, pomelo).
+      # Only the overlay is left here: allowUnfree and experimental-features
+      # are set by common-nixos.nix / common-darwin.nix.
       nixosBase = {
-        nixpkgs.config.allowUnfree = true;
         nixpkgs.overlays = [ opencodeCompletionFix ];
-        nix.settings.experimental-features = [
-          "nix-command"
-          "flakes"
-        ];
       };
     in
     {
@@ -101,9 +98,8 @@
         specialArgs = { inherit inputs; };
         modules = [
           ./satsuma/configuration.nix
-          ./server-common.nix
-          ./lena.nix
-          ./common.nix
+          ./server.nix
+          ./common-nixos.nix
           agenix.nixosModules.default
           nixosBase
         ];
@@ -114,9 +110,8 @@
         specialArgs = { inherit inputs; };
         modules = [
           ./bergamot/configuration.nix
-          ./server-common.nix
-          ./lena.nix
-          ./common.nix
+          ./server.nix
+          ./common-nixos.nix
           agenix.nixosModules.default
           nixosBase
         ];
@@ -127,6 +122,7 @@
         specialArgs = { inherit inputs; };
         modules = [
           ./pomelo/configuration.nix
+          ./common-nixos.nix
           nixosBase
         ];
       };
@@ -136,6 +132,7 @@
         specialArgs = { inherit inputs; };
         modules = [
           ./lime/configuration.nix
+          ./common-darwin.nix
           agenix.darwinModules.default
         ];
       };

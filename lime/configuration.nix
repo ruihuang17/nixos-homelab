@@ -19,12 +19,8 @@ in
     ./agents.nix
     ./digest/default.nix
     ./homebrew.nix
-    ../ssh-hosts.nix
-    ../dots-darwin.nix
-    ../starship.nix
+    ../common-darwin.nix
   ];
-
-  dots.users = [ "rhuang" ];
 
   # nix-darwin's own state marker (unrelated to system.stateVersion on NixOS).
   system.stateVersion = 7;
@@ -33,18 +29,11 @@ in
   # user's ~/Library/LaunchAgents and loads them with `launchctl asuser`.
   system.primaryUser = "rhuang";
 
-  nixpkgs.config.allowUnfree = true;
-
-  nix.settings = {
-    experimental-features = [
-      "nix-command"
-      "flakes"
-    ];
-    trusted-users = [
-      "root"
-      "rhuang"
-    ];
-  };
+  # allowUnfree and experimental-features come from common-darwin.nix.
+  nix.settings.trusted-users = [
+    "root"
+    "rhuang"
+  ];
   nix.optimise.automatic = true;
   nix.optimise.interval = [
     {

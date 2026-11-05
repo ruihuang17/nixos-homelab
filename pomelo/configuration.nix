@@ -5,14 +5,12 @@
   ...
 }:
 # pomelo: Rui's desktop (ASRock X870, Ryzen 7 7700X, RTX 4080), migrated from Fedora 44.
-# It deliberately does not import common.nix: that file gives Lena root SSH and turns
-# Tailscale into a subnet router, neither of which belongs on a desktop.
+# It imports common-nixos.nix but not server.nix: the server file adds Lena, root's
+# ssh keys and a subnet-router Tailscale, none of which belong on a desktop.
 {
   imports = [
     ./hardware-configuration.nix
-    ../ssh-hosts.nix
-    ../dots-nixos.nix
-    ../starship.nix
+    ../common-nixos.nix
   ];
 
   system.stateVersion = "26.05"; # the release this machine was first installed with
@@ -63,27 +61,15 @@
 
   users.groups.rhuang.gid = 1000;
   users.groups.storage.gid = 3000; # GID that crosses NFS to satsuma's `media` group
+  # uid, shell and ssh key come from common-nixos.nix.
   users.users.rhuang = {
-    uid = 1000;
-    isNormalUser = true;
     description = "Rui Huang";
     group = "rhuang";
-    shell = pkgs.fish;
     extraGroups = [
-      "wheel"
       "networkmanager"
       "storage"
     ];
-    openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq4XsRorOLo7URBB1krIzhJi/ODqjUtD345D/DUrEkH"
-    ];
   };
-  security.sudo.wheelNeedsPassword = false;
-  dots.users = [ "rhuang" ];
-
-  programs.fish.enable = true;
-  programs.nix-ld.enable = true;
-  nix.optimise.automatic = true;
 
   services.openssh = {
     enable = true;
