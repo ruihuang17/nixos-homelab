@@ -60,8 +60,9 @@ let
       install -m 0600 -o ${cfg.user} -g ${cfg.group} ${cfg.kiroCliDb} ${dbPath}
 
       # Keep the first account's profile ARN in sync with the age secret.
-      if [ -r /run/agenix/kiro-gateway-env ] && [ -f ${credentialsFile} ]; then
-        profile_arn=$(sed -n 's/^PROFILE_ARN=//p' /run/agenix/kiro-gateway-env)
+      env_file=${config.age.secrets.kiro-gateway-env.path}
+      if [ -r "$env_file" ] && [ -f ${credentialsFile} ]; then
+        profile_arn=$(sed -n 's/^PROFILE_ARN=//p' "$env_file")
         if [ -n "$profile_arn" ]; then
           tmp=$(mktemp)
           jq --arg path ${dbPath} --arg arn "$profile_arn" \

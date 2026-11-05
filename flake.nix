@@ -84,7 +84,6 @@
         {
           inherit mindroom-nio;
           matrix-mcp = pkgs.callPackage ./pkgs/matrix-mcp { inherit mindroom-nio; };
-          kiro-gateway = pkgs.callPackage ./pkgs/kiro-gateway { };
         }
       );
 

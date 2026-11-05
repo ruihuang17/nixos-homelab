@@ -9,13 +9,14 @@
 }:
 
 let
-  # Last upstream commit on main (2026-05-18). The project is effectively
-  # unmaintained; the compatibility fixes live in the patch file below.
+  # Our fork: upstream main (a5292ca, 2026-05-18) plus the compatibility fixes
+  # on the `homelab` branch. Upstream is unmaintained, so the fixes live there
+  # as commits instead of a patch file. See pkgs/kiro-gateway/README.md.
   src = fetchFromGitHub {
-    owner = "jwadow";
+    owner = "ruihuang17";
     repo = "kiro-gateway";
-    rev = "a5292ca04c7c6231e0b47673ac3f981f5a706e1e";
-    hash = "sha256-LgZiMJXy7v0o4VbQTMYi1Yk2SjBsKj82cUC5FhhZ4zo=";
+    rev = "581160901523225b4ba8bcca589674b88f8d3aec";
+    hash = "sha256-lRlAbqxa27zmvFxi+TLdt4RmloyegyiKv9/R6r1X4Xg=";
   };
 
   # tiktoken downloads cl100k_base on first use and caches it by the SHA-1 of
@@ -43,19 +44,9 @@ let
 in
 stdenv.mkDerivation {
   pname = "kiro-gateway";
-  version = "unstable-2026-05-18";
+  version = "unstable-2026-11-04";
 
   inherit src;
-
-  # Community fixes cherry-picked from open pull requests against upstream,
-  # plus the stream keepalive needed by OpenCode's idle watchdog.
-  patches = [
-    ./patches/kiro-gateway-fixes.patch
-    # Do not trip the account circuit breaker on Kiro's transient
-    # INSUFFICIENT_MODEL_CAPACITY 429, and return the real upstream status
-    # instead of a generic "No available accounts" 503.
-    ./patches/account-capacity-429.patch
-  ];
 
   nativeBuildInputs = [ makeWrapper ];
 
@@ -76,7 +67,7 @@ stdenv.mkDerivation {
 
   meta = {
     description = "Proxy gateway for the Kiro API (patched community build)";
-    homepage = "https://github.com/jwadow/kiro-gateway";
+    homepage = "https://github.com/ruihuang17/kiro-gateway";
     license = lib.licenses.agpl3Only;
     mainProgram = "kiro-gateway";
     platforms = lib.platforms.linux;
