@@ -3,7 +3,7 @@
 #
 #   scripts/deploy.sh                 # all NixOS hosts
 #   scripts/deploy.sh satsuma         # just one
-#   scripts/deploy.sh mail pomelo     # several
+#   scripts/deploy.sh bergamot pomelo  # several
 #   scripts/deploy.sh --build all     # build only, no switch
 #
 # Hosts are reached through the ssh aliases the flake installs on every
@@ -17,7 +17,7 @@ usage() {
   cat <<'EOF'
 Usage: scripts/deploy.sh [options] [host...]
 
-Hosts: satsuma, mail, pomelo, all (default: all)
+Hosts: satsuma, bergamot, pomelo, all (default: all)
 
 Options:
   -b, --build       build instead of switching
@@ -45,9 +45,9 @@ while (($#)); do
       exit 0
       ;;
     all)
-      targets+=(satsuma mail pomelo)
+      targets+=(satsuma bergamot pomelo)
       ;;
-    satsuma | mail | pomelo | lime)
+    satsuma | bergamot | pomelo | lime)
       targets+=("$1")
       ;;
     *)
@@ -59,7 +59,7 @@ while (($#)); do
   shift
 done
 
-((${#targets[@]})) || targets=(satsuma mail pomelo)
+((${#targets[@]})) || targets=(satsuma bergamot pomelo)
 
 # Dedupe while preserving order (`all satsuma` should deploy satsuma once).
 mapfile -t targets < <(printf '%s\n' "${targets[@]}" | awk '!seen[$0]++')
@@ -69,6 +69,15 @@ run() {
   printf ' %q' "$@"
   printf '\n'
   ((dry_run)) || "$@"
+}
+
+# The flake name is not always the hostname: `bergamot` runs as hostname `mail`
+# (the provider's reverse DNS fixes it). Used only to detect the local machine.
+hostname_of() {
+  case "$1" in
+    bergamot) echo mail ;;
+    *) echo "$1" ;;
+  esac
 }
 
 deploy_lime() {
@@ -94,7 +103,7 @@ for host in "${targets[@]}"; do
     # `build` never activates, so it is always a local evaluation/build of the
     # host's configuration. No target-host, no elevation.
     cmd=(nixos-rebuild build --flake "$repo_root#$host")
-  elif [[ $(hostname -s) == "$host" ]]; then
+  elif [[ $(hostname -s) == "$(hostname_of "$host")" ]]; then
     # Deploying the machine we are on: switch needs privileges.
     cmd=(nixos-rebuild switch --flake "$repo_root#$host")
     [[ $EUID -ne 0 ]] && cmd+=(--elevate=sudo)

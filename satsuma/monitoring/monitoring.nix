@@ -179,10 +179,10 @@ in
             labels.instance = "homeassistant";
           }
           {
-            # mail VPS, scraped over the tailnet (its node_exporter binds to
+            # bergamot VPS, scraped over the tailnet (its node_exporter binds to
             # its Tailscale address and the port is only open on tailscale0).
-            targets = [ (homelab.endpoint "mail" 9100) ];
-            labels.instance = "mail";
+            targets = [ (homelab.endpoint "bergamot" 9100) ];
+            labels.instance = "bergamot";
           }
         ];
       }

@@ -6,7 +6,7 @@ the packages/services that tie them together.
 | Host | Config | Platform | Address | Role |
 | --- | --- | --- | --- | --- |
 | `satsuma` | `satsuma/` | NixOS (unstable) | `10.0.10.72` | Main server: storage, nginx, Kanidm, Nextcloud, Matrix, media, monitoring, AI |
-| `mail` | `vps/` | NixOS (unstable) | `100.91.236.114` (Tailscale) | OVH VPS: Stalwart mail server, offsite backups |
+| `bergamot` (hostname `mail`) | `bergamot/` | NixOS (unstable) | `100.91.236.114` (Tailscale) | OVH VPS: Stalwart mail server, offsite backups |
 | `pomelo` | `pomelo/` | NixOS (unstable) | `10.0.10.40` | Desktop |
 | `lime` | `lime/` | nix-darwin (aarch64) | `10.0.10.73` | Mac mini: iMessage bridge, digest service, Jellyfin |
 
@@ -18,12 +18,12 @@ the LAN.
 
 `scripts/deploy.sh` runs `nixos-rebuild` for one or more NixOS hosts from this
 checkout. Remote hosts are reached through the ssh aliases the flake installs
-(`root@mail`, `rhuang@pomelo` with sudo); the host you are on is switched
+(`root@bergamot`, `rhuang@pomelo` with sudo); the host you are on is switched
 locally.
 
 ```sh
-scripts/deploy.sh                # satsuma, mail, pomelo
-scripts/deploy.sh mail pomelo    # a selection
+scripts/deploy.sh                # satsuma, bergamot, pomelo
+scripts/deploy.sh bergamot pomelo  # a selection
 scripts/deploy.sh -b all         # build only, no activation
 scripts/deploy.sh -n all         # print the commands without running them
 scripts/deploy.sh -k all         # keep going if one host fails
@@ -36,8 +36,8 @@ prints the command to run on the Mac. The manual equivalents:
 # satsuma (also the canonical checkout at /etc/nixos)
 sudo nixos-rebuild switch --flake /etc/nixos#satsuma
 
-# mail, from satsuma
-sudo nixos-rebuild switch --flake /etc/nixos#mail --target-host root@100.91.236.114
+# bergamot, from satsuma
+sudo nixos-rebuild switch --flake /etc/nixos#bergamot --target-host root@bergamot
 
 # pomelo
 sudo nixos-rebuild switch --flake /etc/nixos#pomelo
@@ -56,11 +56,11 @@ you are holding a change back, stop `nixos-upgrade.timer` first.
 .
 ├── flake.nix              # inputs + the four host configurations
 ├── common.nix             # shared by the NixOS hosts
-├── server-common.nix      # satsuma + mail only
-├── lena.nix               # second user, satsuma + mail only
+├── server-common.nix      # satsuma + bergamot only
+├── lena.nix               # second user, satsuma + bergamot only
 ├── dots.nix, dots-nixos.nix, dots-darwin.nix, starship.nix, ssh-hosts.nix
 ├── satsuma/               # one file per service, grouped by function
-├── vps/                   # nixosConfigurations.mail
+├── bergamot/              # nixosConfigurations.bergamot (hostname mail)
 ├── pomelo/                # desktop
 ├── lime/                  # nix-darwin configuration
 ├── pkgs/                  # local derivations (matrix-mcp, mindroom-nio, kiro-gateway)
@@ -109,7 +109,7 @@ diff scripts/drvpaths.baseline /tmp/after
 | [Monitoring](docs/Monitoring.md) | Prometheus, Grafana, alerting |
 | [NFS](docs/NFS.md) | Exports and client mounts |
 | [Media Stack](docs/Media%20Stack.md) | Arr stack, Immich, Jellyfin |
-| [Stalwart](docs/Stalwart.md) | Mail server on `mail` |
+| [Stalwart](docs/Stalwart.md) | Mail server on `bergamot` |
 | [DNS](docs/DNS.md) | Technitium on `orange` |
 | [OpenCode](docs/OpenCode.md) | Centralised OpenCode + agents |
 | [Hermes](docs/Hermes.md) | Hermes agent |

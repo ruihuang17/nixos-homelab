@@ -109,11 +109,11 @@
         ];
       };
 
-      nixosConfigurations.mail = nixpkgs.lib.nixosSystem {
+      nixosConfigurations.bergamot = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = { inherit inputs; };
         modules = [
-          ./vps/configuration.nix
+          ./bergamot/configuration.nix
           ./server-common.nix
           ./lena.nix
           ./common.nix

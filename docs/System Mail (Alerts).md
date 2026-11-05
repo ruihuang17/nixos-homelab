@@ -111,7 +111,7 @@ register `protonmail.com` / `gmail.com` as *local* domains — the exact bug cal
 out in [[Stalwart]] → Gotchas.
 
 Instead, `email = emailprimary` stays as-is for everyone, and a **scoped
-exception** in `vps/stalwart.nix` authorizes just `homelab-svc` for just the three
+exception** in `bergamot/stalwart.nix` authorizes just `homelab-svc` for just the three
 service addresses:
 
 ```nix
@@ -143,7 +143,7 @@ session.auth.must-match-sender = [
 | `satsuma/hardware-configuration.nix` | smartd `sender = alerts@…`, `recipient = rui@estrogenuinely.ca` |
 | `satsuma/apps/nextcloud/nextcloud.nix` | SMTP → Stalwart, `mail_smtpname = homelab-svc`, From `nextcloud@…`, `mail_smtpsecure = ""` (STARTTLS) |
 | `satsuma/apps/vaultwarden.nix` | SMTP → Stalwart, `SMTP_USERNAME = homelab-svc`, `SMTP_FROM = vaultwarden@…` |
-| `vps/stalwart.nix` | Scoped `session.auth.must-match-sender` exception |
+| `bergamot/stalwart.nix` | Scoped `session.auth.must-match-sender` exception |
 | `satsuma/secrets/postfix_sasl.age` | `[mail.estrogenuinely.ca]:587 homelab-svc:<pw>` (Postfix texthash) |
 | `satsuma/secrets/mail_pass.age` | Nextcloud `mail_smtppassword` = `homelab-svc` pw (plain) |
 | `satsuma/secrets/vaultwarden_token.age` | `SMTP_PASSWORD=<homelab-svc pw>` (env file) |

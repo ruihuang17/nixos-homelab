@@ -14,8 +14,10 @@ let
       user = "root";
     };
     lime.address = "10.0.10.73";
-    mail = {
-      # Over Tailscale: the VPS only accepts ssh on tailscale0.
+    bergamot = {
+      # The OVH VPS. networking.hostName stays "mail" (reverse DNS requires it);
+      # this is only the repo/flake name. Reached over Tailscale: the VPS only
+      # accepts ssh on tailscale0.
       address = "100.91.236.114";
       user = "root";
     };

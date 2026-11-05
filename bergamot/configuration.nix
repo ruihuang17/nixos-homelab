@@ -27,7 +27,7 @@
   zramSwap.enable = true;
   networking = {
     useDHCP = true;
-    hostName = "mail";
+    hostName = "mail"; # fixed by the provider's reverse DNS; the flake name is bergamot
     domain = "estrogenuinely.ca";
 
     # Allow SSH only on the Tailscale interface.

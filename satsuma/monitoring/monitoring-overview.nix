@@ -164,17 +164,17 @@ let
     }
     {
       group = "Messaging & Mail";
-      host = "mail";
+      host = "bergamot";
       name = "Stalwart SMTP";
       type = "tcp";
-      target = "${homelab.endpoint "mail" 25}";
+      target = "${homelab.endpoint "bergamot" 25}";
     }
     {
       group = "Messaging & Mail";
-      host = "mail";
+      host = "bergamot";
       name = "Stalwart IMAP";
       type = "tcp";
-      target = "${homelab.endpoint "mail" 993}";
+      target = "${homelab.endpoint "bergamot" 993}";
     }
 
     # Network & home
@@ -243,8 +243,8 @@ let
     }
     {
       name = "mail (Stalwart)";
-      host = "mail";
-      target = "${homelab.endpoint "mail" 443}";
+      host = "bergamot";
+      target = "${homelab.endpoint "bergamot" 443}";
       sni = "mail.estrogenuinely.ca";
     }
   ];

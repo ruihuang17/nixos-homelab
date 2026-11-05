@@ -6,7 +6,7 @@ Config repo: `/etc/nixos` on satsuma → `github.com:ruihuang17/nixos-homelab` (
 | ------------------------- | ---------------------------------------- | --------------------------------------------- | ---------------------------- | ------- |
 | `/var` (all service data) | sanoid snapshots + syncoid replication   | `hdd/backup/var` (HDD pool, same box)         | snapshots hourly, sync daily | no      |
 | `/var` + `/etc`           | restic to OVHcloud Object Storage        | `satsuma-backup` (Toronto, `ca-east-tor`)      | daily 04:30                  | yes     |
-| PostgreSQL (all DBs)      | `pg_dump` + restic over SFTP via tailnet | `mail` VPS `/var/lib/satsuma-backup/postgres` | dump 03:00, push 03:20       | yes     |
+| PostgreSQL (all DBs)      | `pg_dump` + restic over SFTP via tailnet | `bergamot` VPS `/var/lib/satsuma-backup/postgres` | dump 03:00, push 03:20       | yes     |
 | Boot / ESP                | rsync-style mirror to second NVMe ESP    | `nvme0n1p1` (`boot-bak`)                      | on ESP change + timer        | no      |
 
 ```
@@ -83,7 +83,7 @@ latest `hdd/backup/var` snapshot back into a new `zpool/var`.
 
 `kiro-cli --resume-id 688209e0-9a02-4113-a1da-15bd64dcde5c`
 
-Modules: `satsuma/backup/postgres-backup.nix` (source), `vps/backup-target.nix` (destination).
+Modules: `satsuma/backup/postgres-backup.nix` (source), `bergamot/backup-target.nix` (destination).
 Commit: `d36bc5d`.
 
 ### Databases covered
@@ -109,7 +109,7 @@ matrix-synapse. Postgres 17, data dir `/var/lib/psql`.
   `/etc/ssh/ssh_host_ed25519_key`). The VPS host key is pinned in `programs.ssh.knownHosts`.
 - Satsuma auto-upgrades at 04:00, after these jobs.
 
-### VPS (`mail`) side
+### VPS (`bergamot`) side
 
 - User `backup`, home `/var/lib/satsuma-backup` (mode 700), no shell.
 - `Match User backup` → `ForceCommand internal-sftp`, no forwarding, no PTY.
@@ -150,7 +150,7 @@ zstd -dc /tmp/pgrestore/var/backup/postgresql/<db>.sql.zstd | sudo -u postgres p
 If satsuma is gone: get the password by decrypting the `.age` file from the git repo with the
 `rhuang` key (`agenix -d` / `age -d -i <key>`), then run restic from any machine on the tailnet
 that has an SSH key the VPS accepts (the `backup` user only accepts satsuma's host key from
-satsuma's IP, so add a temporary key in `vps/backup-target.nix` or use root on the VPS to
+satsuma's IP, so add a temporary key in `bergamot/backup-target.nix` or use root on the VPS to
 read `/var/lib/satsuma-backup/postgres` directly).
 
 ### Status / caveats
@@ -160,10 +160,10 @@ read `/var/lib/satsuma-backup/postgres` directly).
 - Roles/globals are not dumped (they come from `ensureUsers`); add `pg_dumpall --globals-only` if needed.
 - SFTP can't enforce append-only: a compromised satsuma could delete the offsite backups.
   Option: restic `rest-server --append-only` on the VPS bound to the tailnet.
-- Deploying `mail` from satsuma:
+- Deploying `bergamot` from satsuma:
   ```bash
   NIX_SSHOPTS="-i /root/.ssh/general -o IdentitiesOnly=yes" \
-    nixos-rebuild switch --flake /etc/nixos#mail --target-host root@100.91.236.114
+    nixos-rebuild switch --flake /etc/nixos#bergamot --target-host root@100.91.236.114
   ```
 
 ---

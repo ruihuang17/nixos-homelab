@@ -36,7 +36,7 @@ Updates (set up 2026-10-11):
 
 ## satsuma (main server)
 
-Config is a flake in `/etc/nixos` (a git repo that is pushed to GitHub). The flake also defines the other hosts: `mail` (VPS) and `lime` (Mac mini, via nix-darwin).
+Config is a flake in `/etc/nixos` (a git repo that is pushed to GitHub). The flake also defines the other hosts: `bergamot` (VPS, hostname `mail`) and `lime` (Mac mini, via nix-darwin).
 
 Layout:
 - `flake.nix`: inputs are nixpkgs-unstable, agenix and nix-darwin.
@@ -117,4 +117,4 @@ Backups:
 - **Remote access:** Tailscale on satsuma and the mail VPS. Not installed on orange, the Mac mini or Home Assistant.
 - **Identity:** Kanidm on satsuma is the single sign-on for Nextcloud, Matrix, Grafana and Hermes.
 - **Desktop storage:** pomelo mounts `backup`, `data` and `mediaSrv` at `~/NAS` over NFS. See [[NFS]].
-- **Not in the IP table:** the `mail` VPS (Tailscale 100.91.236.114) runs Stalwart mail and is also the offsite backup target. It is defined in the same flake. See [[Stalwart]].
+- **Not in the IP table:** the `bergamot` VPS (hostname `mail`, Tailscale 100.91.236.114) runs Stalwart mail and is also the offsite backup target. It is defined in the same flake. See [[Stalwart]].

@@ -43,7 +43,7 @@ Thunderbird ──IMAP/SMTP──▶ Stalwart (vps)  ──LDAPS over Tailscale�
 - kanidm LDAPS (3636) listens on `0.0.0.0` but the firewall only allows it on `tailscale0`.
 - Stalwart does two LDAP things: a service-account bind (`dn=token` + read-only API token)
   for lookups, and a **bind as the user** with the typed password to verify it.
-- **The VPS dead-man's-switch does not use Stalwart.** `vps/satsuma-watcher.nix`
+- **The VPS dead-man's-switch does not use Stalwart.** `bergamot/satsuma-watcher.nix`
   sends alert mail directly to SES with the `ses_smtp_user`/`ses_smtp_pass`
   credentials, because Stalwart auth depends on kanidm on satsuma. Pointing it
   at `mail.estrogenuinely.ca:587` creates a circular dependency: when satsuma is
@@ -58,13 +58,13 @@ Thunderbird ──IMAP/SMTP──▶ Stalwart (vps)  ──LDAPS over Tailscale�
 
 - Repo `git@github.com:ruihuang17/nixos-homelab.git`, checked out at `/etc/nixos` on both
   hosts. Flake outputs: `nixosConfigurations.satsuma` and `nixosConfigurations.mail`
-  (renamed from `"mail.estrogenuinely.ca"`). Rebuild: `nixos-rebuild switch --flake /etc/nixos#mail`.
+  (renamed from `"mail.estrogenuinely.ca"`). Rebuild: `nixos-rebuild switch --flake /etc/nixos#bergamot`.
 - Both hosts use **fish** as login shell. Wrap remote commands in `bash -lc '...'`, or better,
   `scp` a small script and run `bash script.sh` (nested quoting over 3 shells is a trap).
 - **vps public SSH (22) rate-limits/drops** after bursts of connections. Reliable path:
   `ssh satsuma`, then from satsuma `ssh -i ~/.ssh/general root@100.91.236.114` (over the tailnet).
 - Deploy = commit on satsuma → `git push origin main` → on vps
-  `git fetch && git reset --hard origin/main && nixos-rebuild switch --flake .#mail`.
+  `git fetch && git reset --hard origin/main && nixos-rebuild switch --flake .#bergamot`.
   **Check `git log -1` on the vps afterwards.** Several "deploys" earlier silently ran
   the old commit and I debugged the wrong config for a while.
 - `nixos-rebuild switch` on the vps may print `failed (status 4)` because of the ACME unit;
@@ -74,10 +74,10 @@ Thunderbird ──IMAP/SMTP──▶ Stalwart (vps)  ──LDAPS over Tailscale�
 
 | File | Change |
 |------|--------|
-| `vps/stalwart.nix` | **new** — Stalwart, LDAP directory, ACME, fallback admin, SES relay, firewall |
-| `vps/configuration.nix` | imports `./stalwart.nix`; static OVH IPv6 |
-| `vps/secrets/*.age` | `cloudflare_api`, `kanidm_ldap_token`, `stalwart_admin`, `ses_smtp_user`, `ses_smtp_pass` |
-| `vps/secrets/secrets.nix` | recipients: `[ vps-host rhuang ]` |
+| `bergamot/stalwart.nix` | **new** — Stalwart, LDAP directory, ACME, fallback admin, SES relay, firewall |
+| `bergamot/configuration.nix` | imports `./stalwart.nix`; static OVH IPv6 |
+| `bergamot/secrets/*.age` | `cloudflare_api`, `kanidm_ldap_token`, `stalwart_admin`, `ses_smtp_user`, `ses_smtp_pass` |
+| `bergamot/secrets/secrets.nix` | recipients: `[ vps-host rhuang ]` |
 | `common.nix` | Tailscale moved here (shared by all hosts) |
 | `satsuma/core/kanidm.nix` | LDAPS bind `0.0.0.0:3636`, firewalled to `tailscale0` |
 | `satsuma/core/tailscale.nix` | now a no-op (config moved to `common.nix`) |
@@ -104,7 +104,7 @@ kanidm system domain set-ldap-allow-unix-password-bind true -D admin            
   `lena` → `lena@estrogenuinely.ca`, `lenazhu2007@gmail.com`.
 - kanidm CLI sessions expire (~1h). Non-interactive use needs a fresh `kanidm login` first.
 
-## Stalwart config (`vps/stalwart.nix`)
+## Stalwart config (`bergamot/stalwart.nix`)
 
 - `services.stalwart` (nixpkgs module), package 0.15.5, `stateVersion = "26.05"` (RocksDB).
 - Secrets: agenix → systemd `LoadCredential` → referenced as
@@ -310,7 +310,7 @@ route = "'ses'"        # expression: quoted literal = send everything via SES
   does not restart it, and it keeps the old value until then (same for the LDAP token and SES creds).
 - **Cloudflare token printed in chat.** A debug command on the vps secret only redacted
   `NAME=value` lines and the file had no `=`, so the token went into a transcript. Rotate
-  it in Cloudflare (done 2026-10-11), then re-encrypt for `vps/secrets/cloudflare_api.age` **and**
+  it in Cloudflare (done 2026-10-11), then re-encrypt for `bergamot/secrets/cloudflare_api.age` **and**
   `satsuma/secrets/cloudflare_api.age` (same token, env-file format).
   `agenix -e` run on the vps leaves the change uncommitted in the vps checkout, and a
   `git reset --hard origin/...` deploy would erase it. Commit/push first, or copy the `.age`

@@ -11,7 +11,7 @@ flake="${1:-path:$(cd "$(dirname "$0")/.." && pwd)}"
 
 targets=(
   nixosConfigurations.satsuma.config.system.build.toplevel
-  nixosConfigurations.mail.config.system.build.toplevel
+  nixosConfigurations.bergamot.config.system.build.toplevel
   nixosConfigurations.pomelo.config.system.build.toplevel
   darwinConfigurations.lime.system
 )

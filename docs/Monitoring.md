@@ -143,7 +143,7 @@ that provisions node_exporter consistently. It defines the option group
 The exporter runs the `systemd` and `processes` collectors in addition to the
 defaults. satsuma uses the loopback default (Prometheus scrapes it locally).
 
-### mail / VPS — `vps/configuration.nix`
+### mail / VPS — `bergamot/configuration.nix`
 
 mail is public-facing, so its exporter is tailnet-only:
 
@@ -221,7 +221,7 @@ All of it is provisioned from the flake. Mail goes out through our own server
 | ------- | --- | ----------------- |
 | Email → `rui@estrogenuinely.ca` + Proton | Grafana SMTP as `homelab-svc` via `mail.estrogenuinely.ca:587` → SES | anything except satsuma fully down |
 | Matrix → `homelab-alerts` room | Grafana webhook → `matrix-alertmanager-receiver` → Synapse | anything except satsuma down (Synapse runs on satsuma) |
-| Email (VPS watcher) | the `mail` VPS pings satsuma; emails **directly through SES** (no Stalwart) | **satsuma itself is down** |
+| Email (VPS watcher) | the `bergamot` VPS pings satsuma; emails **directly through SES** (no Stalwart) | **satsuma itself is down** |
 
 Both email channels go to `rui@estrogenuinely.ca` and
 `rui.huang17@protonmail.com`. Grafana sends to both through its single email
@@ -283,7 +283,7 @@ The bot was registered with `register_new_matrix_user` using a temporary
 `synapse_registration_secret`) so future service bots can be provisioned the
 same way. See [[SMS Matrix Bridge]] for the Synapse setup.
 
-### mail / VPS — `vps/satsuma-watcher.nix`
+### mail / VPS — `bergamot/satsuma-watcher.nix`
 
 The one thing Grafana can't do: tell you satsuma is down (Grafana, Synapse and
 Postfix all run on satsuma). A systemd timer on the **mail** VPS runs every 2
