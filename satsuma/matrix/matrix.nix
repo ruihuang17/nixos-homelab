@@ -21,7 +21,7 @@ in
 {
 
   age.secrets.matrix_oidc = {
-    file = "/etc/nixos/satsuma/secrets/matrix_oidc.age";
+    file = ../secrets/matrix_oidc.age;
     mode = "770";
     owner = "matrix-synapse";
     group = "matrix-synapse";
@@ -32,7 +32,7 @@ in
   # store via agenix and injected through Synapse's extraConfigFiles so it is
   # not persisted to a world-readable store path.
   age.secrets.synapse_registration_secret = {
-    file = "/etc/nixos/satsuma/secrets/synapse_registration_secret.age";
+    file = ../secrets/synapse_registration_secret.age;
     mode = "440";
     owner = "matrix-synapse";
     group = "matrix-synapse";
@@ -43,7 +43,7 @@ in
   # /var/lib. agenix decrypts it to /run/agenix at boot and Synapse reads it
   # from there via app_service_config_files.
   age.secrets.imessage-appservice = {
-    file = "/etc/nixos/satsuma/secrets/imessage-appservice.age";
+    file = ../secrets/imessage-appservice.age;
     mode = "440";
     owner = "matrix-synapse";
     group = "matrix-synapse";
@@ -53,7 +53,7 @@ in
   # it from agenix as well so no plaintext copy of the tokens remains under
   # /var/lib.
   age.secrets.mautrix-wsproxy-config = {
-    file = "/etc/nixos/satsuma/secrets/mautrix-wsproxy-config.age";
+    file = ../secrets/mautrix-wsproxy-config.age;
     mode = "0400";
     owner = "mautrix-wsproxy";
     group = "mautrix-wsproxy";
@@ -61,7 +61,7 @@ in
 
   # The SMS bridge's appservice registration (same treatment as iMessage).
   age.secrets.sms-appservice = {
-    file = "/etc/nixos/satsuma/secrets/sms-appservice.age";
+    file = ../secrets/sms-appservice.age;
     mode = "440";
     owner = "matrix-synapse";
     group = "matrix-synapse";
@@ -71,7 +71,7 @@ in
   # The bridge uses the imessage appservice as_token as the shared password
   # (bridge.login_shared_secret is null), so this file contains that same token.
   age.secrets.synapse_shared_secret_auth = {
-    file = "/etc/nixos/satsuma/secrets/synapse_shared_secret_auth.age";
+    file = ../secrets/synapse_shared_secret_auth.age;
     mode = "0400";
     owner = "matrix-synapse";
     group = "matrix-synapse";

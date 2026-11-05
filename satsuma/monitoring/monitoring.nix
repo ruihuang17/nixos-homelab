@@ -94,7 +94,7 @@ in
   # Grafana admin password, kept out of the Nix store via agenix.
   # Decryptable by the satsuma host key (see secrets/secrets.nix).
   age.secrets.grafana_admin_pass = {
-    file = "/etc/nixos/satsuma/secrets/grafana_admin_pass.age";
+    file = ../secrets/grafana_admin_pass.age;
     mode = "400";
     owner = "grafana";
     group = "grafana";
@@ -103,7 +103,7 @@ in
   # Grafana's secret_key (used to sign/encrypt values in its DB) must be
   # provided explicitly on current nixpkgs. Kept out of the Nix store.
   age.secrets.grafana_secret_key = {
-    file = "/etc/nixos/satsuma/secrets/grafana_secret_key.age";
+    file = ../secrets/grafana_secret_key.age;
     mode = "400";
     owner = "grafana";
     group = "grafana";
@@ -111,7 +111,7 @@ in
 
   # Kanidm OAuth2 client secret for the "grafana" client.
   age.secrets.grafana_oidc_secret = {
-    file = "/etc/nixos/satsuma/secrets/grafana_oidc_secret.age";
+    file = ../secrets/grafana_oidc_secret.age;
     mode = "400";
     owner = "grafana";
     group = "grafana";
@@ -121,7 +121,7 @@ in
   # contact point to send alerts via Stalwart (mail.estrogenuinely.ca:587).
   # Same secret as Nextcloud's mail_smtppassword (plain homelab-svc password).
   age.secrets.grafana_mail_pass = {
-    file = "/etc/nixos/satsuma/secrets/mail_pass.age";
+    file = ../secrets/mail_pass.age;
     mode = "400";
     owner = "grafana";
     group = "grafana";

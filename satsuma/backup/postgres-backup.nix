@@ -13,7 +13,7 @@ let
   vpsHostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBGkF5aWM2D0nhzl0jYCzzb+ZQ3wKOWK+D4XzWv7Rl9L";
 in
 {
-  age.secrets.restic_postgres_password.file = "/etc/nixos/satsuma/secrets/restic_postgres_password.age";
+  age.secrets.restic_postgres_password.file = ../secrets/restic_postgres_password.age;
 
   services.postgresqlBackup = {
     enable = true;

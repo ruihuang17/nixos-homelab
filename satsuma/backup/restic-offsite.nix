@@ -31,12 +31,12 @@ let
 in
 {
   age.secrets.restic_offsite_password = {
-    file = "/etc/nixos/satsuma/secrets/restic_offsite_password.age";
+    file = ../secrets/restic_offsite_password.age;
     mode = "400";
   };
 
   age.secrets.restic_s3_env = {
-    file = "/etc/nixos/satsuma/secrets/restic_s3_env.age";
+    file = ../secrets/restic_s3_env.age;
     mode = "400";
   };
 

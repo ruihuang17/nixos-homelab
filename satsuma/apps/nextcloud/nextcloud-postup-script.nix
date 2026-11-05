@@ -3,7 +3,7 @@
 {
   # Kanidm OAuth2 client secret for the "nextcloud" client (decrypted at runtime,
   # never placed in the world-readable nix store).
-  age.secrets.nextcloud_oidc_secret.file = "/etc/nixos/satsuma/secrets/nextcloud_oidc_secret.age";
+  age.secrets.nextcloud_oidc_secret.file = ../../secrets/nextcloud_oidc_secret.age;
 
   systemd.services.nextcloud-config-collabora =
     let

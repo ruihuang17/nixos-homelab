@@ -91,7 +91,7 @@ in
   # exporter runs as the unpoller-exporter group, so keep the decrypted copy
   # readable by that group only.
   age.secrets.unifi-grove-password = {
-    file = "/etc/nixos/satsuma/secrets/unifi-grove-password.age";
+    file = ./secrets/unifi-grove-password.age;
     owner = "root";
     group = "unpoller-exporter";
     mode = "0440";

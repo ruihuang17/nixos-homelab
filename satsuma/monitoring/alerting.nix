@@ -40,7 +40,7 @@ in
 {
   # Bot access token for the Matrix receiver, injected via EnvironmentFile.
   age.secrets.matrix_alertbot_token = {
-    file = "/etc/nixos/satsuma/secrets/matrix_alertbot_token.age";
+    file = ../secrets/matrix_alertbot_token.age;
     mode = "400";
     # owned by the receiver's dynamic user is not possible; read as root in
     # the unit's EnvironmentFile before privileges drop. Keep 400 root.

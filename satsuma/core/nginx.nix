@@ -1,6 +1,6 @@
 { pkgs, config, ... }:
 {
-  age.secrets.cloudflare_api.file = "/etc/nixos/satsuma/secrets/cloudflare_api.age";
+  age.secrets.cloudflare_api.file = ../secrets/cloudflare_api.age;
 
   security.acme = {
     acceptTerms = true;
