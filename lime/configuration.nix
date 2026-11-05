@@ -88,7 +88,7 @@ in
   # Without this Jellyfin gets EACCES and playback stops at 0 ms.
   users.knownGroups = [ "storage" ];
   users.groups.storage = {
-    gid = 3000;
+    gid = homelab.storageGid;
     description = "Storage Access Group";
     members = [ "rhuang" ];
   };

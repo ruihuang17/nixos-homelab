@@ -127,7 +127,7 @@ cert:
   Grafana Live needs them).
 - `prometheus.local.estrogenuinely.ca` → `http://127.0.0.1:9090`.
 
-### Shared server module — `server-common.nix` (flake root)
+### Shared server module — `server.nix` (flake root)
 
 A new module, imported by **satsuma** and **mail**,
 that provisions node_exporter consistently. It defines the option group
@@ -202,7 +202,7 @@ The three non-NixOS hosts don't use the flake, so they were set up by hand.
   `curl -s http://127.0.0.1:9090/api/v1/query?query=up` on satsuma, or the
   Prometheus UI → *Status → Targets*.
 - Add a new host: install node_exporter on it (systemd/brew/docker as above, or
-  for a NixOS server just import `server-common.nix`), then add a target entry to
+  for a NixOS server just import `server.nix`), then add a target entry to
   the `node` job in `satsuma/monitoring/monitoring.nix` and `nixos-rebuild switch`.
 - Rotate the Grafana admin password: re-encrypt
   `satsuma/secrets/grafana_admin_pass.age` with agenix and rebuild.

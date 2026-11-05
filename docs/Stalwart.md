@@ -78,9 +78,9 @@ Thunderbird ──IMAP/SMTP──▶ Stalwart (vps)  ──LDAPS over Tailscale�
 | `bergamot/configuration.nix` | imports `./stalwart.nix`; static OVH IPv6 |
 | `bergamot/secrets/*.age` | `cloudflare_api`, `kanidm_ldap_token`, `stalwart_admin`, `ses_smtp_user`, `ses_smtp_pass` |
 | `bergamot/secrets/secrets.nix` | recipients: `[ vps-host rhuang ]` |
-| `common.nix` | Tailscale moved here (shared by all hosts) |
+| `server.nix` | subnet-router Tailscale (shared by satsuma + bergamot) |
 | `satsuma/core/kanidm.nix` | LDAPS bind `0.0.0.0:3636`, firewalled to `tailscale0` |
-| `satsuma/core/tailscale.nix` | now a no-op (config moved to `common.nix`) |
+| `satsuma/core/tailscale.nix` | removed; config moved to `server.nix` |
 | `flake.nix` | vps output renamed to `mail` |
 
 ## kanidm setup (on satsuma)
@@ -322,7 +322,7 @@ route = "'ses'"        # expression: quoted literal = send everything via SES
   public names still resolve, but `tailscale set --accept-dns=false` flips it to OVH's
   resolver (I restored it; kanidm's tailnet name needs it).
 - OVH VPS: outbound 25 blocked, 587 open.
-- Don't also set `services.tailscale` per host (it lives in `common.nix`).
+- Don't also set `services.tailscale` per host (it lives in `server.nix`).
 
 ## webadmin package issue (nixpkgs pin)
 

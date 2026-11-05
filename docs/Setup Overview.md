@@ -40,8 +40,10 @@ Config is a flake in `/etc/nixos` (a git repo that is pushed to GitHub). The fla
 
 Layout:
 - `flake.nix`: inputs are nixpkgs-unstable, agenix and nix-darwin.
-- `common.nix`: shared by all hosts. Contains the users, SSH (root login by key only), Tailscale, and fish.
-- `lena.nix`: user for Lena.
+- `homelab.nix`: plain data (addresses, ssh aliases, user uid/keys, storage GID, domain, dotfiles), imported, not a module.
+- `common-nixos.nix`: shared by the NixOS hosts (users, ssh, fish, tmux, git, CLI packages, dotfiles).
+- `common-darwin.nix`: the macOS counterpart, imported by lime.
+- `server.nix`: satsuma + bergamot only (Lena, root keys, subnet-router Tailscale, node_exporter).
 - `satsuma/`: one `.nix` file per service, grouped by function (`core/`, `apps/`, `media/`, `matrix/`, `backup/`, `monitoring/`, `ai/`). Secrets are agenix `.age` files in `satsuma/secrets/`.
 
 Hardware:

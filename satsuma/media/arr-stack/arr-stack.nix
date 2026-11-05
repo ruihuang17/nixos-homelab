@@ -1,7 +1,11 @@
 { config, pkgs, ... }:
+let
+  homelab = import ../../../homelab.nix;
+in
 {
+  # Same GID as the `storage` group on pomelo and lime, so NFS access works.
   users.groups.media = {
-    gid = 3000;
+    gid = homelab.storageGid;
   };
 
   services.sonarr = {

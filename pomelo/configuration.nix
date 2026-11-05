@@ -7,6 +7,9 @@
 # pomelo: Rui's desktop (ASRock X870, Ryzen 7 7700X, RTX 4080), migrated from Fedora 44.
 # It imports common-nixos.nix but not server.nix: the server file adds Lena, root's
 # ssh keys and a subnet-router Tailscale, none of which belong on a desktop.
+let
+  homelab = import ../homelab.nix;
+in
 {
   imports = [
     ./hardware-configuration.nix
@@ -61,7 +64,7 @@
   };
 
   users.groups.rhuang.gid = 1000;
-  users.groups.storage.gid = 3000; # GID that crosses NFS to satsuma's `media` group
+  users.groups.storage.gid = homelab.storageGid; # GID that crosses NFS to satsuma's `media` group
   # uid, shell and ssh key come from common-nixos.nix.
   users.users.rhuang = {
     description = "Rui Huang";

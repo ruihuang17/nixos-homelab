@@ -55,16 +55,17 @@ you are holding a change back, stop `nixos-upgrade.timer` first.
 ```
 .
 ├── flake.nix              # inputs + the four host configurations
-├── common.nix             # shared by the NixOS hosts
-├── server-common.nix      # satsuma + bergamot only
-├── lena.nix               # second user, satsuma + bergamot only
-├── dots.nix, dots-nixos.nix, dots-darwin.nix, starship.nix, ssh-hosts.nix
+├── homelab.nix            # data: addresses, users/keys, GID, domain, dotfiles
+├── common-nixos.nix       # every NixOS host
+├── common-darwin.nix      # lime
+├── server.nix             # satsuma + bergamot only
 ├── satsuma/               # one file per service, grouped by function
+│                          #   (system/ holds kernel, power, storage, upgrades)
 ├── bergamot/              # nixosConfigurations.bergamot (hostname mail)
-├── pomelo/                # desktop
+├── pomelo/                # desktop (+ nfs.nix)
 ├── lime/                  # nix-darwin configuration
 ├── pkgs/                  # local derivations (matrix-mcp, mindroom-nio, kiro-gateway)
-├── dots/                  # dotfiles linked into the hosts
+├── dots/                  # dotfiles linked into the hosts (via homelab.nix)
 ├── docs/                  # per-topic runbooks (Obsidian vault)
 ├── scripts/               # deploy.sh, drvpaths.sh; not imported by the flake
 └── tofu/                  # OpenTofu for the VPS/DNS/Cloudflare resources

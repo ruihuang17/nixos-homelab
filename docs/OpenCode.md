@@ -77,7 +77,7 @@ the vhost.
 
 ### 0. Preflight (done)
 
-- `opencode` 2.1.1 is already in `common.nix`; no new package.
+- `opencode` 2.1.1 is already in `common-nixos.nix`; no new package.
 - Port 4096 is free; nginx owns 80/443.
 - `/var/lib/opencode` does not exist yet; root's old store is at
   `/root/.local/share/opencode` (72 MB, includes `auth.json` with the
