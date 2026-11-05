@@ -6,6 +6,7 @@
   ...
 }:
 let
+  homelab = import ../homelab.nix;
   home = "/Users/rhuang";
   logs = "${home}/Library/Logs";
 in
@@ -90,7 +91,7 @@ in
           "StrictHostKeyChecking=accept-new"
           "-L"
           "127.0.0.1:29331:127.0.0.1:29331"
-          "rhuang@10.0.10.72"
+          "rhuang@${homelab.ip "satsuma"}"
         ];
         RunAtLoad = true;
         KeepAlive = true;

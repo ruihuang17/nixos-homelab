@@ -9,6 +9,7 @@
   ...
 }:
 let
+  homelab = import ../../homelab.nix;
   blackboxAddr = "127.0.0.1:9115";
 
   # ---------------------------------------------------------------------------
@@ -102,7 +103,7 @@ let
       host = "lime";
       name = "Jellyfin";
       type = "http";
-      target = "http://10.0.10.73:8096/health";
+      target = "http://${homelab.ip "lime"}:8096/health";
     }
     {
       group = "Media";
@@ -166,14 +167,14 @@ let
       host = "mail";
       name = "Stalwart SMTP";
       type = "tcp";
-      target = "100.91.236.114:25";
+      target = "${homelab.endpoint "mail" 25}";
     }
     {
       group = "Messaging & Mail";
       host = "mail";
       name = "Stalwart IMAP";
       type = "tcp";
-      target = "100.91.236.114:993";
+      target = "${homelab.endpoint "mail" 993}";
     }
 
     # Network & home
@@ -182,7 +183,7 @@ let
       host = "orange";
       name = "DNS (Technitium)";
       type = "dns";
-      target = "10.0.10.23:53";
+      target = "${homelab.endpoint "orange" 53}";
     }
     {
       # The probe above only proves Technitium is alive: it asks for a local,
@@ -194,21 +195,21 @@ let
       name = "DNS (external DNSSEC)";
       type = "dns";
       module = "dns_external";
-      target = "10.0.10.23:53";
+      target = "${homelab.endpoint "orange" 53}";
     }
     {
       group = "Network & Home";
       host = "orange";
       name = "DNS web UI";
       type = "http";
-      target = "http://10.0.10.23:5380/";
+      target = "http://${homelab.ip "orange"}:5380/";
     }
     {
       group = "Network & Home";
       host = "homeassistant";
       name = "Home Assistant";
       type = "http";
-      target = "http://10.0.10.74:8123/manifest.json";
+      target = "http://${homelab.ip "homeassistant"}:8123/manifest.json";
     }
 
     # Monitoring
@@ -243,7 +244,7 @@ let
     {
       name = "mail (Stalwart)";
       host = "mail";
-      target = "100.91.236.114:443";
+      target = "${homelab.endpoint "mail" 443}";
       sni = "mail.estrogenuinely.ca";
     }
   ];

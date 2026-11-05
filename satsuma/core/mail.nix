@@ -1,4 +1,7 @@
 { config, pkgs, ... }:
+let
+  homelab = import ../../homelab.nix;
+in
 
 {
   # Secrets Management (agenix)
@@ -39,7 +42,7 @@
       mynetworks = [
         "127.0.0.0/8"
         "[::1]/128"
-        "10.0.10.0/24"
+        homelab.lanCidr
         "100.64.0.0/10"
       ];
 

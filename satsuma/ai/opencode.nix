@@ -6,6 +6,8 @@
   ...
 }:
 let
+  homelab = import ../../homelab.nix;
+
   port = 4096;
   primaryHost = "opencode.local.estrogenuinely.ca";
 
@@ -20,7 +22,7 @@ let
       extraConfig = ''
         allow 127.0.0.1;
         allow ::1;
-        allow 10.0.10.0/24;
+        allow ${homelab.lanCidr};
         allow 100.64.0.0/10;
         allow fd7a:115c:a1e0::/48;
         deny all;

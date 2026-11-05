@@ -11,6 +11,9 @@
   pkgs,
   ...
 }:
+let
+  homelab = import ../homelab.nix;
+in
 {
   imports = [
     ./agents.nix
@@ -118,7 +121,7 @@
   # negotiate NFSv4 with satsuma; nolocks because the NLM ports are not opened
   # (Jellyfin otherwise opens a file and hangs on the first read).
   environment.etc."auto_nas".text = ''
-    /Users/rhuang/NAS/mediaSrv  -fstype=nfs,nfsvers=3,proto=tcp,port=2049,mountport=20048,resvport,rw,nolocks,hard,timeo=14  10.0.10.72:/hdd/mediaSrv
+    /Users/rhuang/NAS/mediaSrv  -fstype=nfs,nfsvers=3,proto=tcp,port=2049,mountport=20048,resvport,rw,nolocks,hard,timeo=14  ${homelab.ip "satsuma"}:/hdd/mediaSrv
   '';
 
   environment.etc."auto_master".text = ''

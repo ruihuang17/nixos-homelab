@@ -6,6 +6,7 @@
   ...
 }:
 let
+  homelab = import ../homelab.nix;
   zfsCompatibleKernelPackages = lib.filterAttrs (
     name: kernelPackages:
     (builtins.match "linux_[0-9]+_[0-9]+" name) != null
@@ -81,7 +82,7 @@ in
     qbittorrent.enable = true;
     unifi = {
       enable = true;
-      url = "https://10.0.10.1";
+      url = "https://${homelab.lanGateway}";
       user = "grove";
       passwordFile = config.age.secrets.unifi-grove-password.path;
     };

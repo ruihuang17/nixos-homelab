@@ -9,6 +9,7 @@
 # Not covered: roles/globals (declared via ensureUsers); take `pg_dumpall --globals-only` if needed.
 { config, lib, ... }:
 let
+  homelab = import ../../homelab.nix;
   repo = "sftp:backup@mail:/var/lib/satsuma-backup/postgres";
   vpsHostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBGkF5aWM2D0nhzl0jYCzzb+ZQ3wKOWK+D4XzWv7Rl9L";
 in
@@ -26,7 +27,7 @@ in
   # Pin the VPS host key (matches vps/secrets/secrets.nix) so SFTP is non-interactive and MITM-safe.
   programs.ssh.knownHosts.mail = {
     publicKey = vpsHostKey;
-    extraHostNames = [ "100.91.236.114" ];
+    extraHostNames = [ (homelab.ip "mail") ];
   };
 
   # Authenticate to the VPS with satsuma's host key (authorized in vps/backup-target.nix).
@@ -58,7 +59,10 @@ in
 
   # Don't start pushing until tailscale is up.
   systemd.services.restic-backups-postgres-vps = {
-    after = [ "tailscaled.service" "network-online.target" ];
+    after = [
+      "tailscaled.service"
+      "network-online.target"
+    ];
     wants = [ "network-online.target" ];
   };
 }

@@ -4,7 +4,9 @@
   pkgs,
   ...
 }:
-
+let
+  homelab = import ../../homelab.nix;
+in
 {
   imports = [ inputs.hermes-agent.nixosModules.default ];
 
@@ -82,7 +84,7 @@
       PROWLARR_URL = "http://127.0.0.1:9696";
       QBITTORRENT_URL = "http://10.200.200.2:8080";
       QBITTORRENT_USERNAME = "admin";
-      JELLYFIN_URL = "http://10.0.10.73:8096";
+      JELLYFIN_URL = "http://${homelab.ip "lime"}:8096";
       PROMETHEUS_URL = "http://127.0.0.1:9090";
     };
     environmentFiles = [
@@ -127,7 +129,10 @@
       ProtectHome = true;
       PrivateTmp = true;
       NoNewPrivileges = true;
-      ReadOnlyPaths = [ "/run/agenix" "/run/grove-exporter" ];
+      ReadOnlyPaths = [
+        "/run/agenix"
+        "/run/grove-exporter"
+      ];
       ReadWritePaths = [ "/run/hermes-media" ];
     };
     script = ''
@@ -146,8 +151,14 @@
   };
 
   systemd.services.hermes-agent = {
-    wants = [ "hermes-media-acl.service" "hermes-media-keys.service" ];
-    after = [ "hermes-media-acl.service" "hermes-media-keys.service" ];
+    wants = [
+      "hermes-media-acl.service"
+      "hermes-media-keys.service"
+    ];
+    after = [
+      "hermes-media-acl.service"
+      "hermes-media-keys.service"
+    ];
     serviceConfig.EnvironmentFile = [ "-/run/hermes-media/env" ];
   };
 }

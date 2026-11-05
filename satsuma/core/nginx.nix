@@ -1,4 +1,7 @@
 { pkgs, config, ... }:
+let
+  homelab = import ../../homelab.nix;
+in
 {
   age.secrets.cloudflare_api.file = ../secrets/cloudflare_api.age;
 
@@ -96,7 +99,7 @@
         useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
         locations."/" = {
-          proxyPass = "http://10.0.10.74:8123";
+          proxyPass = "http://${homelab.ip "homeassistant"}:8123";
           proxyWebsockets = true;
         };
       };
@@ -144,7 +147,7 @@
         useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
         locations."/" = {
-          proxyPass = "http://10.0.10.73:8096";
+          proxyPass = "http://${homelab.ip "lime"}:8096";
         };
       };
 
@@ -181,7 +184,7 @@
         useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
         locations."/" = {
-          proxyPass = "http://10.0.10.23:5380";
+          proxyPass = "http://${homelab.ip "orange"}:5380";
         };
       };
 

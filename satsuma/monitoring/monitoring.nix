@@ -5,6 +5,8 @@
   ...
 }:
 let
+  homelab = import ../../homelab.nix;
+
   # Build the query+reduce+threshold data pipeline for a Grafana-managed alert
   # rule. `expr` is a PromQL instant query whose result is non-empty exactly
   # when the alert should fire (e.g. `up == bool 0`). We reduce to the last
@@ -165,21 +167,21 @@ in
             labels.instance = "satsuma";
           }
           {
-            targets = [ "10.0.10.23:9100" ];
+            targets = [ (homelab.endpoint "orange" 9100) ];
             labels.instance = "orange";
           }
           {
-            targets = [ "10.0.10.73:9100" ];
+            targets = [ (homelab.endpoint "lime" 9100) ];
             labels.instance = "lime";
           }
           {
-            targets = [ "10.0.10.74:9100" ];
+            targets = [ (homelab.endpoint "homeassistant" 9100) ];
             labels.instance = "homeassistant";
           }
           {
             # mail VPS, scraped over the tailnet (its node_exporter binds to
             # its Tailscale address and the port is only open on tailscale0).
-            targets = [ "100.91.236.114:9100" ];
+            targets = [ (homelab.endpoint "mail" 9100) ];
             labels.instance = "mail";
           }
         ];
