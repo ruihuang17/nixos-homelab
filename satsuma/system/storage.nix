@@ -18,6 +18,16 @@
     options zfs zfs_txg_timeout=30
   '';
 
+  # Working data on the NVMe mirror (fast). Exported to pomelo with the ZFS
+  # `sharenfs` property; see docs/NFS.md. Same pool as /, so it is required at
+  # boot and gets no `nofail`. The mountpoint is /ssd-data, whose escaped
+  # systemd unit is ssd\x2ddata.mount.
+  fileSystems."/ssd-data" = {
+    device = "zpool/data";
+    fsType = "zfs";
+    options = [ "zfsutil" ];
+  };
+
   # The exported datasets are separate fstab-generated mount units. `zfs share
   # -a` only exports datasets that are currently mounted, so ordering zfs-share
   # after them prevents it from regenerating an empty NFS export list during
@@ -27,11 +37,13 @@
       "hdd-data.mount"
       "hdd-mediaSrv.mount"
       "hdd-backup.mount"
+      "ssd\\x2ddata.mount"
     ];
     wants = [
       "hdd-data.mount"
       "hdd-mediaSrv.mount"
       "hdd-backup.mount"
+      "ssd\\x2ddata.mount"
     ];
   };
 }

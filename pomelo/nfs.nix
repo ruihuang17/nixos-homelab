@@ -34,4 +34,11 @@ in
     fsType = "nfs4";
     options = nfsOptions;
   };
+
+  # SSD dataset on satsuma holding the career-ops checkout (zpool/data).
+  fileSystems."/home/rhuang/NAS/ssd" = {
+    device = "${homelab.ip "satsuma"}:/ssd-data";
+    fsType = "nfs4";
+    options = nfsOptions;
+  };
 }
