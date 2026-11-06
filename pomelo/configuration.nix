@@ -234,6 +234,7 @@ in
     tcpdump
     proxychains-ng
     ethtool
+    claude-code
 
     # Documents
     libreoffice-qt
