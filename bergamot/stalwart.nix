@@ -339,6 +339,76 @@ in
   };
 
   # ---------------------------------------------------------------------------
+  # Mailing lists
+  # ---------------------------------------------------------------------------
+  # Stalwart 0.15 cannot declare lists in its TOML when the primary directory
+  # is LDAP, but a `list` principal can still live in the internal store (the
+  # LDAP backend falls back to it for recipient lookups). This oneshot creates
+  # or updates those principals through the management API after each start,
+  # so the list definitions stay in git. Members are plain addresses
+  # (externalMembers); local ones are still delivered locally by the queue
+  # route strategy.
+  systemd.services.stalwart-mailing-lists =
+    let
+      lists = {
+        homelab-list = {
+          address = "homelab@${domain}";
+          description = "Homelab mailing list";
+          members = [ "lena@${domain}" "rui@${domain}" ];
+        };
+      };
+      listsJson = pkgs.writeText "stalwart-lists.json" (builtins.toJSON lists);
+    in
+    {
+      description = "Sync Stalwart mailing lists";
+      wantedBy = [ "multi-user.target" ];
+      wants = [ "stalwart.service" ];
+      after = [ "stalwart.service" ];
+      path = [ pkgs.curl pkgs.jq ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        set -euo pipefail
+
+        # Admin listener is tailnet-only on the wire; reach it over loopback and
+        # pin the cert's hostname so verification still works.
+        # The password goes in via a curl config on a pipe, not argv.
+        api() {
+          curl -sS --resolve ${mailHost}:8443:127.0.0.1 \
+            -K <(printf 'user = "admin:%s"\n' "$(cat ${config.age.secrets.stalwart_admin.path})") \
+            -H 'Content-Type: application/json' "$@"
+        }
+        base=https://${mailHost}:8443/api/principal
+
+        for i in $(seq 1 60); do
+          api -o /dev/null "$base?types=list&limit=1" && break
+          sleep 2
+        done
+
+        jq -r 'keys[]' ${listsJson} | while read -r name; do
+          want=$(jq -c --arg n "$name" '.[$n]' ${listsJson})
+          if api "$base/$name" | jq -e '.data.name' >/dev/null 2>&1; then
+            patch=$(jq -c '[
+              {action: "set", field: "description",     value: .description},
+              {action: "set", field: "emails",          value: [.address]},
+              {action: "set", field: "externalMembers", value: .members}
+            ]' <<<"$want")
+            api -X PATCH -d "$patch" "$base/$name" | jq -e '.data' >/dev/null
+          else
+            create=$(jq -c --arg n "$name" '{
+              type: "list", name: $n, description: .description,
+              emails: [.address], externalMembers: .members
+            }' <<<"$want")
+            api -X POST -d "$create" "$base" | jq -e '.data' >/dev/null
+          fi
+          echo "synced list $name"
+        done
+      '';
+    };
+
+  # ---------------------------------------------------------------------------
   # Firewall (Option A: public mail + public autodiscovery; admin tailnet-only)
   # ---------------------------------------------------------------------------
   # Public (all interfaces):
