@@ -37,4 +37,6 @@ in
   "synapse_shared_secret_auth.age".publicKeys = common;
   "unifi-grove-password.age".publicKeys = common;
   "opencode-password.age".publicKeys = common;
+  "email-mcp-pass.age".publicKeys = common;
+  "email-mcp-uw-token.age".publicKeys = common;
 }

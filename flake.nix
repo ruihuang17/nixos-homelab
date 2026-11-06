@@ -83,6 +83,8 @@
         in
         {
           inherit mindroom-nio;
+          bitwarden-mcp = pkgs.callPackage ./pkgs/bitwarden-mcp { };
+          email-mcp = pkgs.callPackage ./pkgs/email-mcp { };
           matrix-mcp = pkgs.callPackage ./pkgs/matrix-mcp { inherit mindroom-nio; };
         }
       );

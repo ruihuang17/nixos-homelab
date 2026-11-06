@@ -489,3 +489,201 @@ Over MCP stdio, and through OpenCode after the config switch:
 - `matrix-mcp config-path` with `HOME=/var/lib/opencode` prints
   `/var/lib/opencode/.config/matrix-mcp/config.json`.
 
+
+## Email MCP (2026-11-06)
+
+Two local MCP servers cover the two mailboxes, because they use different
+protocols:
+
+| Server | Account | Protocol | Why |
+| ------ | ------- | -------- | --- |
+| `email` | `rui@estrogenuinely.ca` | IMAP + SMTP | Stalwart exposes normal IMAP/SMTP on `mail.estrogenuinely.ca`. |
+| `uwaterloo` | `@uwaterloo.ca` | Microsoft Graph | UWaterloo disabled POP and IMAP for the M365 tenant in April 2020; Graph is the only API left. |
+
+Both are wired into `/etc/opencode/opencode.json` by
+`satsuma/ai/opencode.nix` (the `mcp.servers` block). OpenCode exposes them as
+`email.*` and `uwaterloo.*` in Code Mode.
+
+### Self-hosted account (`email`)
+
+The server is
+[codefuturist/email-mcp](https://github.com/codefuturist/email-mcp), packaged
+from its self-contained Linux release binary in `pkgs/email-mcp`. The binary is
+a Bun executable: the derivation sets `dontStrip = true`, because the default
+fixup strip pass deletes the embedded application trailer and leaves only a
+bare Bun runtime.
+
+Credentials live in agenix, not in Nix or the world-readable config:
+
+1. Create an app password in Stalwart. On the tailnet, open
+   <https://mail.estrogenuinely.ca:8443/>, sign in as `rhuang`, and use
+   **Account → Credentials → App Passwords** (description
+   `OpenCode email MCP`). Stalwart verifies app passwords itself, so this works
+   even though the account's main password is checked by kanidm LDAP. The
+   account password also works, but using it means the agent holds the password
+   that unlocks everything else.
+2. Encrypt it:
+
+   ```bash
+   sudo email-mcp-set-password
+   ```
+
+   The helper prompts without echo, writes
+   `satsuma/secrets/email-mcp-pass.age` (no trailing newline), and `git add`s
+   it, because the flake ignores untracked files.
+3. Rebuild: `sudo oc-rebuild`.
+
+`emailEnabled = builtins.pathExists ../secrets/email-mcp-pass.age` in
+`satsuma/ai/opencode.nix` means the server is simply absent from
+`opencode.json` until the secret exists. That keeps a fresh checkout and the
+first deploy buildable.
+
+The password reaches the process through OpenCode's config substitution:
+
+```json
+"MCP_EMAIL_PASSWORD": "{file:/run/agenix/email-mcp-pass}"
+```
+
+The rest of the account is environment-only: address
+`rui@estrogenuinely.ca`, username `rhuang` (Stalwart resolves IMAP/SMTP logins
+against the kanidm account name, not the mail address), IMAP
+`mail.estrogenuinely.ca:993` with implicit TLS, submission `:587` with
+STARTTLS, `save_to_sent`, and `MCP_EMAIL_READ_ONLY=false` (full mailbox access:
+read, search, send, reply, move, delete, labels). Revoke the app password in
+Stalwart to cut the agent off; no host secret changes.
+
+### UWaterloo account (`uw`)
+
+UWaterloo's Microsoft 365 tenant rejects third-party Graph apps
+(`AADSTS700016` for Softeria), and the first-party Graph PowerShell client
+needs a consent the tenant does not grant. Thunderbird is allowed, and it uses
+**IMAP + OAuth2** with its own public client. We reuse exactly that flow:
+
+- Client ID `9e5f94bc-e8a4-4e73-b8be-63364c29d753` (Thunderbird).
+- Scopes `https://outlook.office.com/IMAP.AccessAsUser.All` and
+  `https://outlook.office.com/SMTP.Send`.
+- IMAP `outlook.office365.com:993` (TLS), SMTP `smtp.office365.com:587`
+  (STARTTLS), username/address `r232huan@uwaterloo.ca`.
+
+A second `email-mcp` instance runs as the `uw` server with its config at
+`/etc/email-mcp-uw/email-mcp/config.toml`. The refresh token is the agenix
+secret `email-mcp-uw-token.age`.
+
+One wrinkle: `email-mcp` always sends a `client_secret` when refreshing, but
+Thunderbird's client is public and Microsoft rejects a secret
+(`AADSTS7000215`). `email-mcp-oauth.service` is a loopback-only Python proxy on
+`127.0.0.1:8799` that accepts email-mcp's request, drops the secret, refreshes
+with the stored token, and returns Microsoft's JSON unchanged. It also persists
+rotated refresh tokens in `/var/lib/email-mcp-oauth/refresh-token` (root-only),
+so `email-mcp` never holds the real token.
+
+The profile token was obtained once with the device-code flow
+(`https://login.microsoft.com/device`, Thunderbird client, IMAP + SMTP scopes).
+To renew it, repeat that flow and replace the age secret, then force the proxy
+to reseed:
+
+```bash
+sudo systemctl stop email-mcp-oauth
+sudo rm /var/lib/email-mcp-oauth/refresh-token
+sudo oc-rebuild
+```
+
+### Thunderbird on pomelo
+
+`pomelo/thunderbird.nix` creates a Nix-managed Thunderbird profile at
+`~/.thunderbird/homelab`, seeds it with `user.js` for both accounts, and adds a
+`thunderbird-homelab` launcher. It is a separate profile, so the existing
+manual profile (and its Proton/CSClub accounts) is untouched. The first launch
+asks for the Stalwart password and opens the Microsoft login for UWaterloo;
+credentials are stored in the profile, never in Nix.
+
+Apply it on the desktop with:
+
+```bash
+sudo nixos-rebuild switch --flake /etc/nixos#pomelo
+```
+
+### Verification
+
+- `email.list_accounts` → `estrogenuinely: rui@estrogenuinely.ca`;
+  `email.list_mailboxes` → 38 folders, INBOX 44 messages.
+- `uw.list_accounts` → `uwaterloo: r232huan@uwaterloo.ca`;
+  `uw.list_mailboxes` → 25 folders, INBOX 3368 messages.
+- `curl http://127.0.0.1:8799/health` → `ok`; the proxy returns Microsoft access
+  tokens with the IMAP/SMTP scopes.
+- After a rebuild, `/etc/opencode/opencode.json` contains `bitwarden`, `email`,
+  `matrix`, and `uw`; the running OpenCode service picks up MCP config changes
+  without restarting.
+
+## Bitwarden MCP (2026-11-06)
+
+[bitwarden/mcp-server](https://github.com/bitwarden/mcp-server) gives the agent
+vault access through the Bitwarden CLI (`bw`), pointed at our Vaultwarden
+(`https://vaultwarden.estrogenuinely.ca`). OpenCode exposes it as
+`bitwarden.*` in Code Mode (`status`, `list`, `get`, `create_item`, `generate`,
+and so on).
+
+### Packaging
+
+`pkgs/bitwarden-mcp` builds the npm package with `buildNpmPackage` from the
+upstream tag `v2026.7.0` on Node 22. `npm install` runs with `--ignore-scripts`
+because the `prepare` script runs husky, which needs a git checkout. It is
+exposed as `.#bitwarden-mcp`. When bumping the version, update `rev`, the
+source `hash`, and `npmDepsHash` (set each to `lib.fakeHash` and copy the hash
+from the build error).
+
+The `bw` CLI comes from nixpkgs `bitwarden-cli` and is also in
+`environment.systemPackages`.
+
+### OpenCode wiring
+
+The `bitwarden` entry in `mcp.servers` (`satsuma/ai/opencode.nix`) runs a small
+launcher script instead of the binary directly. The server forwards only a short
+allowlist of environment variables to `bw`, so the launcher sets what the CLI
+needs:
+
+| Variable | Value | Purpose |
+| -------- | ----- | ------- |
+| `BITWARDENCLI_APPDATA_DIR` | `/var/lib/opencode/bitwarden` | CLI login state, root-only. |
+| `BW_CLI_PATH` | `${pkgs.bitwarden-cli}/bin/bw` | Fixed CLI, not whatever is on `PATH`. |
+| `BW_SESSION` | contents of `/var/lib/opencode/bitwarden/session` | Unlocked-vault session key. Left unset if the file is missing, so the vault stays locked. |
+
+`BW_ALLOWED_DIRECTORIES` is deliberately unset, so attachment and file-Send
+tools are rejected. `BW_CLIENT_ID` and `BW_CLIENT_SECRET` are not set: the
+organization admin API is a Bitwarden-cloud feature that Vaultwarden does not
+provide, so the `*_org_*` tools do not work here.
+
+### Login and unlock
+
+The server's own `unlock` tool needs a GUI password dialog (`zenity` or
+`kdialog`), which this headless host does not have. Use the helper instead:
+
+```bash
+sudo bitwarden-mcp-login
+```
+
+It sets the CLI server to Vaultwarden on first use, runs `bw login` (or
+`bw unlock` if already logged in), prompts for the master password on the
+terminal, and writes only the resulting session key to
+`/var/lib/opencode/bitwarden/session` (mode `0600`). The master password never
+reaches the agent. The launcher reads the session file when the MCP process
+starts, so restart the server (or OpenCode) after logging in or after a lock or
+expiry. Restarting OpenCode ends the running session.
+
+### Risks
+
+- The agent can read every secret in the vault and create, edit, and delete
+  items. Prompt injection from web or mail content could steer it to disclose
+  credentials, so lock the vault when the agent does not need it
+  (`bitwarden.lock`, then delete the session file).
+- The session key is as sensitive as the vault contents. It lives in a
+  root-only file under `/var/lib/opencode`, which restic backs up with `/var`.
+- Do not paste vault output into chats or commit it.
+
+### Verification
+
+- `bitwarden.status` → server `https://vaultwarden.estrogenuinely.ca`, user
+  `rui@estrogenuinely.ca`, `unlocked`.
+- `bitwarden.list` with `type: "folders"` → `CSC`, `Homelab`, `No Folder`;
+  `type: "items"` → 507 items. Only names and counts were read.
+- Not tested: write tools, `lock`, `unlock`.

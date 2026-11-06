@@ -12,6 +12,43 @@ let
   primaryHost = "opencode.local.estrogenuinely.ca";
 
   matrix-mcp = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.matrix-mcp;
+  email-mcp = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.email-mcp;
+  bitwarden-mcp = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.bitwarden-mcp;
+
+  # The Bitwarden MCP drives the `bw` CLI against our Vaultwarden. The CLI's
+  # login state lives in bwDataDir and the unlocked-vault session key in
+  # bwSessionFile; both are root-only and written by `bitwarden-mcp-login`.
+  bwServer = "https://vaultwarden.estrogenuinely.ca";
+  bwDataDir = "/var/lib/opencode/bitwarden";
+  bwSessionFile = "${bwDataDir}/session";
+
+  # The MCP server only forwards a short allowlist of environment variables to
+  # `bw`, so the data dir and CLI path are set here. The session file is read
+  # at start-up; a missing file just leaves the vault locked. File-based tools
+  # (attachments, file Sends) stay disabled because BW_ALLOWED_DIRECTORIES is
+  # unset.
+  bitwarden-mcp-launcher = pkgs.writeShellScript "bitwarden-mcp-launcher" ''
+    export BITWARDENCLI_APPDATA_DIR=${bwDataDir}
+    export BW_CLI_PATH=${pkgs.bitwarden-cli}/bin/bw
+    if [ -s ${bwSessionFile} ]; then
+      BW_SESSION=$(cat ${bwSessionFile})
+      export BW_SESSION
+    fi
+    exec ${bitwarden-mcp}/bin/mcp-server-bitwarden
+  '';
+
+  # The self-hosted mailbox is only configured once its agenix secret exists.
+  # Checking here keeps a fresh checkout (or a missing credential) buildable;
+  # create the secret with `email-mcp-set-password` and rebuild to enable it.
+  emailSecret = ../secrets/email-mcp-pass.age;
+  emailEnabled = builtins.pathExists emailSecret;
+
+  # Public recipients from satsuma/secrets/secrets.nix, embedded in the helper
+  # that encrypts a new mail password. These are public keys, not secrets.
+  ageRecipients = [
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMp74d/OCwnetejX24slNj+6kIiEmarYX8j8+Zuku8IF"
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq4XsRorOLo7URBB1krIzhJi/ODqjUtD345D/DUrEkH"
+  ];
 
   # Shared by both vhosts. The IP allowlist keeps the agent LAN/Tailnet-only
   # even if port 443 is reachable from the WAN.
@@ -173,6 +210,24 @@ in
     group = "root";
   };
 
+  # Stalwart password for the email MCP. Stored without a trailing newline so
+  # OpenCode's {file:...} substitution yields the exact credential.
+  age.secrets.email-mcp-pass = lib.mkIf emailEnabled {
+    file = emailSecret;
+    mode = "0400";
+    owner = "root";
+    group = "root";
+  };
+
+  # Refresh token for the UWaterloo IMAP account. The proxy below owns the
+  # on-disk copy after first start; this is the seed and recovery token.
+  age.secrets.email-mcp-uw-token = {
+    file = ../secrets/email-mcp-uw-token.age;
+    mode = "0400";
+    owner = "root";
+    group = "root";
+  };
+
   # Global OpenCode config (lower precedence than the user's
   # ~/.config/opencode/opencode.jsonc). The Kiro provider is available to every
   # project; the credential comes from the same agenix file as the gateway.
@@ -181,12 +236,58 @@ in
   environment.etc."opencode/opencode.json".text = builtins.toJSON (
     {
       "$schema" = "https://opencode.ai/config.json";
-      mcp.servers.matrix = {
-        type = "local";
-        command = [
-          "${matrix-mcp}/bin/matrix-mcp"
-          "serve"
-        ];
+      mcp.servers = {
+        matrix = {
+          type = "local";
+          command = [
+            "${matrix-mcp}/bin/matrix-mcp"
+            "serve"
+          ];
+        };
+
+        bitwarden = {
+          type = "local";
+          command = [ "${bitwarden-mcp-launcher}" ];
+        };
+
+        # UWaterloo's tenant blocks Microsoft Graph apps, but the university's
+        # Thunderbird setup uses IMAP + OAuth2 with Thunderbird's public client.
+        # A second email-mcp instance reuses that flow.
+        uw = {
+          type = "local";
+          command = [ "${email-mcp}/bin/email-mcp" "stdio" ];
+          environment = {
+            XDG_CONFIG_HOME = "/etc/email-mcp-uw";
+          };
+        };
+      } // lib.optionalAttrs emailEnabled {
+        email = {
+          type = "local";
+          command = [ "${email-mcp}/bin/email-mcp" "stdio" ];
+          environment = {
+            MCP_EMAIL_ACCOUNT_NAME = "estrogenuinely";
+            MCP_EMAIL_FULL_NAME = "Rui Huang";
+            MCP_EMAIL_ADDRESS = "rui@estrogenuinely.ca";
+            # Stalwart resolves IMAP/SMTP logins against the kanidm name, not
+            # the mail address (the homelab-svc service account behaves the
+            # same way). The address above is still the From/envelope sender.
+            MCP_EMAIL_USERNAME = "rhuang";
+            MCP_EMAIL_PASSWORD = "{file:${config.age.secrets.email-mcp-pass.path}}";
+
+            MCP_EMAIL_IMAP_HOST = "mail.estrogenuinely.ca";
+            MCP_EMAIL_IMAP_PORT = "993";
+            MCP_EMAIL_IMAP_TLS = "true";
+            MCP_EMAIL_IMAP_VERIFY_SSL = "true";
+
+            MCP_EMAIL_SMTP_HOST = "mail.estrogenuinely.ca";
+            MCP_EMAIL_SMTP_PORT = "587";
+            MCP_EMAIL_SMTP_TLS = "false";
+            MCP_EMAIL_SMTP_STARTTLS = "true";
+            MCP_EMAIL_SMTP_VERIFY_SSL = "true";
+            MCP_EMAIL_SEND_SAVE_TO_SENT = "true";
+            MCP_EMAIL_READ_ONLY = "false";
+          };
+        };
       };
     }
     // lib.optionalAttrs config.services.kiro-gateway.enable {
@@ -199,6 +300,70 @@ in
       };
     }
   );
+
+  # The UWaterloo account is an IMAP/OAuth2 account. Thunderbird's public
+  # client ID is a public client, but email-mcp insists on sending a
+  # client_secret during refresh; the local proxy drops it and talks to
+  # Microsoft. The refresh token itself is in agenix and never in this file.
+  environment.etc."email-mcp-uw/email-mcp/config.toml".text = ''
+    # Managed by satsuma/ai/opencode.nix.
+    [[accounts]]
+    name = "uwaterloo"
+    email = "r232huan@uwaterloo.ca"
+    username = "r232huan@uwaterloo.ca"
+    full_name = "Rui Huang"
+    save_to_sent = true
+
+    [accounts.oauth2]
+    provider = "custom"
+    client_id = "9e5f94bc-e8a4-4e73-b8be-63364c29d753"
+    client_secret = "local-proxy"
+    refresh_token = "local-proxy"
+    token_url = "http://127.0.0.1:8799/token"
+    auth_url = "http://127.0.0.1:8799/authorize"
+    scopes = [
+      "https://outlook.office.com/IMAP.AccessAsUser.All",
+      "https://outlook.office.com/SMTP.Send",
+    ]
+
+    [accounts.imap]
+    host = "outlook.office365.com"
+    port = 993
+    tls = true
+    verify_ssl = true
+
+    [accounts.smtp]
+    host = "smtp.office365.com"
+    port = 587
+    tls = false
+    starttls = true
+    verify_ssl = true
+  '';
+
+  # email-mcp always sends a client_secret, which Microsoft rejects for
+  # Thunderbird's public client. This loopback-only proxy refreshes with the
+  # stored refresh token instead, and persists rotated tokens.
+  systemd.services.email-mcp-oauth = {
+    description = "Local OAuth2 token endpoint for the UWaterloo email MCP";
+    wantedBy = [ "multi-user.target" ];
+    wants = [ "network-online.target" ];
+    after = [ "network-online.target" ];
+    environment = {
+      EMAIL_MCP_OAUTH_SEED = config.age.secrets.email-mcp-uw-token.path;
+      EMAIL_MCP_OAUTH_STATE_DIR = "/var/lib/email-mcp-oauth";
+    };
+    serviceConfig = {
+      Type = "simple";
+      User = "root";
+      Group = "root";
+      ExecStart = "${pkgs.python3}/bin/python3 ${./email-oauth-proxy.py}";
+      Restart = "always";
+      RestartSec = 3;
+      StateDirectory = "email-mcp-oauth";
+      StateDirectoryMode = "0700";
+      UMask = "0077";
+    };
+  };
 
   # The service runs as root so the agent can administer the host (nixos-rebuild,
   # systemctl, /etc/nixos, other services' data). There is deliberately no
@@ -275,6 +440,73 @@ in
     # The MCP server is launched by OpenCode, but keeping it on PATH lets an
     # admin re-run `matrix-mcp auth ...` and `matrix-mcp e2ee setup` directly.
     matrix-mcp
+
+    # IMAP/SMTP MCP for the self-hosted mailbox, plus a helper to (re)encrypt
+    # its credential after creating an app password in Stalwart.
+    email-mcp
+    (pkgs.writeShellScriptBin "email-mcp-set-password" ''
+      set -euo pipefail
+      if [ "$(id -u)" -ne 0 ]; then
+        echo "run as root: sudo email-mcp-set-password" >&2
+        exit 1
+      fi
+      target=/etc/nixos/satsuma/secrets/email-mcp-pass.age
+      tmp=$(mktemp)
+      trap 'rm -f "$tmp"' EXIT
+      if [ -t 0 ]; then
+        printf 'Stalwart password for rui@estrogenuinely.ca: ' >&2
+        IFS= read -r -s pw
+        printf '\n' >&2
+      else
+        IFS= read -r pw
+      fi
+      if [ -z "''${pw:-}" ]; then
+        echo "empty password; nothing written" >&2
+        exit 1
+      fi
+      # No trailing newline: OpenCode substitutes the file contents verbatim
+      # into MCP_EMAIL_PASSWORD.
+      printf '%s' "$pw" > "$tmp"
+      ${pkgs.age}/bin/age \
+        -r ${lib.escapeShellArg (builtins.elemAt ageRecipients 0)} \
+        -r ${lib.escapeShellArg (builtins.elemAt ageRecipients 1)} \
+        -o "$target" "$tmp"
+      chmod 0600 "$target"
+      # The flake only sees git-tracked files, so stage the new secret.
+      git -C /etc/nixos add "$target"
+      echo "wrote and staged $target"
+      echo "apply it with: sudo oc-rebuild"
+    '')
+
+    # Bitwarden CLI plus a helper that logs it into Vaultwarden and stores the
+    # vault session key for the MCP. The master password is typed at the
+    # prompt and never reaches the agent; only the session key is written.
+    pkgs.bitwarden-cli
+    bitwarden-mcp
+    (pkgs.writeShellScriptBin "bitwarden-mcp-login" ''
+      set -euo pipefail
+      if [ "$(id -u)" -ne 0 ]; then
+        echo "run as root: sudo bitwarden-mcp-login" >&2
+        exit 1
+      fi
+      install -d -m 0700 -o root -g root ${bwDataDir}
+      export BITWARDENCLI_APPDATA_DIR=${bwDataDir}
+      bw=${pkgs.bitwarden-cli}/bin/bw
+      if "$bw" login --check >/dev/null 2>&1; then
+        session=$("$bw" unlock --raw)
+      else
+        "$bw" config server ${bwServer} >&2
+        session=$("$bw" login --raw)
+      fi
+      if [ -z "$session" ]; then
+        echo "no session key returned; nothing written" >&2
+        exit 1
+      fi
+      umask 077
+      printf '%s' "$session" > ${bwSessionFile}.tmp
+      mv ${bwSessionFile}.tmp ${bwSessionFile}
+      echo "wrote ${bwSessionFile}; restart the bitwarden MCP (or opencode) to pick it up" >&2
+    '')
 
     # Recreate the runtime Matrix credentials after `matrix-mcp auth logout`
     # or a lost /var/lib/opencode. Synapse's legacy shared-secret password
