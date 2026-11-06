@@ -5,13 +5,15 @@ Packages our fork,
 `homelab`): upstream `jwadow/kiro-gateway` at its last commit (`a5292ca`,
 2026-05-18) plus the fixes a coding client needs.
 
-Upstream is no longer maintained, so the changes live as two commits on the
+Upstream is no longer maintained, so the changes live as commits on the
 fork instead of as a patch file here:
 
 | Commit | Change |
 | --- | --- |
 | `Carry the open upstream PRs that matter for a coding client` | Combined PRs #169, #182, #225, #232, #241, #257, #268, #276, #280, #286, #288, #292, #293, #294 |
 | `Do not open the circuit breaker on transient capacity 429s` | Local fix: `429 INSUFFICIENT_MODEL_CAPACITY` no longer cools the account down, and the real upstream error is returned |
+
+| `Accept server_tool_use and web_search_tool_result blocks in Anthropic history` | Local fix: clients replay provider-executed `web_search` blocks in assistant history; `/v1/messages` returned 422 for them. They are now accepted and rendered as text |
 
 The stream keepalive from #288 was needed by OpenCode's idle watchdog; the
 #288/#280 conflict in `kiro/streaming_openai.py` is resolved in the fork by

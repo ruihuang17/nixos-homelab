@@ -15,8 +15,8 @@ let
   src = fetchFromGitHub {
     owner = "ruihuang17";
     repo = "kiro-gateway";
-    rev = "581160901523225b4ba8bcca589674b88f8d3aec";
-    hash = "sha256-lRlAbqxa27zmvFxi+TLdt4RmloyegyiKv9/R6r1X4Xg=";
+    rev = "29c8d06e70d903eade7f552c64748dbf07fbd580";
+    hash = "sha256-w8crsbHrudfj12F4+ji5pZNG7/KSOtXu2hRFuuEbSPk=";
   };
 
   # tiktoken downloads cl100k_base on first use and caches it by the SHA-1 of
@@ -44,7 +44,7 @@ let
 in
 stdenv.mkDerivation {
   pname = "kiro-gateway";
-  version = "unstable-2026-11-04";
+  version = "unstable-2026-11-06";
 
   inherit src;
 
