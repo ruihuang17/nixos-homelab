@@ -90,5 +90,7 @@ in
   # Dotfiles linked into every user's home. Keys are paths relative to $HOME.
   dotfiles = {
     ".config/starship.toml" = ./dots/starship/starship.toml;
+    ".config/kitty/kitty.conf" = ./dots/kitty/kitty.conf;
+    ".config/kitty/catppuccin-mocha.conf" = ./dots/kitty/catppuccin-mocha.conf;
   };
 }

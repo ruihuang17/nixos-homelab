@@ -14,6 +14,7 @@ in
   imports = [
     ./hardware-configuration.nix
     ./nfs.nix
+    ./thunderbird.nix
     ../common-nixos.nix
   ];
 
@@ -200,6 +201,9 @@ in
 
     # Browsers
     google-chrome
+
+    # Terminal
+    kitty
 
     # Communication
     thunderbird

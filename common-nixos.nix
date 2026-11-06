@@ -47,6 +47,13 @@ in
     "nix-command"
     "flakes"
   ];
+  # Deploys push store paths built on another host (scripts/deploy.sh), and no
+  # host has a binary-cache signing key, so the receiving daemon must not apply
+  # the signature check to a local push. `wheel` already has passwordless sudo
+  # on every host, so this grants the daemon no power those users lack. Cache
+  # substitution still requires signatures (`require-sigs` stays on). `root` is
+  # already a trusted user by default.
+  nix.settings.trusted-users = [ "@wheel" ];
   nix.optimise.automatic = true;
   nix.optimise.dates = [ "05:00" ];
 
@@ -93,9 +100,13 @@ in
 
   programs.git = {
     enable = true;
-    config.user = {
-      name = "Rui Huang";
-      email = "rui@ruihuang.io";
+    config = {
+      user = {
+        name = "Rui Huang";
+        email = "rui@ruihuang.io";
+      };
+      # /etc/nixos is root-owned but used by rhuang and the OpenCode agent.
+      safe.directory = "/etc/nixos";
     };
   };
 
