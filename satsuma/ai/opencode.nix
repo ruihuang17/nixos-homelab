@@ -43,6 +43,7 @@ let
   emailSecret = ../secrets/email-mcp-pass.age;
   emailEnabled = builtins.pathExists emailSecret;
 
+
   # Public recipients from satsuma/secrets/secrets.nix, embedded in the helper
   # that encrypts a new mail password. These are public keys, not secrets.
   ageRecipients = [
@@ -219,6 +220,13 @@ in
     group = "root";
   };
 
+  age.secrets.email-mcp-hotmail-token = {
+    file = ../secrets/email-mcp-hotmail-token.age;
+    mode = "0400";
+    owner = "root";
+    group = "root";
+  };
+
   # Refresh token for the UWaterloo IMAP account. The proxy below owns the
   # on-disk copy after first start; this is the seed and recovery token.
   age.secrets.email-mcp-uw-token = {
@@ -288,6 +296,16 @@ in
             MCP_EMAIL_READ_ONLY = "false";
           };
         };
+
+        # Personal Hotmail mailbox: same IMAP + OAuth2 flow as `uw`, against
+        # the consumers tenant.
+        hotmail = {
+          type = "local";
+          command = [ "${email-mcp}/bin/email-mcp" "stdio" ];
+          environment = {
+            XDG_CONFIG_HOME = "/etc/email-mcp-hotmail";
+          };
+        };
       };
     }
     // lib.optionalAttrs config.services.kiro-gateway.enable {
@@ -339,6 +357,67 @@ in
     starttls = true
     verify_ssl = true
   '';
+
+  # Personal Hotmail account: same Thunderbird client and scopes, but the
+  # consumers tenant, its own proxy instance, and its own token state.
+  environment.etc."email-mcp-hotmail/email-mcp/config.toml".text = ''
+    # Managed by satsuma/ai/opencode.nix.
+    [[accounts]]
+    name = "hotmail"
+    email = "rui.huang17@hotmail.com"
+    username = "rui.huang17@hotmail.com"
+    full_name = "Rui Huang"
+    save_to_sent = true
+
+    [accounts.oauth2]
+    provider = "custom"
+    client_id = "9e5f94bc-e8a4-4e73-b8be-63364c29d753"
+    client_secret = "local-proxy"
+    refresh_token = "local-proxy"
+    token_url = "http://127.0.0.1:8800/token"
+    auth_url = "http://127.0.0.1:8800/authorize"
+    scopes = [
+      "https://outlook.office.com/IMAP.AccessAsUser.All",
+      "https://outlook.office.com/SMTP.Send",
+    ]
+
+    [accounts.imap]
+    host = "outlook.office365.com"
+    port = 993
+    tls = true
+    verify_ssl = true
+
+    [accounts.smtp]
+    host = "smtp.office365.com"
+    port = 587
+    tls = false
+    starttls = true
+    verify_ssl = true
+  '';
+
+  systemd.services.email-mcp-oauth-hotmail = {
+    description = "Local OAuth2 token endpoint for the Hotmail email MCP";
+    wantedBy = [ "multi-user.target" ];
+    wants = [ "network-online.target" ];
+    after = [ "network-online.target" ];
+    environment = {
+      EMAIL_MCP_OAUTH_SEED = config.age.secrets.email-mcp-hotmail-token.path;
+      EMAIL_MCP_OAUTH_STATE_DIR = "/var/lib/email-mcp-oauth-hotmail";
+      EMAIL_MCP_OAUTH_TENANT = "consumers";
+      EMAIL_MCP_OAUTH_PORT = "8800";
+    };
+    serviceConfig = {
+      Type = "simple";
+      User = "root";
+      Group = "root";
+      ExecStart = "${pkgs.python3}/bin/python3 ${./email-oauth-proxy.py}";
+      Restart = "always";
+      RestartSec = 3;
+      StateDirectory = "email-mcp-oauth-hotmail";
+      StateDirectoryMode = "0700";
+      UMask = "0077";
+    };
+  };
 
   # email-mcp always sends a client_secret, which Microsoft rejects for
   # Thunderbird's public client. This loopback-only proxy refreshes with the

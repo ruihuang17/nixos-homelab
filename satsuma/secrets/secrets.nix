@@ -38,5 +38,6 @@ in
   "unifi-grove-password.age".publicKeys = common;
   "opencode-password.age".publicKeys = common;
   "email-mcp-pass.age".publicKeys = common;
+  "email-mcp-hotmail-token.age".publicKeys = common;
   "email-mcp-uw-token.age".publicKeys = common;
 }

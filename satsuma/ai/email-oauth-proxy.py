@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local OAuth2 token endpoint for the UWaterloo email-mcp account.
+"""Local OAuth2 token endpoint for a Microsoft IMAP account used by email-mcp.
 
 email-mcp always sends a `client_secret` when refreshing a token. Thunderbird's
 Microsoft client ID is a public client, and Microsoft rejects a secret
@@ -19,7 +19,7 @@ import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-TENANT = "723a5a87-f39a-4a22-9247-3fc240c01396"
+TENANT = os.environ.get("EMAIL_MCP_OAUTH_TENANT", "723a5a87-f39a-4a22-9247-3fc240c01396")
 CLIENT_ID = "9e5f94bc-e8a4-4e73-b8be-63364c29d753"
 TOKEN_URL = f"https://login.microsoftonline.com/{TENANT}/oauth2/v2.0/token"
 
