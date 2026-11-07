@@ -82,6 +82,7 @@ in
     btop
     smartmontools
     tree
+    jq
     opencode
     inputs.agenix.packages.${stdenv.hostPlatform.system}.default
     starship
