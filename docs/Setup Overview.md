@@ -62,7 +62,7 @@ Services (all native NixOS modules, no containers):
 | Nextcloud (v35) + Collabora            | Files and office documents. Logs in through Kanidm OIDC.                                                                            |
 | Immich                                 | Photos.                                                                                                                             |
 | Paperless-ngx                          | Documents. Internal URL only.                                                                                                       |
-| Vaultwarden                            | Password manager.                                                                                                                   |
+| Vaultwarden                            | Password manager. CLI: `rbw`, see [[Vaultwarden CLI]].                                                                                                                   |
 | Matrix Synapse                         | `matrix.estrogenuinely.ca`, with mautrix-wsproxy for the SMS/iMessage bridges. Logs in through Kanidm OIDC.                         |
 | Hermes Agent                           | Self-hosted AI agent. Dashboard at `hermes.local.estrogenuinely.ca`, gated by Kanidm OIDC. See [[Hermes]].                          |
 | OpenCode                               | Centralized coding agent and web UI at `opencode.local.estrogenuinely.ca` (LAN/Tailnet only). See [[OpenCode]].                       |

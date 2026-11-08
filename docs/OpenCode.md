@@ -611,79 +611,15 @@ sudo nixos-rebuild switch --flake /etc/nixos#pomelo
   `uw.list_mailboxes` → 25 folders, INBOX 3368 messages.
 - `curl http://127.0.0.1:8799/health` → `ok`; the proxy returns Microsoft access
   tokens with the IMAP/SMTP scopes.
-- After a rebuild, `/etc/opencode/opencode.json` contains `bitwarden`, `email`,
+- After a rebuild, `/etc/opencode/opencode.json` contains `email`,
   `matrix`, and `uw`; the running OpenCode service picks up MCP config changes
   without restarting.
 
-## Bitwarden MCP (2026-11-06)
+## Bitwarden MCP (removed 2026-11-08)
 
-[bitwarden/mcp-server](https://github.com/bitwarden/mcp-server) gives the agent
-vault access through the Bitwarden CLI (`bw`), pointed at our Vaultwarden
-(`https://vaultwarden.estrogenuinely.ca`). OpenCode exposes it as
-`bitwarden.*` in Code Mode (`status`, `list`, `get`, `create_item`, `generate`,
-and so on).
-
-### Packaging
-
-`pkgs/bitwarden-mcp` builds the npm package with `buildNpmPackage` from the
-upstream tag `v2026.7.0` on Node 22. `npm install` runs with `--ignore-scripts`
-because the `prepare` script runs husky, which needs a git checkout. It is
-exposed as `.#bitwarden-mcp`. When bumping the version, update `rev`, the
-source `hash`, and `npmDepsHash` (set each to `lib.fakeHash` and copy the hash
-from the build error).
-
-The `bw` CLI comes from nixpkgs `bitwarden-cli` and is also in
-`environment.systemPackages`.
-
-### OpenCode wiring
-
-The `bitwarden` entry in `mcp.servers` (`satsuma/ai/opencode.nix`) runs a small
-launcher script instead of the binary directly. The server forwards only a short
-allowlist of environment variables to `bw`, so the launcher sets what the CLI
-needs:
-
-| Variable | Value | Purpose |
-| -------- | ----- | ------- |
-| `BITWARDENCLI_APPDATA_DIR` | `/var/lib/opencode/bitwarden` | CLI login state, root-only. |
-| `BW_CLI_PATH` | `${pkgs.bitwarden-cli}/bin/bw` | Fixed CLI, not whatever is on `PATH`. |
-| `BW_SESSION` | contents of `/var/lib/opencode/bitwarden/session` | Unlocked-vault session key. Left unset if the file is missing, so the vault stays locked. |
-
-`BW_ALLOWED_DIRECTORIES` is deliberately unset, so attachment and file-Send
-tools are rejected. `BW_CLIENT_ID` and `BW_CLIENT_SECRET` are not set: the
-organization admin API is a Bitwarden-cloud feature that Vaultwarden does not
-provide, so the `*_org_*` tools do not work here.
-
-### Login and unlock
-
-The server's own `unlock` tool needs a GUI password dialog (`zenity` or
-`kdialog`), which this headless host does not have. Use the helper instead:
-
-```bash
-sudo bitwarden-mcp-login
-```
-
-It sets the CLI server to Vaultwarden on first use, runs `bw login` (or
-`bw unlock` if already logged in), prompts for the master password on the
-terminal, and writes only the resulting session key to
-`/var/lib/opencode/bitwarden/session` (mode `0600`). The master password never
-reaches the agent. The launcher reads the session file when the MCP process
-starts, so restart the server (or OpenCode) after logging in or after a lock or
-expiry. Restarting OpenCode ends the running session.
-
-### Risks
-
-- The agent can read every secret in the vault and create, edit, and delete
-  items. Prompt injection from web or mail content could steer it to disclose
-  credentials, so lock the vault when the agent does not need it
-  (`bitwarden.lock`, then delete the session file).
-- The session key is as sensitive as the vault contents. It lives in a
-  root-only file under `/var/lib/opencode`, which restic backs up with `/var`.
-- Do not paste vault output into chats or commit it.
-
-### Verification
-
-- `bitwarden.status` → server `https://vaultwarden.estrogenuinely.ca`, user
-  `rui@estrogenuinely.ca`, `unlocked`.
-- `bitwarden.list` with `type: "folders"` → `CSC`, `Homelab`, `No Folder`;
-  `type: "items"` → 507 items. Only names and counts were read.
-- Not tested: write tools, `lock`, `unlock`.
+The Bitwarden MCP (`pkgs/bitwarden-mcp`, the `bitwarden` entry in `mcp.servers`,
+`bitwarden-mcp-login`, and the `bw` CLI) was removed. Its `list` tool returned
+full vault records, secrets included, with no way to filter, so every lookup put
+credentials into the agent's context. Vault access is now through `rbw`; see
+[Vaultwarden CLI](Vaultwarden%20CLI.md). The old state in
+`/var/lib/opencode/bitwarden` (CLI login and session key) was deleted.

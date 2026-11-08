@@ -113,6 +113,7 @@ diff scripts/drvpaths.baseline /tmp/after
 | [Stalwart](docs/Stalwart.md) | Mail server on `bergamot` |
 | [DNS](docs/DNS.md) | Technitium on `orange` |
 | [OpenCode](docs/OpenCode.md) | Centralised OpenCode + agents |
+| [Vaultwarden CLI](docs/Vaultwarden%20CLI.md) | `rbw` setup and agent rules |
 | [Hermes](docs/Hermes.md) | Hermes agent |
 | [lime (macOS)](docs/lime%20(macOS).md) | Mac mini specifics |
 | [iMessage Digest](docs/iMessage%20Digest.md) | Digest service on `lime` |
