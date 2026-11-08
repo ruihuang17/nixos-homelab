@@ -4,7 +4,7 @@
 # satsuma's NFS exports, mounted from the desktop. Kept out of the generated
 # hardware-configuration.nix so a re-scan does not lose them.
 let
-  homelab = import ../homelab.nix;
+  homelab = import ../../homelab.nix;
 
   nfsOptions = [
     "noatime"
