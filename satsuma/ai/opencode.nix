@@ -13,29 +13,6 @@ let
 
   matrix-mcp = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.matrix-mcp;
   email-mcp = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.email-mcp;
-  bitwarden-mcp = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.bitwarden-mcp;
-
-  # The Bitwarden MCP drives the `bw` CLI against our Vaultwarden. The CLI's
-  # login state lives in bwDataDir and the unlocked-vault session key in
-  # bwSessionFile; both are root-only and written by `bitwarden-mcp-login`.
-  bwServer = "https://vaultwarden.estrogenuinely.ca";
-  bwDataDir = "/var/lib/opencode/bitwarden";
-  bwSessionFile = "${bwDataDir}/session";
-
-  # The MCP server only forwards a short allowlist of environment variables to
-  # `bw`, so the data dir and CLI path are set here. The session file is read
-  # at start-up; a missing file just leaves the vault locked. File-based tools
-  # (attachments, file Sends) stay disabled because BW_ALLOWED_DIRECTORIES is
-  # unset.
-  bitwarden-mcp-launcher = pkgs.writeShellScript "bitwarden-mcp-launcher" ''
-    export BITWARDENCLI_APPDATA_DIR=${bwDataDir}
-    export BW_CLI_PATH=${pkgs.bitwarden-cli}/bin/bw
-    if [ -s ${bwSessionFile} ]; then
-      BW_SESSION=$(cat ${bwSessionFile})
-      export BW_SESSION
-    fi
-    exec ${bitwarden-mcp}/bin/mcp-server-bitwarden
-  '';
 
   # The self-hosted mailbox is only configured once its agenix secret exists.
   # Checking here keeps a fresh checkout (or a missing credential) buildable;
@@ -251,11 +228,6 @@ in
             "${matrix-mcp}/bin/matrix-mcp"
             "serve"
           ];
-        };
-
-        bitwarden = {
-          type = "local";
-          command = [ "${bitwarden-mcp-launcher}" ];
         };
 
         # UWaterloo's tenant blocks Microsoft Graph apps, but the university's
@@ -555,36 +527,6 @@ in
       git -C /etc/nixos add "$target"
       echo "wrote and staged $target"
       echo "apply it with: sudo oc-rebuild"
-    '')
-
-    # Bitwarden CLI plus a helper that logs it into Vaultwarden and stores the
-    # vault session key for the MCP. The master password is typed at the
-    # prompt and never reaches the agent; only the session key is written.
-    pkgs.bitwarden-cli
-    bitwarden-mcp
-    (pkgs.writeShellScriptBin "bitwarden-mcp-login" ''
-      set -euo pipefail
-      if [ "$(id -u)" -ne 0 ]; then
-        echo "run as root: sudo bitwarden-mcp-login" >&2
-        exit 1
-      fi
-      install -d -m 0700 -o root -g root ${bwDataDir}
-      export BITWARDENCLI_APPDATA_DIR=${bwDataDir}
-      bw=${pkgs.bitwarden-cli}/bin/bw
-      if "$bw" login --check >/dev/null 2>&1; then
-        session=$("$bw" unlock --raw)
-      else
-        "$bw" config server ${bwServer} >&2
-        session=$("$bw" login --raw)
-      fi
-      if [ -z "$session" ]; then
-        echo "no session key returned; nothing written" >&2
-        exit 1
-      fi
-      umask 077
-      printf '%s' "$session" > ${bwSessionFile}.tmp
-      mv ${bwSessionFile}.tmp ${bwSessionFile}
-      echo "wrote ${bwSessionFile}; restart the bitwarden MCP (or opencode) to pick it up" >&2
     '')
 
     # Recreate the runtime Matrix credentials after `matrix-mcp auth logout`
