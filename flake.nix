@@ -18,8 +18,6 @@
       url = "github:nix-darwin/nix-darwin/master";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    # An elegant Apple Music desktop client for Linux, macOS and Windows.
-    sidra.url = "github:wimpysworld/sidra";
   };
 
   outputs =

@@ -1,4 +1,4 @@
-{ pkgs, inputs, ... }:
+{ pkgs, ... }:
 {
   environment.systemPackages = with pkgs; [
     # Gaming
@@ -27,7 +27,6 @@
     nextcloud-client
     spotify
     cider-2
-    inputs.sidra.packages.${pkgs.stdenv.hostPlatform.system}.default
     vlc
 
     # Security
