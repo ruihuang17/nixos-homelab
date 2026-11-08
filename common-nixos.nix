@@ -83,6 +83,7 @@ in
     smartmontools
     tree
     jq
+    python3
     opencode
     inputs.agenix.packages.${stdenv.hostPlatform.system}.default
     starship

@@ -65,6 +65,8 @@
     hugo
     ffsubsync
     nh
+    rbw
+    pinentry-curses # headless host; rbw is configured with `pinentry = "pinentry-curses"`
   ];
 
   system.stateVersion = "26.05"; # Did you read the comment?
