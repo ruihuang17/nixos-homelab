@@ -72,8 +72,7 @@ you are holding a change back, stop `nixos-upgrade.timer` first.
 ```
 
 Shared config is plain NixOS/Darwin modules imported explicitly by each host;
-there is no module framework. A consolidation of the root-level files is
-planned in [docs/Refactor Plan.md](docs/Refactor%20Plan.md).
+there is no module framework.
 
 ## Secrets
 
@@ -119,4 +118,3 @@ diff scripts/drvpaths.baseline /tmp/after
 | [iMessage Digest](docs/iMessage%20Digest.md) | Digest service on `lime` |
 | [SMS Matrix Bridge](docs/SMS%20Matrix%20Bridge.md) | Pixel SMS bridge |
 | [System Mail](docs/System%20Mail%20(Alerts).md) | Alert mail relay |
-| [Refactor Plan](docs/Refactor%20Plan.md) | Planned cleanup of shared config |
