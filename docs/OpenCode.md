@@ -61,6 +61,16 @@ desktop session: it auto-starts on demand, stores its config in
 the documented option for "shared, always-on, or remote host" and for
 supervisors such as systemd.
 
+V2 does make `opencode service` more capable than V1: `service set` can persist
+`hostname`, `port`, `cors`, `password`, and environment, and `serve --service`
+runs the same daemon under the service registration. It is still per-user (all
+paths come from `HOME`, so a root login and the unit's
+`HOME=/var/lib/opencode` would be two different services), it defaults to an
+ephemeral port, and clients may start or stop it implicitly. That is a poor fit
+for one fixed, nginx-fronted listener shared by every client, so the systemd
+`opencode serve` unit remains the right choice here. Use `opencode service` only
+for a per-user desktop/CLI background server, not as the shared host.
+
 Why not public (`opencode.estrogenuinely.ca`)? An agent with shell access is
 only as safe as its password. LAN/Tailnet plus nginx ACL is the default. Public
 access would require Cloudflare Access (or mTLS) in front; do not simply open
@@ -399,6 +409,27 @@ switch (`2j4pvl5l…`) also left it unchanged; `oc-rebuild` completed with
 exit 0, switched the system, and kept the same PID. A transient unit was
 separately confirmed to survive `systemctl restart opencode`
 (`/system.slice/detach-test.service` stayed active).
+
+Revision 2026-11-09 — password rotation requires an explicit restart:
+
+`opencode-password.age` was re-encrypted with a new 20-character password on
+2026-11-08 22:09 (commit `9b7e9e7`), three minutes after the service had started
+with the previous 48-hex password. The next rebuild (08:09 on 2026-11-09)
+refreshed `/run/agenix/opencode-password`, but because the unit is
+restart-invariant the running process kept the old value. Result: Basic auth
+with the value in the secret returned `401`, while the old value in
+`/proc/<pid>/environ` still returned `200`; `opencode-pair` failed the same way.
+`systemctl restart opencode` applied the new value (`401` → `200`).
+
+Takeaway: `X-RestartIfChanged`/`X-StopIfChanged` only suppress restarts caused
+by **unit-file** changes. A secret change never restarts the process by itself.
+Rotating this password is always a three-step operation: re-encrypt, rebuild,
+then `sudo systemctl restart opencode` (which ends any in-flight turn).
+
+Note on variable names: OpenCode 2.1.1 still accepts `OPENCODE_PASSWORD` (the
+name in the agenix file, and what the CLI client reads), while the V2 server
+docs document `OPENCODE_SERVER_PASSWORD`. Both work in this version; keep the
+secret key as-is so existing helpers and clients keep working.
 
 Access:
 
