@@ -256,6 +256,9 @@ posted to by the bot `@homelab-alertbot:estrogenuinely.ca`. rhuang is invited.
       external/removable mounts (e.g. lime's `/Volumes/*`), APFS system
       volumes, bind-mounts, and per-dataset ZFS noise. On satsuma `/` is the SSD
       (ZFS root) and `/hdd` is the separate bulk-storage pool.
+    - **SMS bridge phone** — unreachable over adb, bridge process down,
+      battery <20 % or >45 °C, collector stale. Metrics come from the
+      adb collector on satsuma; see [[SMS Matrix Bridge]] → *Monitoring*.
     - **Offsite backup failed** — a `restic-backups-ovh*` systemd unit (daily
       backup or quarterly check) is in the `failed` state (10 m). Check
       `journalctl -u restic-backups-ovh.service`.

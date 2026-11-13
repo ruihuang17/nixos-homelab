@@ -174,6 +174,29 @@ manually once. If the Synapse DB is ever rebuilt, re-mint the token.
   native lib came back, websocket reconnected, @rhuang still joined, hardening persisted).
 - Default-SMS-app role is sticky across **reboots** once set, but reset by **reinstalls**.
 
+## Monitoring
+
+The phone stays plugged into satsuma by USB. `satsuma/monitoring/sms-bridge.nix`
+runs `sms-bridge-monitor.timer` every minute as the `sms-monitor` user. It reads
+the phone over adb and writes `/var/lib/prometheus-node-exporter-text/sms_bridge.prom`,
+which node_exporter exposes:
+
+| Metric | Meaning |
+| ------ | ------- |
+| `sms_bridge_adb_up` | phone answers over adb (1 = authorized and online) |
+| `sms_bridge_process_up{process}` | `com.beeper.sms.app` / `libmautrix.so` running |
+| `sms_bridge_battery_level_percent` | battery level |
+| `sms_bridge_battery_temperature_celsius` | battery temperature |
+| `sms_bridge_last_run_timestamp_seconds` | collector last finished |
+
+Grafana alerts (in `satsuma/monitoring/monitoring.nix`): phone unreachable, bridge
+process down, battery below 20 %, battery above 45 °C, collector stale.
+
+The collector has its own adb key (`/var/lib/sms-bridge-monitor/.android/adbkey`)
+and adb server port (5038). The phone must authorize that key once: tap
+**Always allow** on the USB debugging prompt. A phone factory reset or
+"Revoke USB debugging authorizations" means tapping it again.
+
 ## Backup & source
 
 - Local backup: **`/home/rhuang/sms-bridge-backup/`** — APK, git bundles of repo + submodule,

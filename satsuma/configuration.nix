@@ -30,6 +30,7 @@
     ./monitoring/monitoring.nix
     ./monitoring/monitoring-overview.nix
     ./monitoring/alerting.nix
+    ./monitoring/sms-bridge.nix
     ./monitoring/grove.nix
     "${inputs.grove}/monitoring/grove-exporter.nix"
 

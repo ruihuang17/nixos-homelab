@@ -378,6 +378,48 @@ in
                   summary = "The iMessage digest on lime has not completed successfully in over 2 hours. Check ~/Library/Logs/imessage-digest.err.log.";
                   labels.severity = "warning";
                 })
+                # SMS bridge phone, from satsuma/monitoring/sms-bridge.nix.
+                (mkRule {
+                  uid = "homelab-sms-phone-unreachable";
+                  title = "SMS bridge phone unreachable";
+                  expr = "max(sms_bridge_adb_up{instance=\"satsuma\"}) == bool 0";
+                  forDur = "5m";
+                  summary = "The SMS bridge Pixel does not answer over USB adb (unplugged, off, or the adb key is not authorized).";
+                  labels.severity = "critical";
+                })
+                (mkRule {
+                  uid = "homelab-sms-bridge-process-down";
+                  title = "SMS bridge process down";
+                  expr = "sms_bridge_process_up{instance=\"satsuma\"} == bool 0";
+                  forDur = "5m";
+                  summary = "{{ $labels.process }} is not running on the SMS bridge Pixel. Check the phantom-process settings in docs/SMS Matrix Bridge.md.";
+                  labels.severity = "critical";
+                })
+                (mkRule {
+                  uid = "homelab-sms-phone-battery";
+                  title = "SMS bridge phone battery low";
+                  expr = "max(sms_bridge_battery_level_percent{instance=\"satsuma\"}) < bool 20";
+                  forDur = "15m";
+                  summary = "The SMS bridge Pixel battery is below 20%. The charger may have failed.";
+                  labels.severity = "warning";
+                })
+                (mkRule {
+                  uid = "homelab-sms-phone-hot";
+                  title = "SMS bridge phone battery hot";
+                  expr = "max(sms_bridge_battery_temperature_celsius{instance=\"satsuma\"}) > bool 45";
+                  forDur = "10m";
+                  summary = "The SMS bridge Pixel battery is above 45 °C.";
+                  labels.severity = "warning";
+                })
+                (mkRule {
+                  uid = "homelab-sms-monitor-stale";
+                  title = "SMS bridge monitor stale";
+                  # `or on() vector(1)`: a missing metric (collector never ran) also fires.
+                  expr = "(time() - max(sms_bridge_last_run_timestamp_seconds{instance=\"satsuma\"}) > bool 600) or on() vector(1)";
+                  forDur = "5m";
+                  summary = "The sms-bridge-monitor collector has not run in 10 minutes. Check journalctl -u sms-bridge-monitor.";
+                  labels.severity = "warning";
+                })
                 (mkRule {
                   uid = "homelab-restic-offsite-failed";
                   title = "Offsite backup failed";
