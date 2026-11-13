@@ -219,13 +219,13 @@ All of it is provisioned from the flake. Mail goes out through our own server
 
 | Channel | How | Reaches you when… |
 | ------- | --- | ----------------- |
-| Email → `rui@estrogenuinely.ca` + Proton | Grafana SMTP as `homelab-svc` via `mail.estrogenuinely.ca:587` → SES | anything except satsuma fully down |
+| Email → Rui (`rui@estrogenuinely.ca`, Hotmail) + Lena | Grafana SMTP as `homelab-svc` via `mail.estrogenuinely.ca:587` → SES | anything except satsuma fully down |
 | Matrix → `homelab-alerts` room | Grafana webhook → `matrix-alertmanager-receiver` → Synapse | anything except satsuma down (Synapse runs on satsuma) |
 | Email (VPS watcher) | the `bergamot` VPS pings satsuma; emails **directly through SES** (no Stalwart) | **satsuma itself is down** |
 
-Both email channels go to `rui@estrogenuinely.ca` and
-`rui.huang17@protonmail.com`. Grafana sends to both through its single email
-contact point; the watcher puts both in `To:`.
+Grafana's email contact point sends to `rui@estrogenuinely.ca`,
+`rui.huang17@hotmail.com` and `lena@estrogenuinely.ca`. The watcher puts only
+`rui@estrogenuinely.ca` and `rui.huang17@hotmail.com` in `To:`.
 
 The Matrix room is `#homelab-alerts` (`!k9Y9GnXSOfor4J0h6PqDJWBfSyCw889EYbcbbXyUAVs`),
 posted to by the bot `@homelab-alertbot:estrogenuinely.ca`. rhuang is invited.
@@ -239,7 +239,7 @@ posted to by the bot `@homelab-alertbot:estrogenuinely.ca`. rhuang is invited.
 - `services.grafana.provision.alerting` (there is **no** `.enable` option —
   defining `.contactPoints/.policies/.rules.settings` is what turns it on):
   - **Contact point `homelab`** with two integrations: `email`
-    (`rui@estrogenuinely.ca; rui.huang17@protonmail.com`) and `webhook` →
+    (`rui@estrogenuinely.ca; rui.huang17@hotmail.com; lena@estrogenuinely.ca`) and `webhook` →
     `http://127.0.0.1:9686/alerts/homelab` (the Matrix receiver).
   - **Policy**: root route → `homelab`, grouped by `alertname`+`instance`.
   - **Rules** (folder *Homelab*, group `homelab-core`, 1 m interval), built by the
@@ -290,7 +290,7 @@ Postfix all run on satsuma). A systemd timer on the **mail** VPS runs every 2
 minutes and `tailscale ping`s satsuma (`100.72.25.50`) — ping, not
 node_exporter, because satsuma's exporter is loopback-only and unreachable from
 the VPS. After `failThreshold = 3` consecutive misses it emails both
-`rui@estrogenuinely.ca` and `rui.huang17@protonmail.com`, and emails again on
+`rui@estrogenuinely.ca` and `rui.huang17@hotmail.com`, and emails again on
 recovery. State lives in `/var/lib/satsuma-watcher`. This is **email-only**:
 Matrix would be down too in this scenario.
 

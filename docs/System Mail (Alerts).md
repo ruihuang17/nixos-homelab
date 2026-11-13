@@ -18,21 +18,23 @@ rewrote every sender to a single `alerts@ruihuang.io`.
 | Sender addresses | `alerts@`, `nextcloud@`, `vaultwarden@` `estrogenuinely.ca` |
 | Default sender (no explicit From) | `alerts@estrogenuinely.ca` (via `myorigin`) |
 | Outbound path | satsuma Postfix → Stalwart (vps) → **AWS SES** → internet |
-| Alert recipients | `rui@estrogenuinely.ca` and `rui.huang17@protonmail.com` |
+| Alert recipients | Grafana: `rui@estrogenuinely.ca`, `rui.huang17@hotmail.com`, `lena@estrogenuinely.ca`. VPS watcher: Rui's two addresses only |
 | Alert paths | Grafana → Stalwart; VPS watcher → **SES directly** (see below) |
 | Secrets | `postfix_sasl.age`, `mail_pass.age`, `vaultwarden_token.age` (all = `homelab-svc` password); watcher uses `ses_smtp_user.age` / `ses_smtp_pass.age` |
 
 ## Alert destinations
 
-Both monitoring email paths deliver to the same two inboxes:
+Grafana delivers to three inboxes:
 
 - `rui@estrogenuinely.ca` (local Stalwart mailbox)
-- `rui.huang17@protonmail.com` (external; Stalwart relays it through SES)
+- `rui.huang17@hotmail.com` (external; Stalwart relays it through SES)
+- `lena@estrogenuinely.ca` (local Stalwart mailbox)
 
-Grafana's single `email` contact point lists both addresses
+Grafana's single `email` contact point lists these addresses
 (`monitoring.nix`), so every rule notification goes through Stalwart. The VPS
 `satsuma-watcher` is the exception: it sends **directly to SES**, not through
-Stalwart, and puts both addresses in `To:`. This is deliberate — Stalwart
+Stalwart, and puts only Rui's two addresses (`rui@estrogenuinely.ca`,
+`rui.huang17@hotmail.com`) in `To:`. This is deliberate — Stalwart
 authenticates against kanidm on satsuma, so when satsuma is down the Stalwart
 submission path is unavailable exactly when the watcher needs it.
 

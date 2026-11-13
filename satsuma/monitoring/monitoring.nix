@@ -302,7 +302,7 @@ in
                 {
                   uid = "homelab-email";
                   type = "email";
-                  settings.addresses = "rui@estrogenuinely.ca;rui.huang17@protonmail.com";
+                  settings.addresses = "rui@estrogenuinely.ca;rui.huang17@hotmail.com;lena@estrogenuinely.ca";
                 }
                 {
                   uid = "homelab-matrix";
