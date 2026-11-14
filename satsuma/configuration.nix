@@ -14,6 +14,7 @@
     ./core/postgres.nix
 
     ./apps/paperless.nix
+    ./apps/pancakeslicer.nix
     ./apps/vaultwarden.nix
     ./apps/nextcloud
 

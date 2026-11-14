@@ -115,6 +115,26 @@ in
         };
       };
 
+      "pancakeslicer.local.estrogenuinely.ca" = {
+        useACMEHost = "estrogenuinely.ca";
+        forceSSL = true;
+        extraConfig = ''
+          # Model uploads (server caps them at 512 MiB by default).
+          client_max_body_size 1g;
+          client_body_buffer_size 1024k;
+        '';
+        locations."/" = {
+          proxyPass = "http://127.0.0.1:6868";
+          proxyWebsockets = true;
+          extraConfig = ''
+            # Slicing progress streams over SSE; don't buffer it.
+            proxy_buffering off;
+            proxy_read_timeout 600s;
+            proxy_send_timeout 600s;
+          '';
+        };
+      };
+
       "paperless.local.estrogenuinely.ca" = {
         useACMEHost = "estrogenuinely.ca";
         forceSSL = true;
